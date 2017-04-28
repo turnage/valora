@@ -1,7 +1,10 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Img
-  ( Pixel(..)
-  , Raster
-  , RGBA(..)
+  ( Raster
+  , Layer
+  , newLayer
+  , RGBA
   ) where
 
 import Data.Array.Repa (Array, DIM2, DIM3, Z(..), (:.)(..))
@@ -12,19 +15,33 @@ type Raster = Array R.U DIM2 Dot
 
 type Dot = (Word8, Word8, Word8)
 
-class Pixel p where
-  apply :: p -> p -> p
-  raster :: p -> Dot
+type RGBA = (Double, Double, Double, Double)
 
-newtype RGBA =
-  RGBA (Double, Double, Double, Double)
-  deriving (Eq, Show)
+type Layer = Array R.D DIM2 RGBA
 
-instance Pixel RGBA where
-  apply (RGBA (br, bg, bb, ba)) (RGBA (tr, tg, tb, ta)) = RGBA (fc br tr, fc bg tg, fc bb tb, denom)
-    where
-      denom = ta + tb * (1 - ta)
-      fc b t = ta * t + ba * b * (1 - ta) / (ta + tb * (1 - ta))
-  raster (RGBA (r, g, b, _)) = (f r, f g, f b)
-    where
-      f = floor . (* 255)
+newLayer :: (Int, Int) -> Layer
+newLayer (w, h) = R.traverse (raw (w, h)) packDims packPixel
+  where
+    packDims (Z :. w :. h :. c) = (Z :. w :. h)
+    packPixel indx (Z :. x :. y) =
+      ( indx (Z :. x :. y :. 0)
+      , indx (Z :. x :. y :. 1)
+      , indx (Z :. x :. y :. 2)
+      , indx (Z :. x :. y :. 3))
+
+applyLayer :: Layer -> Layer -> Layer
+applyLayer bottom top = R.traverse bottom id applyPixelProxy
+  where
+    applyPixelProxy indx pos = applyPixel (indx pos) (top R.! pos)
+
+raw :: (Int, Int) -> Array R.U DIM3 Double
+raw (w, h) = R.fromListUnboxed (Z :. w :. h :. 4) (take (w * h * 4) (cycle [0]))
+
+applyPixel (br, bg, bb, ba) (tr, tg, tb, ta) = (fc br tr, fc bg tg, fc bb tb, denom)
+  where
+    denom = ta + tb * (1 - ta)
+    fc b t = ta * t + ba * b * (1 - ta) / (ta + tb * (1 - ta))
+
+rasterPixel (r, g, b, _) = (f r, f g, f b)
+  where
+    f = floor . (* 255)
