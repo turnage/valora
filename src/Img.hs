@@ -4,6 +4,9 @@ module Img
   ( Raster
   , Layer
   , newLayer
+, fillLayer
+  , applyLayer
+  , rasterLayer
   , RGBA
   ) where
 
@@ -29,10 +32,18 @@ newLayer (w, h) = R.traverse (raw (w, h)) packDims packPixel
       , indx (Z :. x :. y :. 2)
       , indx (Z :. x :. y :. 3))
 
+fillLayer :: RGBA -> Layer -> Layer
+fillLayer color layer = R.map (\_ -> applyPixel (0, 0, 0, 0) color) layer
+
 applyLayer :: Layer -> Layer -> Layer
 applyLayer bottom top = R.traverse bottom id applyPixelProxy
   where
     applyPixelProxy indx pos = applyPixel (indx pos) (top R.! pos)
+
+rasterLayer :: Layer -> Raster
+rasterLayer layer =
+  let [img] = R.computeP $ R.map rasterPixel layer
+  in img
 
 raw :: (Int, Int) -> Array R.U DIM3 Double
 raw (w, h) = R.fromListUnboxed (Z :. w :. h :. 4) (take (w * h * 4) (cycle [0]))
