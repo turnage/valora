@@ -16,8 +16,10 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Img
+                     , Shape
   build-depends:       base >= 4.7 && < 5
                      , repa
+                     , vector
   default-language:    Haskell2010
 
 executable valora-exe
