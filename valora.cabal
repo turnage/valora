@@ -2,12 +2,12 @@ name:                valora
 version:             0.1.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/githubuser/valora#readme
+homepage:            https://github.com/turnage/valora#readme
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
-copyright:           2017 Author name here
+author:              Payton Turnage
+maintainer:          paytonturnage@gmail.com
+copyright:           2017 Payton Turnage
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
