@@ -1,10 +1,9 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 module Img
   ( Raster
   , Layer
   , newLayer
-, fillLayer
+  , fillLayer
+  , fillRow
   , applyLayer
   , rasterLayer
   , RGBA
@@ -13,6 +12,8 @@ module Img
 import Data.Array.Repa (Array, DIM2, DIM3, Z(..), (:.)(..))
 import qualified Data.Array.Repa as R
 import Data.Word (Word8)
+
+import Shape
 
 type Raster = Array R.U DIM2 Dot
 
@@ -31,6 +32,14 @@ newLayer (w, h) = R.traverse (raw (w, h)) packDims packPixel
       , indx (Z :. x :. y :. 1)
       , indx (Z :. x :. y :. 2)
       , indx (Z :. x :. y :. 3))
+
+fillRow :: RGBA -> (Int, Int, Int) -> Layer -> Layer
+fillRow color (y, x1, x2) layer = R.traverse layer id colorIf
+  where
+    colorIf indx (Z :. sx :. sy) =
+      if sy == y && sx >= x1 && sx <= x2
+        then color
+        else indx (Z :. sx :. sy)
 
 fillLayer :: RGBA -> Layer -> Layer
 fillLayer color layer = R.map (\_ -> applyPixel (0, 0, 0, 0) color) layer
