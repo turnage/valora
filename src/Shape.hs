@@ -1,6 +1,7 @@
 module Shape
   ( Polygon(..)
   , Rect(..)
+  , Edge
   ) where
 
 import qualified Data.Vector as V
@@ -12,20 +13,34 @@ newtype Point =
 newtype Edge =
   Edge (Point, Point)
 
-data EdgeBucket = EdgeBucket
-  { edge :: Edge
-  , slope :: (Int -> Int)
+data ScanEdge = ScanEdge
+  { low :: Int
+  , high :: Int
+  , x :: Double
+  , deltaX :: Double
+  , deltaY :: Double
   }
 
-type Edges = V.Vector Edge
+scanEdge :: Edge -> ScanEdge
+scanEdge (Edge ((Point (x1, y1)), (Point (x2, y2)))) = ScanEdge
+  { low = min y1 y2
+  , high = max y1 y2
+  , x = fromIntegral $ if min y1 y2 == y1 then x1 else x2
+  , deltaX = fromIntegral $ x2 - x1
+  , deltaY = fromIntegral $ y2 - y1
+  }
+
+scanEdges :: Polygon p => p -> V.Vector ScanEdge
+scanEdges pol = V.map (scanEdge) (edges pol)
 
 class Polygon p where
   vertices :: p -> [Point]
-  edges :: p -> Edges
-  edges pol =
-    let vs = vertices pol
-        edges = [(Edge ((last vs), (head vs)))] ++ (vertexPairs vs)
-    in V.fromList edges
+
+edges :: Polygon p => p -> V.Vector Edge
+edges pol =
+  let vs = vertices pol
+      edges = [(Edge ((last vs), (head vs)))] ++ (vertexPairs vs)
+  in V.fromList edges
 
 vertexPairs :: [Point] -> [Edge]
 vertexPairs vs =
