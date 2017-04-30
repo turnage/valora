@@ -18,10 +18,13 @@ library
   exposed-modules:     Img
                      , Shape
                      , Draw
+                     , Rand
   build-depends:       base >= 4.7 && < 5
                      , repa
                      , vector
                      , vector-algorithms
+                     , random
+                     , monad-loops
   default-language:    Haskell2010
 
 executable valora-exe
