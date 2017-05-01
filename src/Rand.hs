@@ -7,7 +7,7 @@ module Rand
 import System.Random
 
 class Dist d where
-  rand :: Double -> d -> (Double, d)
+  randPair :: d -> ((Double, Double), d)
 
 data Gaussian = Gaussian
   { dev :: Double
@@ -19,13 +19,14 @@ gaussianBySeed seed variance = Gaussian {dev = sqrt variance, rng = mkStdGen see
 
 -- Polar Box-Muller transformation.
 instance Dist Gaussian where
-  rand mean (Gaussian {dev = dev, rng = rng}) = fitDist $ until saturates gen ((0, 0), rng)
+  randPair (Gaussian {dev = dev, rng = rng}) = fitDist $ until saturates gen ((0, 0), rng)
     where
-      fitDist ((u, v), rng) = (x, Gaussian {dev = dev, rng = rng})
+      fitDist ((u, v), rng) = ((x, y), Gaussian {dev = dev, rng = rng})
         where
           s = sOf (u, v)
           m = sqrt (-2 * (log s) / s)
-          x = mean + dev * m * u
+          x = dev * m * u
+          y = dev * m * v
       saturates (pair, _) = s /= 0 && s < 1
         where
           s = sOf pair
