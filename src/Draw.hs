@@ -56,18 +56,25 @@ drawStep (DrawContext { activeEdges = ae
                       , color = col
                       }) =
   DrawContext
-  { activeEdges = V.filter (inScanRange (sl + 1)) (V.concat [re, ae])
-  , remainingEdges = V.filter (not . inScanRange (sl + 1)) re
+  { activeEdges = activeEdges'
+  , remainingEdges = V.filter (not . inScanRange (sl')) re
   , scanLine = sl + 1
-  , canvas =
-      let (newCanvas, _) =
-            until
-              (\(_, ls) -> null ls)
-              (\(layer, (x1, x2):xs) -> (fillRow col (sl, x1, x2) layer, xs))
-              (cv, overlaps sl (intersects sl ae))
-      in newCanvas
+  , canvas = canvas'
   , color = col
   }
+  where
+    sl' = sl + 1
+    (canvas', _) =
+      until
+        (\(_, ls) -> null ls)
+        (\(layer, (x1, x2):xs) -> (fillRow col (sl, x1, x2) layer, xs))
+        (cv, overlaps sl (intersects sl ae))
+    activeEdges' =
+      V.modify
+        (V.sortBy
+           (\(ScanEdge {slope = slope1}) (ScanEdge {slope = slope2}) ->
+              compare (slope1 sl') (slope2 sl')))
+        (V.filter (inScanRange (sl')) (V.concat [re, ae]))
 
 inScanRange :: Int -> ScanEdge -> Bool
 inScanRange sl (ScanEdge {low = low, high = high}) = sl >= low && sl <= high
@@ -97,9 +104,9 @@ scanEdge (Edge ((Point (x1, y1)), (Point (x2, y2)))) =
     deltaX = fromIntegral $ x2 - x1
     deltaY = fromIntegral $ y2 - y1
     m =
-      if deltaX == 0
+      if deltaY == 0
         then 0
-        else (deltaY / deltaX) :: Double
+        else (deltaX / deltaY)
 
 scanEdges
   :: Polygon p
