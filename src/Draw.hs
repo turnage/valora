@@ -2,6 +2,7 @@ module Draw
   ( draw
   ) where
 
+import qualified Data.HashMap as H
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Merge as V
 
@@ -18,75 +19,73 @@ data DrawContext = DrawContext
   { activeEdges :: V.Vector ScanEdge
   , remainingEdges :: V.Vector ScanEdge
   , scanLine :: Int
-  , canvas :: Layer
+  , canvas :: H.Map (Int, Int) RGBA
   , color :: RGBA
   }
 
 draw
   :: Polygon p
-  => RGBA -> Layer -> p -> Layer
-draw color layer pol =
+  => RGBA -> p -> H.Map (Int, Int) RGBA
+draw color pol =
   let (DrawContext {canvas = result}) =
         until
           drawDone
           drawStep
           DrawContext
-          { activeEdges = V.filter (inScanRange sl) edges
-          , remainingEdges = V.filter (not . inScanRange sl) edges
-          , scanLine = sl
-          , canvas = layer
+          { activeEdges = V.filter (inScanRange scanLine) edges
+          , remainingEdges = V.filter (not . inScanRange scanLine) edges
+          , scanLine = scanLine
+          , canvas = H.empty
           , color = color
           }
   in result
   where
+    ScanEdge {low = scanLine} = V.head edges
     edges =
       V.modify
         (V.sortBy (\(ScanEdge {low = l1}) (ScanEdge {low = l2}) -> compare l1 l2))
         (scanEdges pol)
-    ScanEdge {low = sl} = V.head edges
 
 drawDone :: DrawContext -> Bool
 drawDone (DrawContext {activeEdges = ae}) = V.null ae
 
 drawStep :: DrawContext -> DrawContext
-drawStep (DrawContext { activeEdges = ae
-                      , remainingEdges = re
-                      , scanLine = sl
-                      , canvas = cv
-                      , color = col
+drawStep (DrawContext { activeEdges = activeEdges
+                      , remainingEdges = remainingEdges
+                      , scanLine = scanLine
+                      , canvas = canvas
+                      , color = color
                       }) =
   DrawContext
   { activeEdges = activeEdges'
-  , remainingEdges = V.filter (not . inScanRange (sl')) re
-  , scanLine = sl + 1
-  , canvas = canvas'
-  , color = col
+  , remainingEdges = V.filter (not . inScanRange (scanLine')) remainingEdges
+  , scanLine = scanLine'
+  , canvas = H.union canvas $ H.unions $ map H.unions $ map fillSegment segmentsToFill
+  , color = color
   }
   where
-    sl' = sl + 1
-    (canvas', _) =
-      until
-        (\(_, ls) -> null ls)
-        (\(layer, (x1, x2):xs) -> (fillRow col (sl, x1, x2) layer, xs))
-        (cv, overlaps sl (intersects sl ae))
+    scanLine' = scanLine + 1
+    segmentsToFill = overlaps $ intersects scanLine activeEdges
+    fillSegment (x1, x2) = map (fillPixel) [x1 .. x2]
+    fillPixel x = H.insert (x, scanLine) color H.empty
     activeEdges' =
       V.modify
         (V.sortBy
            (\(ScanEdge {slope = slope1}) (ScanEdge {slope = slope2}) ->
-              compare (slope1 sl') (slope2 sl')))
-        (V.filter (inScanRange (sl')) (V.concat [re, ae]))
+              compare (slope1 scanLine') (slope2 scanLine')))
+        (V.filter (inScanRange (scanLine')) (V.concat [remainingEdges, activeEdges]))
 
 inScanRange :: Int -> ScanEdge -> Bool
-inScanRange sl (ScanEdge {low = low, high = high}) = sl >= low && sl <= high
+inScanRange scanLine (ScanEdge {low = low, high = high}) = scanLine >= low && scanLine <= high
 
 intersects :: Int -> V.Vector ScanEdge -> V.Vector Int
-intersects sl es = V.map (\(ScanEdge {slope = slope}) -> slope sl) es
+intersects scanLine es = V.map (\(ScanEdge {slope = slope}) -> slope scanLine) es
 
-overlaps :: Int -> V.Vector Int -> [(Int, Int)]
-overlaps sl xs =
+overlaps :: V.Vector Int -> [(Int, Int)]
+overlaps xs =
   if length xs < 2
     then []
-    else [(V.head xs, V.head (V.tail xs))] ++ overlaps sl (V.tail xs)
+    else [(V.head xs, V.head (V.tail xs))] ++ overlaps (V.tail xs)
 
 scanEdge :: Edge -> ScanEdge
 scanEdge (Edge ((Point (x1, y1)), (Point (x2, y2)))) =

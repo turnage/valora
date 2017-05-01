@@ -1,6 +1,8 @@
 module Img
   ( Raster
   , Layer
+  , dims
+  , fromMap
   , newLayer
   , fillLayer
   , fillRow
@@ -11,6 +13,7 @@ module Img
 
 import Data.Array.Repa (Array, DIM2, DIM3, Z(..), (:.)(..))
 import qualified Data.Array.Repa as R
+import qualified Data.HashMap as H
 import Data.Word (Word8)
 
 import Shape
@@ -23,15 +26,25 @@ type RGBA = (Double, Double, Double, Double)
 
 type Layer = Array R.D DIM2 RGBA
 
-newLayer :: (Int, Int) -> Layer
-newLayer (w, h) = R.traverse (raw (w, h)) packDims packPixel
+dims :: Layer -> (Int, Int)
+dims layer =
+  let (Z :. h :. w) = R.extent layer
+  in (w, h)
+
+fromMap :: (Int, Int) -> H.Map (Int, Int) RGBA -> Layer
+fromMap (w, h) map = R.traverse (newLayer (w, h)) id maybeColor
   where
-    packDims (Z :. w :. h :. c) = (Z :. w :. h)
-    packPixel indx (Z :. x :. y) =
-      ( indx (Z :. x :. y :. 0)
-      , indx (Z :. x :. y :. 1)
-      , indx (Z :. x :. y :. 2)
-      , indx (Z :. x :. y :. 3))
+    maybeColor indx (Z :. y :. x) = H.findWithDefault (0, 0, 0, 0) (x, y) map
+
+newLayer :: (Int, Int) -> Layer
+newLayer (w, h) = R.traverse (raw (h, w)) packDims packPixel
+  where
+    packDims (Z :. h :. w :. c) = (Z :. h :. w)
+    packPixel indx (Z :. y :. x) =
+      ( indx (Z :. y :. x :. 0)
+      , indx (Z :. y :. x :. 1)
+      , indx (Z :. y :. x :. 2)
+      , indx (Z :. y :. x :. 3))
 
 fillRow :: RGBA -> (Int, Int, Int) -> Layer -> Layer
 fillRow color (a, b1, b2) layer = R.traverse layer id colorIf

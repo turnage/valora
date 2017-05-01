@@ -24,7 +24,7 @@ library
                      , vector
                      , vector-algorithms
                      , random
-                     , monad-loops
+                     , hashmap
   default-language:    Haskell2010
 
 executable valora-exe

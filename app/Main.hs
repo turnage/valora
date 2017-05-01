@@ -18,6 +18,5 @@ main =
              , Edge (Point (0, 200), Point (0, 0))
              ]
          , (gaussianBySeed 5 50))) !!
-        7
-  in writeImageToBMP "out.bmp" $
-     rasterLayer $ draw (1, 1, 0, 1) (fillLayer (0, 1, 0, 1) $ newLayer (500, 500)) poly
+        10
+  in writeImageToBMP "out.bmp" $ rasterLayer $ fromMap (500, 500) $ draw (1, 1, 0, 1) poly
