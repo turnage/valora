@@ -1,27 +1,27 @@
 module Rand
-  (
-    Dist(..),
-    Gaussian(..),
-    gaussianBySeed,
+  ( Dist(..)
+  , Gaussian(..)
+  , gaussianBySeed
   ) where
 
 import System.Random
 
 class Dist d where
-  rand :: Double -> Double -> d -> (Double, d)
+  rand :: Double -> d -> (Double, d)
 
 data Gaussian = Gaussian
-  { rng :: StdGen
+  { dev :: Double
+  , rng :: StdGen
   }
 
-gaussianBySeed :: Int -> Gaussian
-gaussianBySeed seed = Gaussian {rng = mkStdGen seed}
+gaussianBySeed :: Int -> Double -> Gaussian
+gaussianBySeed seed variance = Gaussian {dev = sqrt variance, rng = mkStdGen seed}
 
 -- Polar Box-Muller transformation.
 instance Dist Gaussian where
-  rand mean dev (Gaussian {rng = rng}) = fitDist $ until saturates gen ((0, 0), rng)
+  rand mean (Gaussian {dev = dev, rng = rng}) = fitDist $ until saturates gen ((0, 0), rng)
     where
-      fitDist ((u, v), rng) = (x, Gaussian {rng = rng})
+      fitDist ((u, v), rng) = (x, Gaussian {dev = dev, rng = rng})
         where
           s = sOf (u, v)
           m = sqrt (-2 * (log s) / s)
