@@ -111,4 +111,4 @@ scanEdge (Edge ((Point (x1, y1)), (Point (x2, y2)))) =
 scanEdges
   :: Polygon p
   => p -> V.Vector ScanEdge
-scanEdges pol = V.map (scanEdge) (edges pol)
+scanEdges pol = V.map (scanEdge) $ V.fromList $ edges pol

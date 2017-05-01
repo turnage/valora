@@ -34,12 +34,12 @@ newLayer (w, h) = R.traverse (raw (w, h)) packDims packPixel
       , indx (Z :. x :. y :. 3))
 
 fillRow :: RGBA -> (Int, Int, Int) -> Layer -> Layer
-fillRow color (y, x1, x2) layer = R.traverse layer id colorIf
+fillRow color (a, b1, b2) layer = R.traverse layer id colorIf
   where
-    colorIf indx (Z :. sx :. sy) =
-      if sy == y && sx >= x1 && sx <= x2
+    colorIf indx (Z :. sa :. sb) =
+      if sa == a && sb >= b1 && sb <= b2
         then color
-        else indx (Z :. sx :. sy)
+        else indx (Z :. sa :. sb)
 
 fillLayer :: RGBA -> Layer -> Layer
 fillLayer color layer = R.map (\_ -> applyPixel (0, 0, 0, 0) color) layer

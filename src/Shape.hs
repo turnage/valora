@@ -1,7 +1,7 @@
 module Shape
   ( Polygon(..)
   , Rect(..)
-  , PointPoly(..)
+  , Irregular(..)
   , Edge(..)
   , Point(..)
   ) where
@@ -20,24 +20,20 @@ newtype Edge =
   deriving (Eq, Show)
 
 class Polygon p where
+  edges :: p -> [Edge]
   vertices :: p -> [Point]
+  vertices pol = map (\(Edge (point, _)) -> point) $ edges pol
   warp
     :: Dist d
-    => d -> p -> (PointPoly, d)
-  warp dist pol = (PointPoly $ map (\(Edge (point, _)) -> point) $ warpedEdges, dist')
+    => d -> p -> (Irregular, d)
+  warp dist pol = (Irregular $ warpedEdges, dist')
     where
-      (_, dist', warpedEdges) =
-        until allEdgesWarped warpAnotherEdge ((V.toList $ edges pol), dist, [])
+      (_, dist', warpedEdges) = until allEdgesWarped warpAnotherEdge (edges pol, dist, [])
       allEdgesWarped (unwarpedEdges, _, _) = null unwarpedEdges
       warpAnotherEdge (unwarpedEdges, dist, warpedEdges) = (tail unwarpedEdges, dist', warpedEdges')
         where
           warpedEdges' = warpedEdges ++ [edge'1, edge'2]
           ((edge'1, edge'2), dist') = warpEdge dist (head unwarpedEdges)
-  edges :: p -> V.Vector Edge
-  edges pol = V.fromList edges
-    where
-      vs = vertices pol
-      edges = [(Edge ((last vs), (head vs)))] ++ (vertexPairs vs)
 
 midpoint :: Edge -> Point
 midpoint (Edge (Point (x1, y1), Point (x2, y2))) =
@@ -57,19 +53,27 @@ warpPoint dist (Point (x, y)) = (Point (x + floor xoffset, y + floor yoffset), a
   where
     ((xoffset, yoffset), alteredDist) = randPair dist
 
-data PointPoly =
-  PointPoly [Point]
+data Irregular =
+  Irregular [Edge]
 
-instance Polygon PointPoly where
-  vertices (PointPoly points) = points
+instance Polygon Irregular where
+  edges (Irregular edges) = edges
 
 -- Rect ((top left), (bottom right))
 data Rect =
   Rect (Point, Point)
 
 instance Polygon Rect where
-  vertices (Rect ((Point (x1, y1)), (Point (x2, y2)))) =
-    [(Point (x1, y1)), (Point (x2, y1)), (Point (x2, y2)), (Point (x1, y2))]
+  edges (Rect ((Point (x1, y1)), (Point (x2, y2)))) =
+    let topLeft = Point (x1, y1)
+        topRight = Point (x2, y1)
+        bottomLeft = Point (x1, y2)
+        bottomRight = Point (x2, y2)
+    in [ Edge (topLeft, topRight)
+       , Edge (topRight, bottomRight)
+       , Edge (bottomRight, bottomLeft)
+       , Edge (bottomLeft, topLeft)
+       ]
 
 vertexPairs :: [Point] -> [Edge]
 vertexPairs vs =
