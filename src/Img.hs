@@ -6,6 +6,7 @@ module Img
   , fillLayer
   , applyLayer
   , applyPixel
+  , addPixel
   , rasterLayer
   , RGBA
   ) where
@@ -60,6 +61,11 @@ applyPixel (br, bg, bb, ba) (fr, fg, fb, fa) = (blend br fr, blend bg fg, blend 
   where
     denom = fa + ba * (1 - fa)
     blend b f = f * fa + b * (1 - fa)
+
+addPixel (br, bg, bb, ba) (fr, fg, fb, fa) = (add br fr, add bg fg, add bb fb, a)
+  where
+    a = fa + ba * (1 - fa)
+    add b f = f + b
 
 rasterPixel (r, g, b, _) = (f r, f g, f b)
   where

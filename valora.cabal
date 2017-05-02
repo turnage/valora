@@ -20,6 +20,7 @@ library
                      , Draw
                      , Rand
                      , WaterColor
+                     , Warp
   build-depends:       base >= 4.7 && < 5
                      , repa
                      , vector
