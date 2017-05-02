@@ -55,10 +55,10 @@ rasterLayer layer =
 raw :: (Int, Int) -> Array R.U DIM3 Double
 raw (w, h) = R.fromListUnboxed (Z :. w :. h :. 4) (take (w * h * 4) (cycle [0]))
 
-applyPixel (br, bg, bb, ba) (tr, tg, tb, ta) = (fc br tr, fc bg tg, fc bb tb, denom)
+applyPixel (br, bg, bb, ba) (fr, fg, fb, fa) = (blend br fr, blend bg fg, blend bb fb, denom)
   where
-    denom = ta + tb * (1 - ta)
-    fc b t = ta * t + ba * b * (1 - ta) / (ta + tb * (1 - ta))
+    denom = fa + ba * (1 - fa)
+    blend b f = f * fa + b * (1 - fa)
 
 rasterPixel (r, g, b, _) = (f r, f g, f b)
   where
