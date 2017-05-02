@@ -74,9 +74,3 @@ instance Polygon Rect where
        , Edge (bottomRight, bottomLeft)
        , Edge (bottomLeft, topLeft)
        ]
-
-vertexPairs :: [Point] -> [Edge]
-vertexPairs vs =
-  if length vs < 2
-    then []
-    else [(Edge (head vs, head (tail vs)))] ++ vertexPairs (tail vs)

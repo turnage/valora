@@ -1,11 +1,9 @@
 module Img
   ( Raster
   , Layer
-  , dims
   , fromMap
   , newLayer
   , fillLayer
-  , fillRow
   , applyLayer
   , rasterLayer
   , RGBA
@@ -26,11 +24,6 @@ type RGBA = (Double, Double, Double, Double)
 
 type Layer = Array R.D DIM2 RGBA
 
-dims :: Layer -> (Int, Int)
-dims layer =
-  let (Z :. h :. w) = R.extent layer
-  in (w, h)
-
 fromMap :: (Int, Int) -> H.Map (Int, Int) RGBA -> Layer
 fromMap (w, h) map = R.traverse (newLayer (w, h)) id maybeColor
   where
@@ -45,14 +38,6 @@ newLayer (w, h) = R.traverse (raw (h, w)) packDims packPixel
       , indx (Z :. y :. x :. 1)
       , indx (Z :. y :. x :. 2)
       , indx (Z :. y :. x :. 3))
-
-fillRow :: RGBA -> (Int, Int, Int) -> Layer -> Layer
-fillRow color (a, b1, b2) layer = R.traverse layer id colorIf
-  where
-    colorIf indx (Z :. sa :. sb) =
-      if sa == a && sb >= b1 && sb <= b2
-        then color
-        else indx (Z :. sa :. sb)
 
 fillLayer :: RGBA -> Layer -> Layer
 fillLayer color layer = R.map (\_ -> applyPixel (0, 0, 0, 0) color) layer
