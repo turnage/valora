@@ -1,5 +1,3 @@
 # valora
 
-Isn't it beautiful?
-
-![sample](http://i.imgur.com/KKQB49D.png0)
+[progress pics](http://imgur.com/a/NuO8z)
