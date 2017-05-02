@@ -19,7 +19,7 @@ gaussianBySeed seed variance = Gaussian {dev = sqrt variance, rng = mkStdGen see
 
 -- Polar Box-Muller transformation.
 instance Dist Gaussian where
-  randPair (Gaussian {dev = dev, rng = rng}) = fitDist $ until saturates gen ((0, 0), rng)
+  randPair (Gaussian {dev = dev, rng = rng}) = fitDist $ until saturates (shift . gen) ((0, 0), rng)
     where
       fitDist ((u, v), rng) = ((x, y), Gaussian {dev = dev, rng = rng})
         where
@@ -32,13 +32,13 @@ instance Dist Gaussian where
           s = sOf pair
       sOf (u, v) = u ^ 2 + v ^ 2
       gen (_, rng) = uniformPair rng
-      adjust v = v * 2 - 1
+      shift ((u, v), rng) = ((u * 2 - 1, v * 2 - 1), rng)
 
 uniformPair :: StdGen -> ((Double, Double), StdGen)
-uniformPair rng = ((v1, v2), alteredRNG)
+uniformPair rng = ((v1, v2), rng'')
   where
-    (v1, halfAlteredRNG) = uniform rng
-    (v2, alteredRNG) = uniform halfAlteredRNG
+    (v1, rng') = uniform rng
+    (v2, rng'') = uniform rng'
 
 uniform :: StdGen -> (Double, StdGen)
 uniform rng = randomR (0, 1) rng
