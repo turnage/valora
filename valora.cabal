@@ -19,12 +19,14 @@ library
                      , Shape
                      , Draw
                      , Rand
+                     , WaterColor
   build-depends:       base >= 4.7 && < 5
                      , repa
                      , vector
                      , vector-algorithms
                      , random
                      , hashmap
+                     , lens
   default-language:    Haskell2010
 
 executable valora-exe
