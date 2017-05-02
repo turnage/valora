@@ -5,6 +5,7 @@ module Img
   , newLayer
   , fillLayer
   , applyLayer
+  , applyPixel
   , rasterLayer
   , RGBA
   ) where

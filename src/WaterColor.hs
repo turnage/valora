@@ -15,9 +15,12 @@ import Shape
 waterColor
   :: Polygon p
   => Int -> Double -> Int -> Int -> RGBA -> p -> H.Map (Int, Int) RGBA
-waterColor seed variance depth layers (r, g, b, a) pol = H.unions drawings
+waterColor seed variance depth layers (r, g, b, a) pol = H.unionsWith applyPixel drawings
   where
-    opacityFrac i = (1 - (fromIntegral i) / (fromIntegral layers)) * a
+    opacityFrac i =
+      if i == 1
+        then 1
+        else 0.04
     varianceFrac i = ((fromIntegral i) / (fromIntegral layers)) * variance
     distOf i = gaussianBySeed (seed * i) $ varianceFrac i
     drawings = map (\(i, pol) -> draw (r, g, b, opacityFrac i) pol) $ zip [0 ..] warpedPolies
