@@ -19,6 +19,7 @@ library
                      , Shape
                      , Draw
                      , Rand
+                     , Patterns
                      , WaterColor
                      , Warp
   build-depends:       base >= 4.7 && < 5
