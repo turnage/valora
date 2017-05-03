@@ -39,6 +39,7 @@ executable valora-exe
                      , valora
                      , repa
                      , repa-io
+                     , hashmap
   default-language:    Haskell2010
 
 test-suite valora-test

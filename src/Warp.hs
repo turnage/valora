@@ -2,6 +2,8 @@ module Warp
   ( Warper(..)
   , warpDupe
   , warpPoly
+  , deepWarpPoly
+  , sqTrim
   ) where
 
 import Control.Lens (traverse, both, toListOf)
@@ -9,6 +11,13 @@ import Data.Traversable (mapAccumR)
 
 import Rand
 import Shape
+
+sqTrim :: Int -> Rect -> Rect
+sqTrim trim (Rect {topLeft = Point {x = x1, y = y1}, bottomRight = Point {x = x2, y = y2}}) =
+  Rect
+  { topLeft = Point {x = x1 + trim, y = y1 + trim}
+  , bottomRight = Point {x = x2 - trim, y = y2 - trim}
+  }
 
 data Warper d = Warper
   { dist :: d
@@ -54,4 +63,5 @@ warpPoint (Warper {dist = dist, heat = heat}) (Point {x = x, y = y}) = (warper',
     ((xshift, yshift), dist') = randPair dist
 
 midpoint :: Point -> Point -> Point
-midpoint (Point {x = x1, y = y1}) (Point {x = x2, y = y2}) = Point {x = x1 + (x2 - x1) `div` 2, y = y1 + (y2 - y1) `div` 2}
+midpoint (Point {x = x1, y = y1}) (Point {x = x2, y = y2}) =
+  Point {x = x1 + (x2 - x1) `div` 2, y = y1 + (y2 - y1) `div` 2}
