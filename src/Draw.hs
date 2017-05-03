@@ -88,7 +88,7 @@ overlaps xs =
     else [(V.head xs, V.head (V.tail xs))] ++ overlaps (V.tail xs)
 
 scanEdge :: Edge -> ScanEdge
-scanEdge (Edge ((Point (x1, y1)), (Point (x2, y2)))) =
+scanEdge (Edge {start = Point { x = x1, y = y1}, end = Point { x = x2, y = y2}}) =
   ScanEdge
   { low = starty
   , high = max y1 y2

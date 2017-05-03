@@ -38,19 +38,20 @@ warpPoly warper poly = (warper', Irregular edges')
 warpEdge
   :: Dist d
   => Warper d -> Edge -> (Warper d, (Edge, Edge))
-warpEdge warper (Edge (p1, p2)) = (warper', (Edge (p1, pw), Edge (pw, p2)))
+warpEdge warper (Edge {start = start, end = end}) =
+  (warper', (Edge {start = start, end = warped}, Edge {start = warped, end = end}))
   where
-    (warper', pw) = warpPoint warper $ midpoint p1 p2
+    (warper', warped) = warpPoint warper $ midpoint start end
 
 warpPoint
   :: Dist d
   => Warper d -> Point -> (Warper d, Point)
-warpPoint (Warper {dist = dist, heat = heat}) (Point (x, y)) = (warper', point')
+warpPoint (Warper {dist = dist, heat = heat}) (Point {x = x, y = y}) = (warper', point')
   where
     warper' = Warper {dist = dist', heat = heat}
-    point' = Point (x + floor (xshift * strength), y + floor (yshift * strength))
-    strength = heat $ Point (x, y)
+    point' = Point {x = x + floor (xshift * strength), y = y + floor (yshift * strength)}
+    strength = heat $ Point {x = x, y = y}
     ((xshift, yshift), dist') = randPair dist
 
 midpoint :: Point -> Point -> Point
-midpoint (Point (x1, y1)) (Point (x2, y2)) = Point (x1 + (x2 - x1) `div` 2, y1 + (y2 - y1) `div` 2)
+midpoint (Point {x = x1, y = y1}) (Point {x = x2, y = y2}) = Point {x = x1 + (x2 - x1) `div` 2, y = y1 + (y2 - y1) `div` 2}
