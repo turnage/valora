@@ -26,8 +26,8 @@ data Warper d = Warper
 
 warpDupe
   :: (Dist d, Polygon p)
-  => Warper d -> Int -> Int -> p -> (Warper d, [Irregular])
-warpDupe warper depth layers poly = (warper', warpedPolies)
+  => Int -> Int -> Warper d -> p -> (Warper d, [Irregular])
+warpDupe depth layers warper poly = (warper', warpedPolies)
   where
     (warper', warpedPolies) = mapAccumR (deepWarpPoly depth) warper $ take layers $ repeat poly
 
