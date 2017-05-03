@@ -10,8 +10,7 @@ import Data.Traversable (mapAccumR)
 import Rand
 import Shape
 
-data Dist d =>
-     Warper d = Warper
+data Warper d = Warper
   { dist :: d
   , heat :: (Point -> Double)
   }
@@ -21,8 +20,7 @@ warpDupe
   => Warper d -> Int -> Int -> p -> (Warper d, [Irregular])
 warpDupe warper depth layers poly = (warper', warpedPolies)
   where
-    (warper', warpedPolies) =
-      mapAccumR (deepWarpPoly depth) warper $ take layers $ repeat poly
+    (warper', warpedPolies) = mapAccumR (deepWarpPoly depth) warper $ take layers $ repeat poly
 
 deepWarpPoly
   :: (Dist d, Polygon p)
