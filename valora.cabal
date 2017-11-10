@@ -15,13 +15,12 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Img
-                     , Shape
-                     , Draw
-                     , Rand
+  exposed-modules:     Rand
+                     , Color
+                     , Raster
+                     , Scan
+                     , Poly
                      , Patterns
-                     , WaterColor
-                     , Warp
   build-depends:       base >= 4.7 && < 5
                      , repa
                      , vector
@@ -29,6 +28,8 @@ library
                      , random
                      , hashmap
                      , lens
+                     , containers
+                     , mtl
   default-language:    Haskell2010
 
 executable valora-exe
@@ -39,7 +40,7 @@ executable valora-exe
                      , valora
                      , repa
                      , repa-io
-                     , hashmap
+                     , vector
   default-language:    Haskell2010
 
 test-suite valora-test

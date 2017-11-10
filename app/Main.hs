@@ -1,26 +1,20 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Main where
 
 import Data.Array.Repa.IO.BMP (writeImageToBMP)
-import qualified Data.HashMap as H
-import Data.List (transpose)
-import Data.Traversable (mapAccumR)
 
-import Draw
-import Img
+import Color
+import qualified Data.Vector as V
 import Patterns
-import Rand
-import Shape
-import Warp
-import WaterColor
+import Poly
+import Raster
+import Scan
 
 main :: IO ()
-main =
-  writeImageToBMP "out.bmp" $ rasterLayer $ applyLayer bg $ fromMap (frameSize, frameSize) redRects
+main = writeImageToBMP "new.bmp" $ raster outRender
   where
-    redRects =
-      H.unionsWith addPixel $
-      map (\rs -> waterColor (map (\r -> ((1, 0, 0, 1), r)) rs) addPixel) rects
-    (_, rects) = mapAccumR (warpDupe 7 20) warper $ map (sqTrim 20) $ tile frameSize 10
-    warper = Warper {dist = gaussianBySeed 90 10, heat = (\_ -> 1)}
-    bg = fillLayer (1, 1, 1, 1) $ newLayer (frameSize, frameSize)
-    frameSize = 500
+    outRender = render 500 (standardBlender) outScan
+    outScan = scan $ V.map (preprocessPoly tileColor) $ tile 4
+    tileColor = RGBA {red = 1, green = 0, blue = 0, alpha = 1}
+    square = Square {topLeft = Point {x = 0.1, y = 0.1}, size = 0.3}
