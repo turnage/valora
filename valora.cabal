@@ -38,6 +38,7 @@ library
                      , DeriveAnyClass
                      , GeneralizedNewtypeDeriving
                      , RecordWildCards
+                     , OverloadedLabels
 
 executable valora-exe
   hs-source-dirs:      app

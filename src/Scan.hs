@@ -1,12 +1,11 @@
 module Scan
-  ( render
-  , preprocessPoly
+  ( preprocessPoly
   , scan
   ) where
 
 import Color
 import Poly
-import qualified Raster as R
+import Raster (Rasterable(..), RasterSize(..))
 
 import Control.Monad.State
 import Data.List (maximumBy, minimumBy)
@@ -26,18 +25,11 @@ data ScanEdge = ScanEdge
 instance Show ScanEdge where
   show edge = show (highPoint edge, lowPoint edge)
 
-activeAt :: R.RasterSize -> Int -> ScanEdge -> Bool
-activeAt size scanLine (ScanEdge {highPoint, lowPoint, ..}) =
-  scanLine >= low && scanLine <= high
-  where
-    high = rasterHeight highPoint
-    low = rasterHeight lowPoint
-    rasterHeight = (R.toRasterCoord size) . y
+activeAt :: Double -> ScanEdge -> Bool
+activeAt scanLine ScanEdge {highPoint, lowPoint, ..} = scanLine >= y lowPoint && scanLine <= y highPoint
 
-passedBy :: R.RasterSize -> R.Pixel -> ScanEdge -> Bool
-passedBy size (R.Pixel {pixelX, ..}) (ScanEdge {slope, ..}) = egdeX < pixelX
-  where
-    egdeX = R.toRasterCoord size $ slope $ R.fromRasterCoord size pixelX
+passedBy :: Double -> ScanEdge -> Bool
+passedBy x (ScanEdge {slope, ..}) = slope x < x
 
 -- Maybe construct a scan Edge. We don't want edges with a flat slope because
 -- they are useless.
@@ -77,13 +69,13 @@ preprocessPoly fill poly =
 startLine :: Scangon -> Double
 startLine Scangon {edgeSet, ..} = V.minimum $ V.map (y . lowPoint) edgeSet
 
-updateScangonColumn :: R.RasterSize -> R.Pixel -> Scangon -> Scangon
-updateScangonColumn size pixel scangon =
-  scangon {passedEdges = indexSet (passedBy size pixel) $ edgeSet scangon}
+updateScangonX :: Point -> Scangon -> Scangon
+updateScangonX point scangon =
+  scangon {passedEdges = indexSet (passedBy $ x point) $ edgeSet scangon}
 
-updateScangonRow :: R.RasterSize -> Int -> Scangon -> Scangon
-updateScangonRow size row scangon =
-  scangon {activeEdges = indexSet (activeAt size row) $ edgeSet scangon}
+updateScangonY :: Double -> Scangon -> Scangon
+updateScangonY y scangon =
+  scangon {activeEdges = indexSet (activeAt y) $ edgeSet scangon}
 
 inScan :: Scangon -> Bool
 inScan scangon =
@@ -98,37 +90,41 @@ scangonColor scangon =
 
 data Scan = Scan
   { scangons :: V.Vector Scangon
-  } deriving (Show)
+  , blender :: Blender
+  }
 
-scan :: V.Vector Scangon -> Scan
-scan scangons = Scan {scangons}
+instance Show Scan where
+  show scan = show $ scangons scan
 
-updateScanColumn :: R.RasterSize -> R.Pixel -> Scan -> Scan
-updateScanColumn size pixel scan =
-  scan {scangons = V.map (updateScangonColumn size pixel) $ scangons scan}
+instance Rasterable Scan where
+  raster size scan = V.map (\y -> renderY size y scan) $ genCoordVector size
 
-updateScanRow :: R.RasterSize -> Int -> Scan -> Scan
-updateScanRow size row scan =
-  scan {scangons = V.map (updateScangonRow size row) $ scangons scan}
+scan :: Blender -> V.Vector Scangon -> Scan
+scan blender scangons = Scan {scangons, blender}
 
-scanColor :: Blender -> Scan -> RGBA
-scanColor blender scan =
-  V.foldl (blender) (emptyColor) $ V.map (scangonColor) $ scangons scan
+updateScanX :: Point -> Scan -> Scan
+updateScanX point scan =
+  scan {scangons = V.map (updateScangonX point) $ scangons scan}
+
+updateScanY :: Double -> Scan -> Scan
+updateScanY y scan =
+  scan {scangons = V.map (updateScangonY y) $ scangons scan}
+
+scanColor :: Scan -> RGBA
+scanColor Scan {scangons, blender} =
+  V.foldl (blender) (emptyColor) $ V.map (scangonColor) scangons
 
 scanDone :: Scan -> Bool
 scanDone scan = V.all (S.null . passedEdges) $ scangons scan
 
-renderRow :: R.RasterSize -> Blender -> Int -> Scan -> V.Vector RGBA
-renderRow size blender row scan = V.map (renderPixel) $ V.fromList [0 .. size]
+renderY :: RasterSize -> Double -> Scan -> V.Vector RGBA
+renderY size y scan = V.map (renderPixel) $ genCoordVector size
   where
-    renderPixel col =
-      scanColor blender $ updateScanColumn size (pixel col) scan'
-    pixel col = R.Pixel {pixelX = col, pixelY = row}
-    scan' = updateScanRow size row scan
+    fitCoords = (/ fromIntegral size) . fromIntegral
+    renderPixel x = scanColor $ updateScanX Point {x, y} scan'
+    scan' = updateScanY y scan
 
-render :: R.RasterSize -> Blender -> Scan -> R.Layer
-render size blender scan = R.mapColor (color) $ R.newLayer size
-  where
-    color (R.Pixel {pixelX, pixelY}) _ = (pixels V.! pixelY) V.! pixelX
-    pixels =
-      V.map (\row -> renderRow size blender row scan) $ V.fromList [0 .. size]
+-- Returns a set of coordinates in one dimension with mappings from the raster pixel space to our
+-- vector space which is 0-1, so 10 pixels yields the vector 0, 0.1, 0.2 ... 1
+genCoordVector :: RasterSize -> V.Vector Double
+genCoordVector size = V.map ((/ fromIntegral size) . fromIntegral) $ V.fromList [0..size]
