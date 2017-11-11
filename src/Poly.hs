@@ -38,6 +38,18 @@ connect p1 p2 = Edge {start = p1, end = p2}
 
 class Poly p where
   edges :: p -> V.Vector Edge
+  vertices :: p -> V.Vector Point
+  vertices poly = V.map (start) $ edges poly
+  centroid :: p -> Point
+  centroid poly = Point {x = (right + left) / 2, y = (top + bottom) / 2}
+    where
+      left = V.minimum xs
+      right = V.maximum xs
+      top = V.maximum ys
+      bottom = V.minimum ys
+      ys = V.map (y) vertices'
+      xs = V.map (x) vertices'
+      vertices' = vertices poly
 
 data Square = Square
   { topLeft :: Point
