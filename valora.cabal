@@ -31,6 +31,13 @@ library
                      , containers
                      , mtl
   default-language:    Haskell2010
+  extensions:          NamedFieldPuns
+                     , DuplicateRecordFields
+                     , OverloadedStrings
+                     , NamedFieldPuns
+                     , DeriveAnyClass
+                     , GeneralizedNewtypeDeriving
+                     , RecordWildCards
 
 executable valora-exe
   hs-source-dirs:      app
