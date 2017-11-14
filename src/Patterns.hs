@@ -7,7 +7,7 @@ import Poly
 
 tile :: Int -> V.Vector Square
 tile tiles =
-  V.map (\(x, y) -> Square {topLeft = Point {x, y}, size}) $
+  V.map (\(x, y) -> Square {bottomLeft = Point {x, y}, size}) $
   V.fromList $ concat corners
   where
     corners = map (\b -> zip borders (repeat b)) borders

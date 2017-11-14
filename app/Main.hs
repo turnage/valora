@@ -14,6 +14,7 @@ import Scan
 main :: IO ()
 main = writeImageToBMP "new.bmp" $ render $ raster 500 outScan
   where
-    outScan = scan (standardBlender) $ V.fromList [preprocessPoly tileColor square]
+    outScan =
+      scan (standardBlender) $ V.fromList [preprocessPoly tileColor square]
     tileColor = RGBA {red = 1, green = 0, blue = 0, alpha = 1}
-    square = Square {topLeft = Point {x = 0.1, y = 0.1}, size = 0.3}
+    square = Square {bottomLeft = Point {x = 0.1, y = 0.1}, size = 0.3}

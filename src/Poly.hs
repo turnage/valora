@@ -47,12 +47,12 @@ class Poly p where
       vertices' = vertices poly
 
 data Square = Square
-  { topLeft :: Point
+  { bottomLeft :: Point
   , size :: Double
   }
 
 instance Poly Square where
-  edges (Square {topLeft, size}) =
+  edges (Square {bottomLeft, size}) =
     V.fromList
       [ connect topLeft topRight
       , connect topLeft bottomLeft
@@ -61,7 +61,7 @@ instance Poly Square where
       ]
     where
       topRight = topLeft + width
-      bottomLeft = topLeft + height
-      bottomRight = topLeft + width + height
+      topLeft = bottomLeft + height
+      bottomRight = bottomLeft + width
       width = Point {x = size, y = 0}
       height = Point {x = 0, y = size}
