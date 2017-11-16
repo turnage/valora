@@ -26,7 +26,8 @@ instance Show ScanEdge where
   show edge = show (highPoint edge, lowPoint edge)
 
 activeAt :: Double -> ScanEdge -> Bool
-activeAt scanLine ScanEdge {highPoint, lowPoint, ..} = scanLine >= y lowPoint && scanLine <= y highPoint
+activeAt scanLine ScanEdge {highPoint, lowPoint, ..} =
+  scanLine >= y lowPoint && scanLine <= y highPoint
 
 passedBy :: Double -> ScanEdge -> Bool
 passedBy x (ScanEdge {slope, ..}) = slope x < x
@@ -58,9 +59,7 @@ data Scangon = Scangon
   , fill :: RGBA
   } deriving (Show)
 
-preprocessPoly
-  :: Poly p
-  => RGBA -> p -> Scangon
+preprocessPoly :: RGBA -> Poly -> Scangon
 preprocessPoly fill poly =
   Scangon {activeEdges = S.empty, passedEdges = S.empty, edgeSet, fill}
   where
@@ -107,8 +106,7 @@ updateScanX point scan =
   scan {scangons = V.map (updateScangonX point) $ scangons scan}
 
 updateScanY :: Double -> Scan -> Scan
-updateScanY y scan =
-  scan {scangons = V.map (updateScangonY y) $ scangons scan}
+updateScanY y scan = scan {scangons = V.map (updateScangonY y) $ scangons scan}
 
 scanColor :: Scan -> RGBA
 scanColor Scan {scangons, blender} =
@@ -127,4 +125,5 @@ renderY size y scan = V.map (renderPixel) $ genCoordVector size
 -- Returns a set of coordinates in one dimension with mappings from the raster pixel space to our
 -- vector space which is 0-1, so 10 pixels yields the vector 0, 0.1, 0.2 ... 1
 genCoordVector :: RasterSize -> V.Vector Double
-genCoordVector size = V.map ((/ fromIntegral size) . fromIntegral) $ V.fromList [0..size]
+genCoordVector size =
+  V.map ((/ fromIntegral size) . fromIntegral) $ V.fromList [0 .. size]

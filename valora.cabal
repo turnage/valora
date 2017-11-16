@@ -20,7 +20,12 @@ library
                      , Raster
                      , Scan
                      , Poly
+                     , Poly.Math
                      , Patterns
+                     , Transformers
+                     , Transformers.Warp
+                     , Transformers.Wiggle
+                     , Transformers.Subdivide
   build-depends:       base >= 4.7 && < 5
                      , repa
                      , vector
@@ -30,6 +35,7 @@ library
                      , lens
                      , containers
                      , mtl
+                     , split
   default-language:    Haskell2010
   extensions:          NamedFieldPuns
                      , DuplicateRecordFields
@@ -39,6 +45,8 @@ library
                      , GeneralizedNewtypeDeriving
                      , RecordWildCards
                      , OverloadedLabels
+                     , ExistentialQuantification
+                     , DeriveFunctor
 
 executable valora-exe
   hs-source-dirs:      app

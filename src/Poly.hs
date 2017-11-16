@@ -2,8 +2,9 @@ module Poly
   ( Poly(..)
   , Point(..)
   , Edge(..)
-  , Square(..)
   , connect
+  , square
+  , irregular
   ) where
 
 import qualified Data.Vector as V
@@ -31,37 +32,40 @@ data Edge = Edge
 connect :: Point -> Point -> Edge
 connect p1 p2 = Edge {start = p1, end = p2}
 
-class Poly p where
-  edges :: p -> V.Vector Edge
-  vertices :: p -> V.Vector Point
-  vertices poly = V.map (start) $ edges poly
-  centroid :: p -> Point
-  centroid poly = Point {x = (right + left) / 2, y = (top + bottom) / 2}
-    where
-      left = V.minimum xs
-      right = V.maximum xs
-      top = V.maximum ys
-      bottom = V.minimum ys
-      ys = V.map (y) vertices'
-      xs = V.map (x) vertices'
-      vertices' = vertices poly
-
-data Square = Square
-  { bottomLeft :: Point
-  , size :: Double
+data Poly = Poly
+  { edges :: V.Vector Edge
+  , centroid :: Point
   }
 
-instance Poly Square where
-  edges (Square {bottomLeft, size}) =
-    V.fromList
-      [ connect topLeft topRight
-      , connect topLeft bottomLeft
-      , connect topRight bottomRight
-      , connect bottomRight bottomLeft
-      ]
-    where
-      topRight = topLeft + width
-      topLeft = bottomLeft + height
-      bottomRight = bottomLeft + width
-      width = Point {x = size, y = 0}
-      height = Point {x = 0, y = size}
+vertices :: Poly -> V.Vector Point
+vertices = (V.map (start)) . edges
+
+centroidOf :: V.Vector Point -> Point
+centroidOf points = Point {x = (right + left) / 2, y = (top + bottom) / 2}
+  where
+    left = V.minimum xs
+    right = V.maximum xs
+    top = V.maximum ys
+    bottom = V.minimum ys
+    ys = V.map (y) points
+    xs = V.map (x) points
+
+square :: Point -> Double -> Poly
+square bottomLeft size =
+  Poly {edges = _edges, centroid = centroidOf $ V.map (start) _edges}
+  where
+    _edges =
+      V.fromList
+        [ connect topLeft topRight
+        , connect topLeft bottomLeft
+        , connect topRight bottomRight
+        , connect bottomRight bottomLeft
+        ]
+    topRight = topLeft + width
+    topLeft = bottomLeft + height
+    bottomRight = bottomLeft + width
+    width = Point {x = size, y = 0}
+    height = Point {x = 0, y = size}
+
+irregular :: V.Vector Edge -> Poly
+irregular edges = Poly {edges, centroid = centroidOf $ V.map (start) edges}
