@@ -1,10 +1,6 @@
 module Poly
   ( Poly(..)
   , Point(..)
-  , Edge(..)
-  , connect
-  , square
-  , irregular
   ) where
 
 import qualified Data.Vector as V
@@ -24,48 +20,8 @@ instance Num Point where
   signum (Point {x, y}) = Point {x = signum x, y = signum y}
   fromInteger i = Point {x = fromInteger i, y = fromInteger i}
 
-data Edge = Edge
-  { start :: Point
-  , end :: Point
-  } deriving (Eq, Show)
-
-connect :: Point -> Point -> Edge
-connect p1 p2 = Edge {start = p1, end = p2}
-
+-- Poly is made of an ordered list of vertices. Edges are implicit between
+-- adjacent vertices and wraparound indices.
 data Poly = Poly
-  { edges :: V.Vector Edge
-  , centroid :: Point
-  }
-
-vertices :: Poly -> V.Vector Point
-vertices = (V.map (start)) . edges
-
-centroidOf :: V.Vector Point -> Point
-centroidOf points = Point {x = (right + left) / 2, y = (top + bottom) / 2}
-  where
-    left = V.minimum xs
-    right = V.maximum xs
-    top = V.maximum ys
-    bottom = V.minimum ys
-    ys = V.map (y) points
-    xs = V.map (x) points
-
-square :: Point -> Double -> Poly
-square bottomLeft size =
-  Poly {edges = _edges, centroid = centroidOf $ V.map (start) _edges}
-  where
-    _edges =
-      V.fromList
-        [ connect topLeft topRight
-        , connect topLeft bottomLeft
-        , connect topRight bottomRight
-        , connect bottomRight bottomLeft
-        ]
-    topRight = topLeft + width
-    topLeft = bottomLeft + height
-    bottomRight = bottomLeft + width
-    width = Point {x = size, y = 0}
-    height = Point {x = 0, y = size}
-
-irregular :: V.Vector Edge -> Poly
-irregular edges = Poly {edges, centroid = centroidOf $ V.map (start) edges}
+  { vertices :: V.Vector Point
+  } deriving (Eq, Show)

@@ -3,7 +3,9 @@ module Patterns
   ) where
 
 import qualified Data.Vector as V
+
 import Poly
+import Poly.Shapes
 
 tile :: Int -> V.Vector Poly
 tile tiles =

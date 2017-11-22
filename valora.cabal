@@ -17,10 +17,14 @@ library
   hs-source-dirs:      src
   exposed-modules:     Rand
                      , Color
+                     , Color.Shaders
+                     , Constants
                      , Raster
-                     , Scan
+                     , Raster.Poly.Scan
                      , Poly
                      , Poly.Math
+                     , Poly.Properties
+                     , Poly.Shapes
                      , Patterns
                      , Transformers
                      , Transformers.Warp

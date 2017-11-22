@@ -2,10 +2,8 @@ module Rand
   ( Dist(..)
   , Gaussian(..)
   , Sample(..)
-  , SignedSample(..)
   , SampleFeed(..)
   , gaussianBySeed
-  , signSample
   , partitionSample
   ) where
 
@@ -14,17 +12,10 @@ import Data.Tuple (swap)
 import qualified Data.Vector as V
 import System.Random
 
--- Sample is a number between 0-1 sampled from a distribution.
+-- Sample is a number between -1 and 1 sampled from a
+-- distribution.
 newtype Sample =
   Sample Double
-
--- SignedSample is a number between -0.5 and 0.5 sampled from a
--- distribution.
-newtype SignedSample =
-  SignedSample Double
-
-signSample :: Sample -> SignedSample
-signSample (Sample s) = SignedSample $ s - 0.5
 
 -- SampleFeed is an infinite list of sample from a distribution.
 newtype SampleFeed =

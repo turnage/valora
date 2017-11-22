@@ -6,18 +6,22 @@ import qualified Data.Vector as V
 
 import Poly
 import Poly.Math
+import Poly.Properties
 import Rand
 import Transformers
 
-subdivideEdgesBy :: Transformer Point Point -> SampleFeed -> Poly -> Poly
-subdivideEdgesBy transformer feed poly = poly {edges = edges'}
+subdivideEdgesBy :: Transformer Point Point
+                 -> SampleFeed
+                 -> Poly
+                 -> (SampleFeed, Poly)
+subdivideEdgesBy transformer feed Poly {vertices} =
+  (feed', Poly {vertices = vertices'})
   where
-    edges' = V.map (\(a, b) -> Edge {start = a, end = b}) edgePairs'
-    edgePairs' = V.concat [startPairs', endPairs']
-    startPairs' = V.zip starts midpoints
-    endPairs' = V.zip ends midpoints'
-    (_, midpoints') = runTransforms transformer feed midpoints
-    midpoints = V.map (uncurry midpoint) $ V.map (points) $ edges poly
-    points Edge {start, end} = (start, end)
-    starts = V.map (start) $ edges poly
-    ends = V.map (end) $ edges poly
+    vertices' = V.backpermute ((V.++) vertices midpoints') placementIndices
+    placementIndices = V.generate (2 * (V.length vertices)) (place)
+    place i =
+      if odd i
+        then (i `div` 2) + V.length vertices
+        else i `div` 2
+    (feed', midpoints') = runTransforms transformer feed midpoints
+    midpoints = V.map (uncurry midpoint) $ vertexPairs Poly {vertices}

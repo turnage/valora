@@ -11,6 +11,8 @@ import Rand
 import Transformers.Subdivide
 import Transformers.Wiggle
 
-warp :: Double -> SampleFeed -> Poly -> V.Vector Poly
-warp strength feed poly =
-  V.fromList [subdivideEdgesBy (wiggle strength) feed poly]
+warp :: Int -> Double -> SampleFeed -> Poly -> V.Vector Poly
+warp depth strength feed poly = V.generate 1 $ const $ snd $ results !! depth
+  where
+    results = iterate warpRound (feed, poly)
+    warpRound = uncurry $ subdivideEdgesBy (wiggle strength)
