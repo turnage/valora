@@ -3,20 +3,16 @@ module Raster
   , Pixel(..)
   , render
   , rasterWith
-  , rasterWithUpdate
-  , toPixel
-  , fromRasterCoord
-  , toRasterCoord
-  , fromPixel
   , mapColor
   , emptyRaster
   ) where
 
-import Color (Dot, RGBA(..), collapseColor, emptyColor)
-import Constants (rasterSize)
 import Data.Array.Repa (Array, DIM2, DIM3, Z(..), (:.)(..))
 import qualified Data.Array.Repa as R
 import qualified Data.Vector as V
+
+import Color (Dot, RGBA(..), collapseColor, emptyColor)
+import Constants (rasterSize, pixelCoords)
 import Poly (Point(..))
 
 type Raster = V.Vector RGBA
@@ -40,33 +36,10 @@ render raster = collapse $ mapColor (color) $ newLayer
   where
     color (Pixel {x, y}) _ = raster V.! (x * rasterSize + y)
 
-rasterWithUpdate :: Raster -> V.Vector ((Int, Int), RGBA) -> Raster
-rasterWithUpdate raster updates = V.update raster updates'
-  where
-    updates' = V.map (\((x, y), color) -> (x * rasterSize + y, color)) updates
-
-rasterWith :: (Double -> Double -> RGBA) -> Raster
+rasterWith :: (Point -> RGBA) -> Raster
 rasterWith f = V.generate (rasterSize * rasterSize) f'
   where
-    f' i = f x y
-      where
-        x = fromRasterCoord pixelX
-        y = fromRasterCoord pixelY
-        pixelX = i `div` rasterSize
-        pixelY = i - (pixelX * rasterSize)
-
--- The vector dimensions are 0-1 within our square frame.
-toPixel :: Point -> Pixel
-toPixel Point {x, y} = Pixel {x = toRasterCoord x, y = toRasterCoord y}
-
-fromPixel :: Pixel -> Point
-fromPixel Pixel {x, y} = Point {x = fromRasterCoord x, y = fromRasterCoord y}
-
-toRasterCoord :: Double -> Int
-toRasterCoord coord = floor $ (fromIntegral rasterSize) * coord
-
-fromRasterCoord :: Int -> Double
-fromRasterCoord coord = (fromIntegral coord) / (fromIntegral rasterSize)
+    f' i = f $ pixelCoords V.! i
 
 collapse :: Layer -> Bitmap
 collapse layer =

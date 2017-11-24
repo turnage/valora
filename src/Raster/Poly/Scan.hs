@@ -1,6 +1,5 @@
 module Raster.Poly.Scan
-  ( debugRasterVertices
-  , scanRaster
+  ( scanRaster
   ) where
 
 import Data.List (maximumBy, minimumBy)
@@ -13,9 +12,7 @@ import Color.Shaders
 import Constants (rasterSize)
 import Poly
 import Poly.Properties
-import Raster
-       (Raster(..), fromRasterCoord, toRasterCoord, emptyRaster,
-        rasterWithUpdate, rasterWith)
+import Raster (Raster(..), emptyRaster, rasterWith)
 
 indexSet :: (a -> Bool) -> V.Vector a -> S.Set Int
 indexSet predicate vec =
@@ -63,21 +60,15 @@ fromEdge (Edge {start, end}) =
     delta = highPoint - lowPoint
     compareHeight p1 p2 = compare (y p1) (y p2)
 
-debugRasterVertices :: Poly -> Raster
-debugRasterVertices poly = rasterWithUpdate emptyRaster vertexPixels
-  where
-    vertexPixels = V.map (vertexPixel) $ vertices poly
-    vertexPixel Point {x, y} = ((toRasterCoord x, toRasterCoord y), debugColor)
-    debugColor = RGBA {red = 1, green = 0, blue = 1, alpha = 1}
-
 scanRaster :: Blender -> V.Vector (Shader, Poly) -> Raster
 scanRaster blender polies = rasterWith (pixelColor)
   where
-    pixelColor x y = V.foldl (blender) emptyColor $ colorStack x y
-    colorStack x y =
-      V.map ((\shade -> shade Point {x, y}) . fst) $ gonsInRender x y
-    gonsInRender x y = V.filter ((inScan x y) . snd) polies
-    inScan x y poly = odd $ S.size $ S.intersection passedEdges activeEdges
+    pixelColor point = V.foldl (blender) emptyColor $ colorStack point
+    colorStack point =
+      V.map ((\shade -> shade point) . fst) $ gonsInRender point
+    gonsInRender point = V.filter ((inScan point) . snd) polies
+    inScan Point {x, y} poly =
+      odd $ S.size $ S.intersection passedEdges activeEdges
       where
         passedEdges = indexSet (passedBy Point {x, y}) _edges
         activeEdges = indexSet (inScanLine y) _edges
