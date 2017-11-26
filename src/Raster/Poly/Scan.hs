@@ -75,10 +75,8 @@ scanRaster shader poly = mask {subrange = colors}
         alpha' = (alpha color) * opacity
         color = shader point
         opacity =
-          if inScan i point
-            then 1
-            else (fromIntegral $ V.length $ V.filter (id) samples) /
-                 (fromIntegral $ V.length samples)
+          (fromIntegral $ V.length $ V.filter (id) samples) /
+          (fromIntegral $ V.length samples)
           where
             inScan i point =
               odd $ V.length $ V.filter (passedBy point) activeEdges
@@ -94,8 +92,7 @@ scanRaster shader poly = mask {subrange = colors}
 
 superSample :: Point -> V.Vector Point
 superSample point =
-  V.concatMap ((radialSuperSample point) . (pixelSize /) . (2 ^)) $
-  V.fromList [1 .. 4]
+  V.concatMap ((radialSuperSample point) . (pixelSize /)) $ V.fromList [1 .. 4]
 
 radialSuperSample :: Point -> Double -> V.Vector Point
 radialSuperSample Point {x, y} offset =
