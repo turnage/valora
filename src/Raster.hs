@@ -12,8 +12,9 @@ import qualified Data.Array.Repa as R
 import qualified Data.Vector as V
 
 import Color (Dot, RGBA(..), collapseColor, emptyColor)
-import Constants (rasterSize, pixelCoords)
-import Poly (Point(..))
+import Color.Shaders (Shader(..))
+import Constants (rasterSize)
+import Coords (Point(..), Pixel(..), pixelCoords)
 
 type Raster = V.Vector RGBA
 
@@ -25,11 +26,6 @@ emptyRaster = V.generate (rasterSize * rasterSize) $ const emptyColor
 type Bitmap = Array R.U DIM2 Dot
 
 type Layer = Array R.D DIM2 RGBA
-
-data Pixel = Pixel
-  { x :: Int
-  , y :: Int
-  } deriving (Eq, Show)
 
 render :: Raster -> Bitmap
 render raster = collapse $ mapColor (color) $ newLayer

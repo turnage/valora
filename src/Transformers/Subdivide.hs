@@ -4,6 +4,7 @@ module Transformers.Subdivide
 
 import qualified Data.Vector as V
 
+import Coords (Point(..))
 import Poly
 import Poly.Math
 import Poly.Properties

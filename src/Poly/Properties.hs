@@ -4,12 +4,17 @@ module Poly.Properties
   , connect
   , extent
   , inExtent
+  , extentCoords
   , vertexPairs
   , edges
   ) where
 
 import qualified Data.Vector as V
 
+import Constants (rasterSize)
+import Coords
+       (Point(..), pixelCoords, Subrange(..), extractSubrange,
+        pointToPixel, toRasterCoord)
 import Poly
 
 data Edge = Edge
@@ -32,16 +37,18 @@ connect :: Point -> Point -> Edge
 connect p1 p2 = Edge {start = p1, end = p2}
 
 data Extent = Extent
-  { bottomRight :: Point
-  , size :: Double
+  { bottomLeft :: Point
+  , height :: Double
+  , width :: Double
   } deriving (Eq, Show)
 
 -- Extent returns a square that encloses all vertices of the poly.
 extent :: Poly -> Extent
-extent Poly {vertices} = Extent {bottomRight, size}
+extent Poly {vertices} = Extent {bottomLeft, height, width}
   where
-    bottomRight = Point {x = lowX, y = lowY}
-    size = maximum [highY - lowY, highX - lowX]
+    bottomLeft = Point {x = lowX, y = lowY}
+    height = highY - lowY
+    width = highX - lowX
     highY = y $ V.maximumBy (compareBy (y)) vertices
     lowY = y $ V.minimumBy (compareBy (y)) vertices
     highX = x $ V.maximumBy (compareBy (x)) vertices
@@ -49,8 +56,17 @@ extent Poly {vertices} = Extent {bottomRight, size}
     compareBy f v1 v2 = compare (f v1) (f v2)
 
 inExtent :: Extent -> Point -> Bool
-inExtent Extent {bottomRight = Point {x = lowX, y = lowY}, size} Point {x, y} =
-  x >= lowX && x < lowX + size && y >= lowY && y < lowY + size
+inExtent Extent {bottomLeft = Point {x = lowX, y = lowY}, width, height} Point { x
+                                                                               , y
+                                                                               } =
+  x >= lowX && x < lowX + width && y >= lowY && y < lowY + height
+
+extentCoords :: Extent -> Subrange Point
+extentCoords Extent {bottomLeft, height, width} = coords
+  where
+    coords = extractSubrange bottomLeft' width' height' (id)
+    bottomLeft' = pointToPixel bottomLeft
+    width':height':_ = map (toRasterCoord) [width, height]
 
 vertexPairs :: Poly -> V.Vector (Point, Point)
 vertexPairs Poly {vertices} = V.zip vertices rotatedVertices

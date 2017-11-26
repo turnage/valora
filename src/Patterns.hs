@@ -4,8 +4,9 @@ module Patterns
 
 import qualified Data.Vector as V
 
-import Poly
-import Poly.Shapes
+import Coords (Point(..))
+import Poly (Poly(..))
+import Poly.Shapes (square)
 
 tile :: Int -> V.Vector Poly
 tile tiles =

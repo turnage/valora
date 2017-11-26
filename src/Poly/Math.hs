@@ -2,7 +2,7 @@ module Poly.Math
   ( midpoint
   ) where
 
-import Poly
+import Coords (Point(..))
 
 midpoint :: Point -> Point -> Point
 midpoint (Point {x = x1, y = y1}) (Point {x = x2, y = y2}) =

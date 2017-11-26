@@ -10,9 +10,11 @@ import qualified Data.Vector as V
 import Color
 import Color.Shaders
 import Constants (rasterSize, pixelSize)
+import Coords (Point(..), Subrange(..))
 import Poly
-import Poly.Properties
+import Poly.Properties (Edge(..), extent, extentCoords, edges)
 import Raster (Raster(..), emptyRaster, rasterWith)
+import Raster.Mask (Mask(..))
 
 indexSet :: (a -> Bool) -> V.Vector a -> S.Set Int
 indexSet predicate vec =
@@ -60,25 +62,24 @@ fromEdge (Edge {start, end}) =
     delta = highPoint - lowPoint
     compareHeight p1 p2 = compare (y p1) (y p2)
 
-scanRaster :: Blender -> V.Vector (Shader, Poly) -> Raster
-scanRaster blender polies = rasterWith (pixelColor)
+scanRaster :: Shader -> Poly -> Mask
+scanRaster shader poly = mask {subrange = colors}
   where
-    pixelColor point = V.foldl (blender) emptyColor $ colorStack point
-    colorStack point = V.map (uncurry (shadePixel point)) polies
-    shadePixel point shader poly = color {alpha = alpha'}
+    colors = V.map (shadePixel) $ subrange mask
+    mask = extentCoords $ extent poly
+    shadePixel point = color {alpha = alpha'}
       where
         alpha' = (alpha color) * opacity
         color = shader point
         opacity =
           (fromIntegral $ V.length $ V.filter (id) samples) /
           (fromIntegral $ V.length samples)
-        samples = V.map (inScan poly) $ superSample point
-    inScan poly Point {x, y} =
-      odd $ S.size $ S.intersection passedEdges activeEdges
+        samples = V.map (inScan) $ superSample point
+    inScan Point {x, y} = odd $ S.size $ S.intersection passedEdges activeEdges
       where
-        passedEdges = indexSet (passedBy Point {x, y}) _edges
-        activeEdges = indexSet (inScanLine y) _edges
-        _edges = V.mapMaybe (fromEdge) $ edges poly
+        passedEdges = indexSet (passedBy Point {x, y}) scanEdges
+        activeEdges = indexSet (inScanLine y) scanEdges
+    scanEdges = V.mapMaybe (fromEdge) $ edges poly
 
 superSample :: Point -> V.Vector Point
 superSample point =

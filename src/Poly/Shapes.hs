@@ -5,7 +5,8 @@ module Poly.Shapes
 
 import qualified Data.Vector as V
 
-import Poly
+import Coords (Point(..))
+import Poly (Poly(..))
 
 square :: Point -> Double -> Poly
 square bottomLeft size = Poly {vertices}

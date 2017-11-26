@@ -3,8 +3,8 @@ module Color.Shaders
   , staticFill
   ) where
 
-import Color
-import Poly
+import Color (RGBA(..))
+import Coords (Point(..))
 
 type Shader = (Point -> RGBA)
 

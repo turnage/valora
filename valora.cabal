@@ -19,7 +19,9 @@ library
                      , Color
                      , Color.Shaders
                      , Constants
+                     , Coords
                      , Raster
+                     , Raster.Mask
                      , Raster.Poly.Scan
                      , Poly
                      , Poly.Math

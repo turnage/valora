@@ -2,7 +2,7 @@ module Transformers.Wiggle
   ( wiggle
   ) where
 
-import Poly
+import Coords (Point(..))
 import Rand
 import Transformers
 
