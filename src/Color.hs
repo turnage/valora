@@ -33,13 +33,18 @@ standardBlender (RGBA { red = bgred
                                , alpha = fgalpha
                                }) =
   RGBA
-  { red = bgred + fgred
-  , green = bggreen + fggreen
-  , blue = bgblue + fgblue
+  { red = blend fgred bgred
+  , green = blend fggreen bggreen
+  , blue = blend fgblue bgblue
   , alpha = fgalpha + bgalpha * (1 - fgalpha)
   }
+  where
+    blend f b = f * fgalpha + b * (1 - fgalpha)
+
+canvas = RGBA {red = 1, green = 1, blue = 1, alpha = 1}
 
 collapseColor :: RGBA -> Dot
-collapseColor RGBA {red, green, blue, ..} = (f red, f green, f blue)
+collapseColor fg = (f red, f green, f blue)
   where
+    RGBA {red, green, blue, ..} = standardBlender canvas fg
     f = floor . (* 255)

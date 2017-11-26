@@ -9,7 +9,7 @@ import qualified Data.Vector as V
 
 import Color
 import Color.Shaders
-import Constants (rasterSize)
+import Constants (rasterSize, pixelSize)
 import Poly
 import Poly.Properties
 import Raster (Raster(..), emptyRaster, rasterWith)
@@ -64,12 +64,36 @@ scanRaster :: Blender -> V.Vector (Shader, Poly) -> Raster
 scanRaster blender polies = rasterWith (pixelColor)
   where
     pixelColor point = V.foldl (blender) emptyColor $ colorStack point
-    colorStack point =
-      V.map ((\shade -> shade point) . fst) $ gonsInRender point
-    gonsInRender point = V.filter ((inScan point) . snd) polies
-    inScan Point {x, y} poly =
+    colorStack point = V.map (uncurry (shadePixel point)) polies
+    shadePixel point shader poly = color {alpha = alpha'}
+      where
+        alpha' = (alpha color) * opacity
+        color = shader point
+        opacity =
+          (fromIntegral $ V.length $ V.filter (id) samples) /
+          (fromIntegral $ V.length samples)
+        samples = V.map (inScan poly) $ superSample point
+    inScan poly Point {x, y} =
       odd $ S.size $ S.intersection passedEdges activeEdges
       where
         passedEdges = indexSet (passedBy Point {x, y}) _edges
         activeEdges = indexSet (inScanLine y) _edges
         _edges = V.mapMaybe (fromEdge) $ edges poly
+
+superSample :: Point -> V.Vector Point
+superSample point =
+  V.concatMap ((radialSuperSample point) . (pixelSize /) . (2 ^)) $
+  V.fromList [1 .. 4]
+
+radialSuperSample :: Point -> Double -> V.Vector Point
+radialSuperSample Point {x, y} offset =
+  V.fromList
+    [ Point {x = x + offset, y}
+    , Point {x, y = y + offset}
+    , Point {x = x - offset, y}
+    , Point {x, y = y - offset}
+    , Point {x = x + offset, y = y + offset}
+    , Point {x = x - offset, y = y + offset}
+    , Point {x = x + offset, y = y - offset}
+    , Point {x = x - offset, y = y - offset}
+    ]
