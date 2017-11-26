@@ -7,10 +7,12 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+import Data.Maybe
+
 import Color
 import Color.Shaders
 import Constants (rasterSize, pixelSize)
-import Coords (Point(..), Subrange(..))
+import Coords (Pixel(..), Point(..), Subrange(..), fromRasterCoord)
 import Poly
 import Poly.Properties (Edge(..), extent, extentCoords, edges)
 import Raster (Raster(..), emptyRaster, rasterWith)
@@ -27,14 +29,14 @@ data Slope
   deriving (Eq, Show)
 
 data ScanEdge = ScanEdge
-  { highPoint :: Double
-  , lowPoint :: Double
+  { high :: Double
+  , low :: Double
   , slope :: Slope
   } deriving (Show)
 
 inScanLine :: Double -> ScanEdge -> Bool
-inScanLine scanLine ScanEdge {highPoint, lowPoint, ..} =
-  scanLine >= lowPoint && scanLine < highPoint
+inScanLine scanLine ScanEdge {high, low, ..} =
+  scanLine >= low && scanLine < high
 
 passedBy :: Point -> ScanEdge -> Bool
 passedBy Point {x, y} (ScanEdge {slope, ..}) =
@@ -46,40 +48,49 @@ passedBy Point {x, y} (ScanEdge {slope, ..}) =
 -- they are useless.
 fromEdge :: Edge -> Maybe ScanEdge
 fromEdge (Edge {start, end}) =
-  if y delta == 0
+  if yDelta == 0
     then Nothing
-    else Just ScanEdge {lowPoint = y lowPoint, highPoint = y highPoint, slope}
+    else Just ScanEdge {low, high, slope}
   where
     slope =
-      if x delta == 0
-        then Vertical $ x lowPoint
+      if xDelta == 0
+        then Vertical $ lowX
         else Slope {m, b}
       where
-        b = (y lowPoint) - ((x lowPoint) * m)
-        m = (y delta) / (x delta)
-    highPoint = maximumBy (compareHeight) [start, end]
-    lowPoint = minimumBy (compareHeight) [start, end]
-    delta = highPoint - lowPoint
-    compareHeight p1 p2 = compare (y p1) (y p2)
+        b = low - (lowX * m)
+        m = yDelta / xDelta
+    Point {x = highX, y = high} = maximumBy (compareHeight) [start, end]
+    Point {x = lowX, y = low} = minimumBy (compareHeight) [start, end]
+    (xDelta, yDelta) = (highX - lowX, high - low)
+    compareHeight Point {y = y1, x = _} Point {y = y2, x = _} = compare y1 y2
 
 scanRaster :: Shader -> Poly -> Mask
 scanRaster shader poly = mask {subrange = colors}
   where
-    colors = V.map (shadePixel) $ subrange mask
-    mask = extentCoords $ extent poly
-    shadePixel point = color {alpha = alpha'}
+    colors = V.map (uncurry shadePixel) enumeratedCoords
+    enumeratedCoords = V.zip (V.generate (V.length coords) (id)) coords
+    coords = subrange mask
+    shadePixel i point = color {alpha = alpha'}
       where
         alpha' = (alpha color) * opacity
         color = shader point
         opacity =
-          (fromIntegral $ V.length $ V.filter (id) samples) /
-          (fromIntegral $ V.length samples)
-        samples = V.map (inScan) $ superSample point
-    inScan Point {x, y} = odd $ S.size $ S.intersection passedEdges activeEdges
-      where
-        passedEdges = indexSet (passedBy Point {x, y}) scanEdges
-        activeEdges = indexSet (inScanLine y) scanEdges
+          if inScan i point
+            then 1
+            else (fromIntegral $ V.length $ V.filter (id) samples) /
+                 (fromIntegral $ V.length samples)
+          where
+            inScan i point =
+              odd $ V.length $ V.filter (passedBy point) activeEdges
+            activeEdges =
+              fromMaybe V.empty $ rowTables V.!? (i `mod` (height mask))
+            samples = V.map (inScan i) $ superSample point
     scanEdges = V.mapMaybe (fromEdge) $ edges poly
+    mask = extentCoords $ extent poly
+    rowTables = V.map (active) ys
+    active y = V.filter (inScanLine y) scanEdges
+    ys = V.generate (height mask) (fromRasterCoord . (+ startY))
+    Pixel {y = startY, x = _} = bottomLeft mask
 
 superSample :: Point -> V.Vector Point
 superSample point =
