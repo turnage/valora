@@ -4,14 +4,14 @@ module Transformers.Subdivide
 
 import qualified Data.Vector as V
 
-import Coords (Point(..))
+import Coords (Point(..), distance)
 import Poly
 import Poly.Math
 import Poly.Properties
 import Rand
 import Transformers
 
-subdivideEdgesBy :: Transformer Point Point
+subdivideEdgesBy :: Transformer (Double, Point) Point
                  -> SampleFeed
                  -> Poly
                  -> (SampleFeed, Poly)
@@ -24,5 +24,8 @@ subdivideEdgesBy transformer feed Poly {vertices} =
       if odd i
         then (i `div` 2) + V.length vertices
         else i `div` 2
-    (feed', midpoints') = runTransforms transformer feed midpoints
-    midpoints = V.map (uncurry midpoint) $ vertexPairs Poly {vertices}
+    (feed', midpoints') =
+      runTransforms transformer feed $ V.zip distances midpoints
+    distances = V.map (uncurry distance) pairs
+    midpoints = V.map (uncurry midpoint) pairs
+    pairs = vertexPairs Poly {vertices}

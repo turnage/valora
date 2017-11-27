@@ -2,6 +2,7 @@ module Poly.Properties
   ( Edge(..)
   , centroid
   , connect
+  , Extent(..)
   , extent
   , inExtent
   , extentCoords

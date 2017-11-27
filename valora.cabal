@@ -30,8 +30,10 @@ library
                      , Patterns
                      , Transformers
                      , Transformers.Warp
+                     , Transformers.WaterColor
                      , Transformers.Wiggle
                      , Transformers.Subdivide
+                     , VectorUtil
   build-depends:       base >= 4.7 && < 5
                      , repa
                      , vector

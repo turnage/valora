@@ -15,14 +15,12 @@ import Rand
 import Raster (render)
 import Raster.Mask (rasterMasks)
 import Raster.Poly.Scan
-import Transformers.Warp
+import Transformers.WaterColor
 
 main :: IO ()
-main =
-  writeImageToBMP "new.bmp" $
-  render $ rasterMasks (standardBlender) $ V.fromList [tileMask]
+main = writeImageToBMP "new.bmp" $ render $ rasterMasks (standardBlender) masks
   where
-    tileMask = scanRaster tileShader sq
-    tileShader = staticFill RGBA {red = 1, green = 0, blue = 0, alpha = 1}
-    sq = V.head $ warp 4 0.1 rng $ square Point {x = 0.1, y = 0.1} 0.3
-    rng = randFeed $ gaussianBySeed 11 0.1
+    masks = V.map (uncurry scanRaster) waterColors
+    waterColors =
+      waterColor 10 30 5 0.5 (shader) $ square Point {x = 0.1, y = 0.1} 0.3
+    shader = staticFill RGBA {red = 1, green = 0, blue = 0, alpha = 1}

@@ -17,6 +17,7 @@ import Poly
 import Poly.Properties (Edge(..), extent, extentCoords, edges)
 import Raster (Raster(..), emptyRaster, rasterWith)
 import Raster.Mask (Mask(..))
+import VectorUtil (enumerate)
 
 indexSet :: (a -> Bool) -> V.Vector a -> S.Set Int
 indexSet predicate vec =
@@ -67,8 +68,7 @@ fromEdge (Edge {start, end}) =
 scanRaster :: Shader -> Poly -> Mask
 scanRaster shader poly = mask {subrange = colors}
   where
-    colors = V.map (uncurry shadePixel) enumeratedCoords
-    enumeratedCoords = V.zip (V.generate (V.length coords) (id)) coords
+    colors = V.map (uncurry shadePixel) $ enumerate coords
     coords = subrange mask
     shadePixel i point = color {alpha = alpha'}
       where
