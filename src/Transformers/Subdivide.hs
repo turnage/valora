@@ -8,7 +8,7 @@ import Coords (Point(..), distance)
 import Poly
 import Poly.Math
 import Poly.Properties
-import Rand
+import Rand (SampleFeed(..))
 import Transformers
 
 subdivideEdgesBy :: Transformer (Double, Point) Point
