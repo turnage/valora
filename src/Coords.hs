@@ -1,7 +1,6 @@
 module Coords
   ( Pixel(..)
   , Point(..)
-  , distance
   , pixelCoords
   , pixelToI
   , pointToI
@@ -43,11 +42,6 @@ instance Num Point where
   negate (Point {x, y}) = Point {x = negate x, y = negate y}
   signum (Point {x, y}) = Point {x = signum x, y = signum y}
   fromInteger i = Point {x = fromInteger i, y = fromInteger i}
-
-distance :: Point -> Point -> Double
-distance p1 p2 = sqrt $ x ^ 2 + y ^ 2
-  where
-    Point {x, y} = abs $ p1 - p2
 
 pointToI :: Point -> Int
 pointToI point = pixelToI $ pointToPixel point

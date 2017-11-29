@@ -1,22 +1,27 @@
 module Poly.Shapes
   ( irregular
-  , square
+  , ngon
   ) where
 
 import qualified Data.Vector as V
 
 import Coords (Point(..))
+import Coords.Math (circumPoint)
 import Poly (Poly(..))
 
-square :: Point -> Double -> Poly
-square bottomLeft size = Poly {vertices}
-  where
-    vertices = V.fromList [topLeft, topRight, bottomRight, bottomLeft]
-    topRight = topLeft + width
-    topLeft = bottomLeft + height
-    bottomRight = bottomLeft + width
-    width = Point {x = size, y = 0}
-    height = Point {x = 0, y = size}
+ngon :: Double -> Int -> Point -> Poly
+ngon radius n centroid =
+  Poly
+  { vertices =
+      V.generate
+        n
+        ((circumPoint centroid radius) .
+         (* ((2 * pi) / fromIntegral n)) . fromIntegral)
+  }
 
+-- I need to pick a line out from centroid and iterate the angle at which I draw a vertex
+-- a constant distance from the centroid.
+-- The angle for an equilateral ngon is is 360 / n
+-- I need a function to permute angle -> Point -> Double -> Point
 irregular :: V.Vector Point -> Poly
 irregular vertices = Poly {vertices}

@@ -6,7 +6,7 @@ module Constants
 import qualified Data.Vector as V
 
 rasterSize :: Int
-rasterSize = 1000
+rasterSize = 500
 
 pixelSize :: Double
 pixelSize = 1.0 / fromIntegral rasterSize
