@@ -25,5 +25,5 @@ main = writeImageToBMP "new.bmp" $ render preraster
     preraster = rasterMasks (standardBlender) rasters
     rasters = V.map (uncurry scanRaster) triangles
     triangles = V.map ((shader, ) . (ngon 0.1 3)) triangleSpawners
-    (triangleSpawners, _) = runRand (sparkles 100) $ mkStdGen 11
-    shader = staticFill $ hsva HSVA {hue = 256, saturation = 0.91, value = 1, alpha = 0.7}
+    (triangleSpawners, _) = runRand (sparkles 500) $ mkStdGen 11
+    shader = staticFill $ hsva HSVA {hue = 256, saturation = 0.91, value = 1, alpha = 0.3}
