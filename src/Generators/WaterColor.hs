@@ -7,7 +7,6 @@ import Control.Monad (liftM2)
 import Control.Monad.Random
 import qualified Data.Vector as V
 
-import Color (RGBA(..))
 import Color.Shaders (Shader(..), translucer)
 import Coords.Math (leastDistance)
 import Generators.Color (opacityRamp)

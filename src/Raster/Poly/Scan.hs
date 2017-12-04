@@ -9,7 +9,7 @@ import qualified Data.Vector as V
 
 import Data.Maybe
 
-import Color
+import Color (RGBA(..))
 import Color.Shaders
 import Constants (rasterSize, pixelSize)
 import Coords (Pixel(..), Point(..), Subrange(..), fromRasterCoord)

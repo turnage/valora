@@ -5,7 +5,6 @@ module Generators.Color
 import Control.Monad.Random
 import qualified Data.Vector as V
 
-import Color (RGBA(..))
 import Color.Shaders (Shader(..), translucer)
 import Generators.Ramp
 

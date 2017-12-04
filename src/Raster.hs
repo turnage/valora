@@ -10,8 +10,9 @@ module Raster
 import Data.Array.Repa (Array, DIM2, DIM3, Z(..), (:.)(..))
 import qualified Data.Array.Repa as R
 import qualified Data.Vector as V
+import Data.Word (Word8)
 
-import Color (Dot, RGBA(..), collapseColor, emptyColor)
+import Color (RGBA(..), collapseColor, emptyColor)
 import Color.Shaders (Shader(..))
 import Constants (rasterSize)
 import Coords (Point(..), Pixel(..), pixelCoords)
@@ -23,7 +24,7 @@ emptyRaster = V.generate (rasterSize * rasterSize) $ const emptyColor
 
 -- Bitmap is a two dimensional array (stored as unboxed vectors)
 -- of 24 bit rgb pixels.
-type Bitmap = Array R.U DIM2 Dot
+type Bitmap = Array R.U DIM2 (Word8, Word8, Word8)
 
 type Layer = Array R.D DIM2 RGBA
 
