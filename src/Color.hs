@@ -20,10 +20,10 @@ data HSVA = HSVA
   }
 
 data RGBA = RGBA
-  { red :: Double
-  , green :: Double
-  , blue :: Double
-  , alpha :: Double
+  { red :: !Double
+  , green :: !Double
+  , blue :: !Double
+  , alpha :: !Double
   }
 
 type Blender = (RGBA -> RGBA -> RGBA)
