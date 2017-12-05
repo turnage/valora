@@ -29,6 +29,7 @@ library
                      , Poly
                      , Poly.Properties
                      , Poly.Shapes
+                     , Poly.Translations
                      , Patterns.Tiles
                      , Patterns.Sparkles
                      , Transformers.Warp
