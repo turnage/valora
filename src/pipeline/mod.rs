@@ -31,15 +31,15 @@ pub struct Pipeline {
         (gfx::format::D24_S8, gfx::format::Unorm),
     >,
     events_loop: glutin::EventsLoop,
-    window: glutin::Window,
-    factory: gfx_device_gl::Factory,
+    window:      glutin::Window,
+    factory:     gfx_device_gl::Factory,
     target: gfx::handle::RenderTargetView<
         gfx_device_gl::Resources,
         (gfx::format::R8_G8_B8_A8, gfx::format::Srgb),
     >,
-    encoder: gfx::Encoder<gfx_device_gl::Resources, gfx_device_gl::CommandBuffer>,
-    pso: PipelineState<gfx_device_gl::Resources, pipe::Meta>,
-    device: gfx_device_gl::Device,
+    encoder:     gfx::Encoder<gfx_device_gl::Resources, gfx_device_gl::CommandBuffer>,
+    pso:         PipelineState<gfx_device_gl::Resources, pipe::Meta>,
+    device:      gfx_device_gl::Device,
 }
 
 impl Pipeline {
@@ -48,6 +48,7 @@ impl Pipeline {
         let builder = glutin::WindowBuilder::new()
             .with_title("Valora".to_string())
             .with_dimensions(size, size)
+            .with_multisampling(16)
             .with_vsync();
         let (window, device, mut factory, target, depth) =
             gfx_glutin::init::<ColorFormat, DepthFormat>(builder, &events_loop);
@@ -85,7 +86,7 @@ impl Pipeline {
             );
             let data = pipe::Data {
                 vbuf: vertex_buffer,
-                out: self.target.clone(),
+                out:  self.target.clone(),
             };
             self.encoder.draw(&slice, &self.pso, &data);
         }
