@@ -3,20 +3,9 @@ use pipeline::Pipeline;
 use errors::Result;
 use std::result::Result as StdResult;
 use glutin;
-use geom::poly::Poly;
+use shaders::Shader;
+use element::Element;
 use std::{thread, time};
-
-pub enum Element {
-    Poly(Poly),
-}
-
-impl Tessellate for Element {
-    fn tessellate(self) -> Result<Tessellation> {
-        match self {
-            Element::Poly(poly) => poly.tessellate(),
-        }
-    }
-}
 
 pub struct SketchCfg {
     pub size: u32,
@@ -27,7 +16,7 @@ pub struct SketchContext {
 }
 
 pub trait Sketch: Sized {
-    fn draw(&self, ctx: &SketchContext) -> StdResult<Vec<Element>, String>;
+    fn draw(&self, ctx: &SketchContext) -> StdResult<Vec<(Shader, Element)>, String>;
     fn step(
         self,
         _ctx: &SketchContext,
@@ -46,7 +35,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, mut sketch: S) -> Result<()> {
         pipeline.draw(sketch
             .draw(&context)?
             .into_iter()
-            .map(|t| t.tessellate())
+            .map(|(shader, element)| element.tessellate(shader))
             .collect::<Result<Vec<Tessellation>>>()?)?;
         sketch = sketch.step(&context, events)?;
         cycle = pipeline.events();

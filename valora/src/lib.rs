@@ -11,6 +11,7 @@ pub extern crate palette;
 pub mod geom;
 pub mod sketch;
 pub mod shaders;
+pub mod element;
 mod raster;
 mod pipeline;
 mod errors;
