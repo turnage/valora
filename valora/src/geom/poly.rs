@@ -18,9 +18,7 @@ impl Tessellate for Poly {
         let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
         {
             let mut buffers_builder = simple_builder(&mut vertex_buffers);
-            let polyline = self.vertices
-                .iter()
-                .map(|v| math::TypedPoint2D::new(v.x, v.y));
+            let polyline = self.vertices.into_iter().map(Into::into);
             basic_shapes::fill_polyline(
                 polyline,
                 &mut FillTessellator::new(),
@@ -34,7 +32,7 @@ impl Tessellate for Poly {
                 .into_iter()
                 .map(|v| {
                     Vertex {
-                        pos: [fix_coord(v.position.x), fix_coord(v.position.y)],
+                        pos: [v.position.x, v.position.y],
                         color: WHITE,
                     }
                 })
