@@ -6,9 +6,11 @@ extern crate gfx_device_gl;
 extern crate gfx_window_glutin;
 extern crate glutin;
 extern crate lyon;
+pub extern crate palette;
 
 pub mod geom;
 pub mod sketch;
+pub mod shaders;
 mod raster;
 mod pipeline;
 mod errors;
