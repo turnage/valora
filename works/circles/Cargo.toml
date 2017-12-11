@@ -1,8 +1,0 @@
-[package]
-name = "circles"
-version = "0.1.0"
-authors = ["Payton Turnage <paytonturnage@gmail.com>"]
-
-[dependencies]
-valora = { path = "../../valora" }
-rand = "0.3"
