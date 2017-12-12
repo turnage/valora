@@ -1,4 +1,5 @@
 pub mod poly;
+pub mod ellipse;
 
 use lyon::math::TypedPoint2D;
 use lyon::tessellation::FillVertex;
