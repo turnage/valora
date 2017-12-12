@@ -2,6 +2,7 @@ pub mod poly;
 
 use lyon::math::TypedPoint2D;
 use lyon::tessellation::FillVertex;
+use rand::{Rand, Rng};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Point {
@@ -20,6 +21,10 @@ impl Point {
     fn fix_coord(coord: f32) -> f32 { (coord * Point::WORLD_FACTOR) - Point::WORLD_OFFSET }
 
     fn restore_coord(coord: f32) -> f32 { (coord - Point::WORLD_OFFSET) / Point::WORLD_FACTOR }
+}
+
+impl Rand for Point {
+    fn rand<R: Rng>(rng: &mut R) -> Point { Point { x: rng.next_f32(), y: rng.next_f32() } }
 }
 
 impl<U> Into<TypedPoint2D<f32, U>> for Point {

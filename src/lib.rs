@@ -4,6 +4,7 @@ extern crate error_chain;
 extern crate glium;
 extern crate lyon;
 extern crate image;
+extern crate rand;
 pub extern crate palette;
 
 pub mod geom;
