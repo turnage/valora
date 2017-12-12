@@ -6,6 +6,7 @@ use pipeline::GpuVertex;
 use raster::{Tessellate, Tessellation};
 use shaders::Shader;
 
+#[derive(Debug, Clone)]
 pub struct Ellipse {
     center: Point,
     width: f32,
@@ -25,7 +26,7 @@ impl Ellipse {
 }
 
 impl Tessellate for Ellipse {
-    fn tessellate(self, shader: Shader) -> Result<Tessellation> {
+    fn tessellate(self, shader: &Shader) -> Result<Tessellation> {
         use lyon::tessellation::*;
         use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
         use lyon::path_iterator::math::Vec2;

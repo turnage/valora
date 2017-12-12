@@ -1,9 +1,27 @@
 pub mod poly;
 pub mod ellipse;
 
+use errors::Result;
 use lyon::math::TypedPoint2D;
 use lyon::tessellation::FillVertex;
 use rand::{Rand, Rng};
+use raster::{Tessellate, Tessellation};
+use shaders::Shader;
+
+#[derive(Debug, Clone)]
+pub enum Geometry {
+    Poly(poly::Poly),
+    Ellipse(ellipse::Ellipse),
+}
+
+impl Tessellate for Geometry {
+    fn tessellate(self, shader: &Shader) -> Result<Tessellation> {
+        match self {
+            Geometry::Poly(poly) => poly.tessellate(shader),
+            Geometry::Ellipse(ellipse) => ellipse.tessellate(shader),
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct Point {

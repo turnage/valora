@@ -1,19 +1,25 @@
 use errors::Result;
-use geom::ellipse::Ellipse;
-use geom::poly::Poly;
+use geom::Geometry;
 use raster::{Tessellate, Tessellation};
 use shaders::Shader;
 
 pub enum Element {
-    Poly(Poly),
-    Ellipse(Ellipse),
+    Geometry((Shader, Vec<Geometry>)),
 }
 
-impl Tessellate for Element {
-    fn tessellate(self, shader: Shader) -> Result<Tessellation> {
+impl Element {
+    pub fn prerender(self) -> Result<Vec<Tessellation>> {
         match self {
-            Element::Poly(poly) => poly.tessellate(shader),
-            Element::Ellipse(ellipse) => ellipse.tessellate(shader),
+            Element::Geometry((shader, geometries)) => {
+                geometries
+                    .into_iter()
+                    .map(|g| g.tessellate(&shader))
+                    .collect()
+            }
         }
     }
+}
+
+impl Into<Element> for (Shader, Vec<Geometry>) {
+    fn into(self) -> Element { Element::Geometry(self) }
 }

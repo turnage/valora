@@ -4,9 +4,10 @@ extern crate valora;
 
 use rand::Rng;
 use std::error::Error;
-use valora::element::*;
+use valora::errors::*;
 use valora::geom::*;
 use valora::palette::*;
+use valora::render::*;
 use valora::shaders::*;
 use valora::sketch::*;
 
@@ -15,7 +16,7 @@ pub struct Circles {
 }
 
 impl Sketch for Circles {
-    fn draw(&self, _ctx: &SketchContext) -> Result<Vec<(Shader, Element)>, String> {
+    fn draw(&self, _ctx: &SketchContext) -> Result<Render> {
         let mut rng = rand::OsRng::new()
             .map_err(|e| format!("{}", e.description()))?;
         let shaders = (0..(self.count))
@@ -30,13 +31,13 @@ impl Sketch for Circles {
                                })
             })
             .collect::<Vec<Shader>>();
-        Ok((0..(self.count))
-               .into_iter()
-               .map(|_| rand::random::<Point>())
-               .map(|p| ellipse::Ellipse::circle(p, rng.gen_range(0.1, 0.3), 0.0))
-               .zip(shaders.into_iter())
-               .map(|(c, s)| (s, Element::Ellipse(c)))
-               .collect())
+        (0..(self.count))
+            .into_iter()
+            .map(|_| rand::random::<Point>())
+            .map(|p| ellipse::Ellipse::circle(p, rng.gen_range(0.1, 0.3), 0.0))
+            .zip(shaders.into_iter())
+            .map(|(c, s)| (s, vec![Geometry::Ellipse(c)]))
+            .fold(Ok(Render::new()), |r, g| r.and_then(|r| r.add(g)))
     }
 }
 

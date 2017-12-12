@@ -1,11 +1,9 @@
-use element::Element;
 use errors::Result;
 use glium;
 use pipeline::Pipeline;
-use raster::{Tessellate, Tessellation};
-use shaders::Shader;
+use raster::Tessellation;
+use render::{Render, Renderable};
 use std::{thread, time};
-use std::result::Result as StdResult;
 
 pub struct SketchCfg {
     pub size: u32,
@@ -18,11 +16,8 @@ pub struct SketchContext {
 }
 
 pub trait Sketch: Sized {
-    fn draw(&self, ctx: &SketchContext) -> StdResult<Vec<(Shader, Element)>, String>;
-    fn step(self,
-            _ctx: &SketchContext,
-            _events: Vec<glium::glutin::WindowEvent>)
-            -> StdResult<Self, String> {
+    fn draw(&self, ctx: &SketchContext) -> Result<Render>;
+    fn step(self, _ctx: &SketchContext, _events: Vec<glium::glutin::WindowEvent>) -> Result<Self> {
         Ok(self)
     }
 }
@@ -36,9 +31,14 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, mut sketch: S) -> Result<()> {
         pipeline
             .draw(sketch
                       .draw(&context)?
+                      .build()
                       .into_iter()
-                      .map(|(shader, element)| element.tessellate(shader))
-                      .collect::<Result<Vec<Tessellation>>>()?,
+                      .filter_map(|r| match r {
+                                      Renderable::Tessellations(t) => Some(t),
+                                      _ => None,
+                                  })
+                      .flat_map(|ts| ts)
+                      .collect::<Vec<Tessellation>>(),
                   context.frame)?;
         sketch = sketch.step(&context, events)?;
         cycle = pipeline.events();
