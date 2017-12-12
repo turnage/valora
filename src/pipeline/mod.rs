@@ -1,148 +1,120 @@
 use errors::Result;
-use gfx;
-use gfx::Device;
-use gfx::pso::PipelineState;
-use gfx::traits::FactoryExt;
-use gfx_device_gl;
-use gfx_window_glutin as gfx_glutin;
-use glutin;
+use glium::{self, Surface};
+use image;
 use raster::Tessellation;
 
-pub type ColorFormat = gfx::format::Srgba8;
-pub type DepthFormat = gfx::format::DepthStencil;
-
-const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
-
-gfx_defines! {
-    vertex Vertex {
-        pos: [f32; 2] = "a_Pos",
-        color: [f32; 3] = "a_Color",
-    }
-
-    pipeline pipe {
-        vbuf: gfx::VertexBuffer<Vertex> = (),
-        out: gfx::RenderTarget<ColorFormat> = "Target0",
-    }
+#[derive(Copy, Clone)]
+pub struct GpuVertex {
+    pub position: [f32; 2],
+    pub color: [f32; 3],
 }
 
+implement_vertex!(GpuVertex, position, color);
+
 pub struct Pipeline {
-    depth: gfx::handle::DepthStencilView<
-        gfx_device_gl::Resources,
-        (gfx::format::D24_S8, gfx::format::Unorm),
-    >,
-    events_loop: glutin::EventsLoop,
-    window:      glutin::Window,
-    factory:     gfx_device_gl::Factory,
-    target: gfx::handle::RenderTargetView<
-        gfx_device_gl::Resources,
-        (gfx::format::R8_G8_B8_A8, gfx::format::Srgb),
-    >,
-    encoder:     gfx::Encoder<gfx_device_gl::Resources, gfx_device_gl::CommandBuffer>,
-    pso:         PipelineState<gfx_device_gl::Resources, pipe::Meta>,
-    device:      gfx_device_gl::Device,
+    events_loop: glium::glutin::EventsLoop,
+    display: glium::Display,
+    shader_program: glium::program::Program,
+    root_frame_filename: Option<String>,
 }
 
 impl Pipeline {
-    pub fn new(size: u32) -> Result<Pipeline> {
-        let events_loop = glutin::EventsLoop::new();
-        let builder = glutin::WindowBuilder::new()
+    pub fn new(size: u32, root_frame_filename: Option<String>) -> Result<Pipeline> {
+        let events_loop = glium::glutin::EventsLoop::new();
+        let window = glium::glutin::WindowBuilder::new()
             .with_title("Valora".to_string())
-            .with_dimensions(size, size)
+            .with_dimensions(size, size);
+        let context = glium::glutin::ContextBuilder::new()
             .with_multisampling(16)
-            .with_vsync();
-        let (window, device, mut factory, target, depth) =
-            gfx_glutin::init::<ColorFormat, DepthFormat>(builder, &events_loop);
-
-        let encoder = factory.create_command_buffer().into();
-        let pso = factory.create_pipeline_simple(
-            include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/shaders/default.glslv"
-            )),
-            include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/shaders/default.glslf"
-            )),
-            pipe::new(),
+            .with_vsync(true);
+        let display = glium::Display::new(window, context, &events_loop)?;
+        let shader_program = program!(&display,
+            150 => {
+                vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                               "/shaders/default.glslv")),
+                fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                                 "/shaders/default.glslf")),
+            }
         )?;
-        Ok(Pipeline {
-            depth,
-            events_loop,
-            window,
-            target,
-            factory,
-            encoder,
-            pso,
-            device,
-        })
+        Ok(Pipeline { events_loop, shader_program, display, root_frame_filename })
     }
 
-    pub fn draw(&mut self, tessellations: Vec<Tessellation>) -> Result<()> {
-        self.encoder.clear(&self.target, BLACK);
-        for tessellation in tessellations {
-            let (vertex_buffer, slice) = self.factory.create_vertex_buffer_with_slice(
-                tessellation.vertices.as_slice(),
-                tessellation.indices.as_slice(),
-            );
-            let data = pipe::Data {
-                vbuf: vertex_buffer,
-                out:  self.target.clone(),
-            };
-            self.encoder.draw(&slice, &self.pso, &data);
+    pub fn draw(&mut self, tessellations: Vec<Tessellation>, frame: usize) -> Result<()> {
+        use std;
+
+        let bundle = tessellations
+            .into_iter()
+            .fold(Tessellation::default(), |mut bundle, mut tess| {
+                let vertices_len = bundle.vertices.len() as u16;
+                bundle
+                    .indices
+                    .extend(tess.indices.into_iter().map(|i| i + vertices_len));
+                bundle.vertices.append(&mut tess.vertices);
+                bundle
+            });
+
+        let index_buffer = glium::IndexBuffer::new(&self.display,
+                                                   glium::index::PrimitiveType::TrianglesList,
+                                                   bundle.indices.as_slice())?;
+        let vertex_buffer = glium::VertexBuffer::new(&self.display, bundle.vertices.as_slice())?;
+
+        let mut target = self.display.draw();
+        target.clear_color(0.0, 0.0, 0.0, 0.0);
+        target
+            .draw(&vertex_buffer,
+                  &index_buffer,
+                  &self.shader_program,
+                  &glium::uniforms::EmptyUniforms,
+                  &Default::default())?;
+        target.finish()?;
+
+        if let Some(ref root_frame_filename) = self.root_frame_filename {
+            let image: glium::texture::RawImage2d<u8> = self.display.read_front_buffer();
+            let image =
+                image::ImageBuffer::from_raw(image.width, image.height, image.data.into_owned())
+                    .unwrap();
+            let image = image::DynamicImage::ImageRgba8(image).flipv();
+            let path = format!("{}-{:08}.png", root_frame_filename, frame);
+            let mut output = std::fs::File::create(path).unwrap();
+            image.save(&mut output, image::ImageFormat::PNG).unwrap();
         }
-        self.encoder.flush(&mut self.device);
-        self.window.swap_buffers()?;
-        self.device.cleanup();
+
         Ok(())
     }
 
-    pub fn events(self) -> Result<Option<(Self, Vec<glutin::WindowEvent>)>> {
+    pub fn events(self) -> Result<Option<(Self, Vec<glium::glutin::WindowEvent>)>> {
         let mut terminate = false;
         let mut events = Vec::new();
-        let Pipeline {
-            mut depth,
-            events_loop,
-            window,
-            mut target,
-            factory,
-            encoder,
-            pso,
-            device,
-        } = self;
-        events_loop.poll_events(
-            |glutin::Event::WindowEvent {
-                 window_id: _,
-                 event,
-             }| {
-                use glutin::WindowEvent::*;
-                match event {
-                    KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape), _) | Closed => {
-                        terminate = true
-                    }
-                    Resized(_, _) => {
-                        gfx_glutin::update_views(&window, &mut target, &mut depth);
-                    }
-                    _ => {
-                        events.push(event);
+        let Pipeline { root_frame_filename, mut events_loop, shader_program, display } = self;
+        events_loop.poll_events(|event| {
+            use glium::glutin::WindowEvent::*;
+            match event {
+                glium::glutin::Event::WindowEvent { window_id: _, event } => {
+                    match event {
+                        KeyboardInput {
+                            input: glium::glutin::KeyboardInput {
+                                virtual_keycode: Some(glium::glutin::VirtualKeyCode::Escape), ..
+                            },
+                            ..
+                        } |
+                        Closed => terminate = true,
+                        /*Resized(..) => {
+                            gfx_glutin::update_views(&window, &mut target, &mut depth);
+                        }*/
+                        _ => {
+                            events.push(event);
+                        }
                     }
                 }
-            },
-        );
+                _ => (),
+            }
+        });
         match terminate {
             true => Ok(None),
-            false => Ok(Some((
-                Pipeline {
-                    depth,
-                    events_loop,
-                    window,
-                    target,
-                    factory,
-                    encoder,
-                    pso,
-                    device,
-                },
-                events,
-            ))),
+            false => {
+                Ok(Some((Pipeline { root_frame_filename, events_loop, shader_program, display },
+                         events)))
+            }
         }
     }
 }

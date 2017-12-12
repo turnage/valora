@@ -1,10 +1,10 @@
 use errors::Result;
-use pipeline::Vertex;
+use pipeline::GpuVertex;
 use shaders::Shader;
 
 #[derive(Default)]
 pub struct Tessellation {
-    pub vertices: Vec<Vertex>,
+    pub vertices: Vec<GpuVertex>,
     pub indices: Vec<u16>,
 }
 

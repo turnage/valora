@@ -1,22 +1,19 @@
-use gfx;
-use glutin::ContextError;
+use glium;
 use lyon;
-use std::fmt::{Debug, Display};
 
 error_chain!{
     foreign_links {
-        GlutinContext(ContextError);
+        GlutinContext(glium::glutin::ContextError);
+        SwapBuffer(glium::SwapBuffersError);
+        ProgramChooser(glium::program::ProgramChooserCreationError);
+        Draw(glium::DrawError);
+        Creation(glium::glutin::CreationError);
+        IndexCreation(glium::index::BufferCreationError);
+        VertexCreation(glium::vertex::BufferCreationError);
+        DisplayCreation(glium::backend::glutin::DisplayCreationError);
     }
 }
 
 impl From<lyon::tessellation::FillError> for Error {
-    fn from(_: lyon::tessellation::FillError) -> Error {
-        "Fill error".into()
-    }
-}
-
-impl<T: Display + Debug> From<gfx::PipelineStateError<T>> for Error {
-    fn from(pe: gfx::PipelineStateError<T>) -> Error {
-        format!("{}", pe).into()
-    }
+    fn from(_: lyon::tessellation::FillError) -> Error { "Fill error".into() }
 }

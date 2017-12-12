@@ -17,13 +17,9 @@ impl Point {
     // and offset vertices one world unit so the origin is in the bottom
     // left, and y and x point up and right respectively. If you think
     // it should be done differently, you are wrong.
-    fn fix_coord(coord: f32) -> f32 {
-        (coord * Point::WORLD_FACTOR) - Point::WORLD_OFFSET
-    }
+    fn fix_coord(coord: f32) -> f32 { (coord * Point::WORLD_FACTOR) - Point::WORLD_OFFSET }
 
-    fn restore_coord(coord: f32) -> f32 {
-        (coord - Point::WORLD_OFFSET) / Point::WORLD_FACTOR
-    }
+    fn restore_coord(coord: f32) -> f32 { (coord - Point::WORLD_OFFSET) / Point::WORLD_FACTOR }
 }
 
 impl<U> Into<TypedPoint2D<f32, U>> for Point {
@@ -34,16 +30,10 @@ impl<U> Into<TypedPoint2D<f32, U>> for Point {
 
 impl<U> From<TypedPoint2D<f32, U>> for Point {
     fn from(point: TypedPoint2D<f32, U>) -> Point {
-        Point {
-            x: Point::restore_coord(point.x),
-            y: Point::restore_coord(point.y),
-        }
+        Point { x: Point::restore_coord(point.x), y: Point::restore_coord(point.y) }
     }
 }
 
-
 impl From<FillVertex> for Point {
-    fn from(point: FillVertex) -> Point {
-        point.position.into()
-    }
+    fn from(point: FillVertex) -> Point { point.position.into() }
 }

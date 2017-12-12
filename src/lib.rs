@@ -1,11 +1,9 @@
 #[macro_use]
 extern crate error_chain;
 #[macro_use]
-extern crate gfx;
-extern crate gfx_device_gl;
-extern crate gfx_window_glutin;
-extern crate glutin;
+extern crate glium;
 extern crate lyon;
+extern crate image;
 pub extern crate palette;
 
 pub mod geom;
@@ -19,9 +17,9 @@ mod errors;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use geom::shapes::square;
     use pipeline::*;
     use raster::{Tessellate, Tessellation};
-    use geom::shapes::square;
 
     fn test_tessellations() -> Vec<Tessellation> {
         /*let sq = geom::poly::Poly {
