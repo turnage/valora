@@ -50,7 +50,11 @@ impl Tessellate for Poly {
                             }
                         })
                    .collect(),
-               indices: vertex_buffers.indices,
+               indices: vertex_buffers
+                   .indices
+                   .into_iter()
+                   .map(Into::into)
+                   .collect(),
            })
     }
 }

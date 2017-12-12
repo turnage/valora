@@ -21,11 +21,14 @@ impl Sketch for Circles {
         let shaders = (0..(self.count))
             .into_iter()
             .map(|_| {
-                     Shader::constant(Colora::hsv(RgbHue::from(220.0 + rng.gen_range(-20.0, 20.0)),
-                                                  1.0,
-                                                  1.0,
-                                                  1.0))
-                 })
+                Shader::linear(|point| {
+                                   Colora::hsv(RgbHue::from(220.0 +
+                                                            Point::center().distance(point) * 50.0),
+                                               1.0,
+                                               1.0,
+                                               1.0)
+                               })
+            })
             .collect::<Vec<Shader>>();
         Ok((0..(self.count))
                .into_iter()

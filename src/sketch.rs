@@ -43,7 +43,8 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, mut sketch: S) -> Result<()> {
         sketch = sketch.step(&context, events)?;
         cycle = pipeline.events();
         context.frame += 1;
-        thread::sleep(time::Duration::from_secs(1));
+
+        thread::sleep(time::Duration::from_millis(500));
     }
     cycle.map(|_| ())
 }

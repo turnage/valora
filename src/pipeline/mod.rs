@@ -45,10 +45,12 @@ impl Pipeline {
         let bundle = tessellations
             .into_iter()
             .fold(Tessellation::default(), |mut bundle, mut tess| {
-                let vertices_len = bundle.vertices.len() as u16;
+                let vertices_len = bundle.vertices.len() as u32;
                 bundle
                     .indices
-                    .extend(tess.indices.into_iter().map(|i| i + vertices_len));
+                    .extend(tess.indices
+                                .into_iter()
+                                .map(|i| i as u32 + vertices_len));
                 bundle.vertices.append(&mut tess.vertices);
                 bundle
             });
