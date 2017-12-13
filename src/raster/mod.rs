@@ -9,5 +9,5 @@ pub struct Tessellation {
 }
 
 pub trait Tessellate {
-    fn tessellate(self, &Shader) -> Result<Tessellation>;
+    fn tessellate(&self, &Shader) -> Result<Tessellation>;
 }

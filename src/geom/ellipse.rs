@@ -8,10 +8,11 @@ use shaders::Shader;
 
 #[derive(Debug, Clone)]
 pub struct Ellipse {
-    center: Point,
-    width: f32,
-    height: f32,
-    rotation: Radians<f32>,
+    pub center: Point,
+    pub width: f32,
+    pub height: f32,
+    pub rotation: Radians<f32>,
+    pub tolerance: Option<f32>,
 }
 
 impl Ellipse {
@@ -21,12 +22,13 @@ impl Ellipse {
             width: radius,
             height: radius,
             rotation: Radians::new(rotation.to_radians()),
+            tolerance: None,
         }
     }
 }
 
 impl Tessellate for Ellipse {
-    fn tessellate(self, shader: &Shader) -> Result<Tessellation> {
+    fn tessellate(&self, shader: &Shader) -> Result<Tessellation> {
         use lyon::tessellation::*;
         use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
         use lyon::path_iterator::math::Vec2;
@@ -35,7 +37,7 @@ impl Tessellate for Ellipse {
         basic_shapes::fill_ellipse(self.center.into(),
                                    Vec2::new(self.width, self.height),
                                    self.rotation,
-                                   0.001,
+                                   self.tolerance.unwrap_or(0.001),
                                    &mut simple_builder(&mut vertex_buffers));
         Ok(Tessellation {
                vertices: vertex_buffers

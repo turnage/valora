@@ -14,11 +14,19 @@ pub enum Geometry {
     Ellipse(ellipse::Ellipse),
 }
 
+impl From<poly::Poly> for Geometry {
+    fn from(poly: poly::Poly) -> Geometry { Geometry::Poly(poly) }
+}
+
+impl From<ellipse::Ellipse> for Geometry {
+    fn from(ellipse: ellipse::Ellipse) -> Geometry { Geometry::Ellipse(ellipse) }
+}
+
 impl Tessellate for Geometry {
-    fn tessellate(self, shader: &Shader) -> Result<Tessellation> {
-        match self {
-            Geometry::Poly(poly) => poly.tessellate(shader),
-            Geometry::Ellipse(ellipse) => ellipse.tessellate(shader),
+    fn tessellate(&self, shader: &Shader) -> Result<Tessellation> {
+        match *self {
+            Geometry::Poly(ref poly) => poly.tessellate(shader),
+            Geometry::Ellipse(ref ellipse) => ellipse.tessellate(shader),
         }
     }
 }
@@ -37,9 +45,17 @@ impl Point {
 
     pub fn abs(self) -> Point { Point { x: self.x.abs(), y: self.y.abs() } }
 
-    pub fn distance(self, point: Point) -> f32 {
+    pub fn scale(self, factor: f32) -> Point { Point { x: self.x * factor, y: self.y * factor } }
+
+    pub fn distance(self, point: Point) -> f32 { self.raw_distance(point).sqrt() }
+
+    pub fn raw_distance(self, point: Point) -> f32 {
         let delta = self.difference(point).abs();
-        (delta.x.powi(2) + delta.y.powi(2)).sqrt()
+        delta.x.powi(2) + delta.y.powi(2)
+    }
+
+    pub fn manhattan(self, point: Point) -> f32 {
+        (self.x - point.x).abs() + (self.y - point.y).abs()
     }
 
     pub fn difference(self, point: Point) -> Point {

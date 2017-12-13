@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate error_chain;
 #[macro_use]
-extern crate glium;
+pub extern crate glium;
 extern crate lyon;
 extern crate image;
 extern crate rand;
@@ -14,7 +14,7 @@ pub mod patterns;
 pub mod render;
 mod properties;
 mod element;
-mod texture;
 mod raster;
 mod pipeline;
+pub mod textures;
 pub mod errors;

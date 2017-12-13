@@ -3,14 +3,14 @@ use geom::Geometry;
 use raster::{Tessellate, Tessellation};
 use shaders::Shader;
 
-pub enum Element {
-    Geometry((Shader, Vec<Geometry>)),
+pub enum Element<'a> {
+    Geometry(&'a (Shader, Vec<Geometry>)),
 }
 
-impl Element {
+impl<'a> Element<'a> {
     pub fn prerender(self) -> Result<Vec<Tessellation>> {
         match self {
-            Element::Geometry((shader, geometries)) => {
+            Element::Geometry(&(ref shader, ref geometries)) => {
                 geometries
                     .into_iter()
                     .map(|g| g.tessellate(&shader))
@@ -20,6 +20,6 @@ impl Element {
     }
 }
 
-impl Into<Element> for (Shader, Vec<Geometry>) {
-    fn into(self) -> Element { Element::Geometry(self) }
+impl<'a> From<&'a (Shader, Vec<Geometry>)> for Element<'a> {
+    fn from(src: &(Shader, Vec<Geometry>)) -> Element { Element::Geometry(src) }
 }

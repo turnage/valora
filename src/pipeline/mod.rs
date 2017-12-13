@@ -1,7 +1,12 @@
 use errors::Result;
+use geom::Point;
+use geom::poly::Poly;
 use glium::{self, Surface};
 use image;
-use raster::Tessellation;
+use raster::{Tessellate, Tessellation};
+use render::Renderable;
+use shaders::Shader;
+use std;
 
 #[derive(Copy, Clone)]
 pub struct GpuVertex {
@@ -15,11 +20,11 @@ pub struct Pipeline {
     events_loop: glium::glutin::EventsLoop,
     display: glium::Display,
     shader_program: glium::program::Program,
-    root_frame_filename: Option<String>,
+    texture_program: glium::program::Program,
 }
 
 impl Pipeline {
-    pub fn new(size: u32, root_frame_filename: Option<String>) -> Result<Pipeline> {
+    pub fn new(size: u32) -> Result<Pipeline> {
         let events_loop = glium::glutin::EventsLoop::new();
         let window = glium::glutin::WindowBuilder::new()
             .with_title("Valora".to_string())
@@ -36,12 +41,58 @@ impl Pipeline {
                                                  "/shaders/default.glslf")),
             }
         )?;
-        Ok(Pipeline { events_loop, shader_program, display, root_frame_filename })
+        let texture_program = program!(&display,
+            150 => {
+                vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                               "/shaders/texture.glslv")),
+                fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                                 "/shaders/texture.glslf")),
+            }
+        )?;
+        Ok(Pipeline { events_loop, shader_program, display, texture_program })
     }
 
-    pub fn draw(&mut self, tessellations: Vec<Tessellation>, frame: usize) -> Result<()> {
-        use std;
+    pub fn draw(&mut self, renderables: Vec<Renderable>) -> Result<()> {
+        let mut frame = self.display.draw();
+        frame.clear_color(0.0, 0.0, 0.0, 1.0);
+        for renderable in renderables {
+            match renderable {
+                Renderable::Tessellations(ts) => {
+                    self.draw_tesselations(&mut frame, ts)?;
+                }
+                Renderable::Texture(texture) => {
+                    let tex = glium::texture::Texture2d::new(&self.display, texture)?;
+                    let uniforms = uniform! {
+                        matrix: [
+                            [1.0, 0.0, 0.0, 0.0],
+                            [0.0, 1.0, 0.0, 0.0],
+                            [0.0, 0.0, 1.0, 0.0],
+                            [0.0 , 0.0, 0.0, 1.0f32],
+                        ],
+                        tex: tex.sampled()
+                          .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
+                          .minify_filter(glium::uniforms::MinifySamplerFilter::Linear),
+                    };
+                    let (vertex_buffer, index_buffer) =
+                        self.make_buffers(Poly::square(Point { x: 0.0, y: 0.0 }, 1.0)
+                                              .tessellate(&Shader::empty())?)?;
+                    frame
+                        .draw(&vertex_buffer,
+                              &index_buffer,
+                              &self.texture_program,
+                              &uniforms,
+                              &Default::default())?;
+                }
+            }
+        }
+        frame.finish()?;
+        Ok(())
+    }
 
+    fn draw_tesselations(&self,
+                         frame: &mut glium::Frame,
+                         tessellations: Vec<Tessellation>)
+                         -> Result<()> {
         let bundle = tessellations
             .into_iter()
             .fold(Tessellation::default(), |mut bundle, mut tess| {
@@ -55,39 +106,42 @@ impl Pipeline {
                 bundle
             });
 
-        let index_buffer = glium::IndexBuffer::new(&self.display,
-                                                   glium::index::PrimitiveType::TrianglesList,
-                                                   bundle.indices.as_slice())?;
-        let vertex_buffer = glium::VertexBuffer::new(&self.display, bundle.vertices.as_slice())?;
+        let (vertex_buffer, index_buffer) = self.make_buffers(bundle)?;
 
-        let mut target = self.display.draw();
-        target.clear_color(0.0, 0.0, 0.0, 0.0);
-        target
+        frame
             .draw(&vertex_buffer,
                   &index_buffer,
                   &self.shader_program,
                   &glium::uniforms::EmptyUniforms,
                   &Default::default())?;
-        target.finish()?;
+        Ok(())
+    }
 
-        if let Some(ref root_frame_filename) = self.root_frame_filename {
-            let image: glium::texture::RawImage2d<u8> = self.display.read_front_buffer();
-            let image =
-                image::ImageBuffer::from_raw(image.width, image.height, image.data.into_owned())
-                    .unwrap();
-            let image = image::DynamicImage::ImageRgba8(image).flipv();
-            let path = format!("{}-{:08}.png", root_frame_filename, frame);
-            let mut output = std::fs::File::create(path).unwrap();
-            image.save(&mut output, image::ImageFormat::PNG).unwrap();
-        }
+    fn make_buffers(&self,
+                    tessellation: Tessellation)
+                    -> Result<(glium::VertexBuffer<GpuVertex>, glium::IndexBuffer<u32>)> {
+        Ok((glium::VertexBuffer::new(&self.display, tessellation.vertices.as_slice())?,
+            glium::IndexBuffer::new(&self.display,
+                                    glium::index::PrimitiveType::TrianglesList,
+                                    tessellation.indices.as_slice())?))
+    }
 
+    pub fn save_frame(&self, root_frame_filename: &str, frame: usize) -> Result<()> {
+        let image: glium::texture::RawImage2d<u8> = self.display.read_front_buffer();
+        let image =
+            image::ImageBuffer::from_raw(image.width, image.height, image.data.into_owned())
+                .unwrap();
+        let image = image::DynamicImage::ImageRgba8(image).flipv();
+        let path = format!("{}{:08}.png", root_frame_filename, frame);
+        let mut output = std::fs::File::create(path)?;
+        image.save(&mut output, image::ImageFormat::PNG).unwrap();
         Ok(())
     }
 
     pub fn events(self) -> Result<Option<(Self, Vec<glium::glutin::WindowEvent>)>> {
         let mut terminate = false;
         let mut events = Vec::new();
-        let Pipeline { root_frame_filename, mut events_loop, shader_program, display } = self;
+        let Pipeline { mut events_loop, shader_program, display, texture_program } = self;
         events_loop.poll_events(|event| {
             use glium::glutin::WindowEvent::*;
             match event {
@@ -100,9 +154,6 @@ impl Pipeline {
                             ..
                         } |
                         Closed => terminate = true,
-                        /*Resized(..) => {
-                            gfx_glutin::update_views(&window, &mut target, &mut depth);
-                        }*/
                         _ => {
                             events.push(event);
                         }
@@ -114,7 +165,7 @@ impl Pipeline {
         match terminate {
             true => Ok(None),
             false => {
-                Ok(Some((Pipeline { root_frame_filename, events_loop, shader_program, display },
+                Ok(Some((Pipeline { events_loop, shader_program, display, texture_program },
                          events)))
             }
         }

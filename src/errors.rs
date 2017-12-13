@@ -1,5 +1,6 @@
 use glium;
 use lyon;
+use std;
 
 error_chain!{
     foreign_links {
@@ -11,6 +12,8 @@ error_chain!{
         IndexCreation(glium::index::BufferCreationError);
         VertexCreation(glium::vertex::BufferCreationError);
         DisplayCreation(glium::backend::glutin::DisplayCreationError);
+        TextureCreation(glium::texture::TextureCreationError);
+        Io(std::io::Error);
     }
 }
 

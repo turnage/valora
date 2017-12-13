@@ -32,7 +32,7 @@ impl Poly {
         Poly::Rect(Rect { bottom_left, width: size, height: size })
     }
 
-    fn vertices(&self) -> Vec<Point> {
+    pub fn vertices(&self) -> Vec<Point> {
         match *self {
             Poly::Rect(Rect { bottom_left, width, height }) => {
                 vec![bottom_left,
@@ -46,7 +46,7 @@ impl Poly {
 }
 
 impl Tessellate for Poly {
-    fn tessellate(self, shader: &Shader) -> Result<Tessellation> {
+    fn tessellate(&self, shader: &Shader) -> Result<Tessellation> {
         use lyon::tessellation::*;
         use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
 
