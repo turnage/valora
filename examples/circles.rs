@@ -3,7 +3,6 @@ extern crate rand;
 extern crate valora;
 
 use rand::Rng;
-use std::error::Error;
 use valora::errors::*;
 use valora::geom::*;
 use valora::palette::*;
@@ -46,7 +45,8 @@ impl Circles {
 
 impl Sketch for Circles {
     fn draw(&self, _ctx: &SketchContext) -> Result<Render> {
-        self.circles.iter()
+        self.circles
+            .iter()
             .fold(Ok(Render::new()), |r, g| r.and_then(|r| r.add(g)))
     }
 }

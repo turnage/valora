@@ -58,8 +58,8 @@ impl Sketch for Space {
     }
 }
 
-impl Seed for Space {
-    fn seed(self, _ctx: &SketchContext) -> Result<Space> { Ok(Space::new()) }
+impl Default for Space {
+    fn default() -> Self { Self::new() }
 }
 
 fn main() {
