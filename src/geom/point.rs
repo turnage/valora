@@ -10,7 +10,7 @@ pub struct Point {
 }
 
 impl Add for Point {
-    type Output = Point;
+    type Output = Self;
     fn add(self, rhs: Self) -> Self { Self { x: self.x + rhs.x, y: self.y + rhs.y } }
 }
 
@@ -22,7 +22,7 @@ impl AddAssign for Point {
 }
 
 impl Sub for Point {
-    type Output = Point;
+    type Output = Self;
     fn sub(self, rhs: Self) -> Self { Self { x: self.x - rhs.x, y: self.y - rhs.y } }
 }
 
@@ -34,7 +34,7 @@ impl SubAssign for Point {
 }
 
 impl Mul<Point> for Point {
-    type Output = Point;
+    type Output = Self;
 
     fn mul(self, rhs: Point) -> Self { Self { x: self.x * rhs.x, y: self.y * rhs.y } }
 }
@@ -47,7 +47,7 @@ impl MulAssign<Point> for Point {
 }
 
 impl Mul<f32> for Point {
-    type Output = Point;
+    type Output = Self;
 
     fn mul(self, rhs: f32) -> Self { Self { x: self.x * rhs, y: self.y * rhs } }
 }
