@@ -1,6 +1,5 @@
 use geom::Point;
-use palette::{Blend, Colora};
-use rand::{self, Rng};
+use palette::Colora;
 use shaders::Shader;
 use std;
 use textures::Texture;

@@ -1,9 +1,8 @@
 use errors::Result;
 use glium;
 use pipeline::Pipeline;
-use rand::{Rand, SeedableRng, StdRng, random};
-use raster::Tessellation;
-use render::{Render, Renderable};
+use rand::{SeedableRng, StdRng, random};
+use render::Render;
 use std::{fs, thread, time};
 
 pub struct SketchCfg {
@@ -70,7 +69,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
             Some(_) => pipeline.events(),
             None => Ok(None),
         };
-        //thread::sleep(time::Duration::from_millis(16));
+        thread::sleep(time::Duration::from_millis(16));
     }
     cycle.map(|_| ())
 }
