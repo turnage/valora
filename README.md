@@ -1,3 +1,3 @@
 # valora
 
-[progress pics](http://imgur.com/a/NuO8z)
+[progress pics](https://www.instagram.com/venlute/)
