@@ -33,6 +33,32 @@ impl SubAssign for Point {
     }
 }
 
+impl Mul<Point> for Point {
+    type Output = Point;
+
+    fn mul(self, rhs: Point) -> Self { Self { x: self.x * rhs.x, y: self.y * rhs.y } }
+}
+
+impl MulAssign<Point> for Point {
+    fn mul_assign(&mut self, rhs: Point) {
+        self.x *= rhs.x;
+        self.y *= rhs.y;
+    }
+}
+
+impl Mul<f32> for Point {
+    type Output = Point;
+
+    fn mul(self, rhs: f32) -> Self { Self { x: self.x * rhs, y: self.y * rhs } }
+}
+
+impl MulAssign<f32> for Point {
+    fn mul_assign(&mut self, rhs: f32) {
+        self.x *= rhs;
+        self.y *= rhs;
+    }
+}
+
 impl Point {
     const WORLD_OFFSET: f32 = 1.0;
     const WORLD_FACTOR: f32 = 2.0;
@@ -40,8 +66,6 @@ impl Point {
     pub fn center() -> Point { Point { x: 0.5, y: 0.5 } }
 
     pub fn abs(self) -> Point { Point { x: self.x.abs(), y: self.y.abs() } }
-
-    pub fn scale(self, factor: f32) -> Point { Point { x: self.x * factor, y: self.y * factor } }
 
     pub fn distance(self, point: Point) -> f32 { self.raw_distance(point).sqrt() }
 
