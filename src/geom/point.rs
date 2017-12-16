@@ -82,7 +82,7 @@ impl Point {
     // and offset vertices one world unit so the origin is in the bottom
     // left, and y and x point up and right respectively. If you think
     // it should be done differently, you are wrong.
-    fn fix_coord(coord: f32) -> f32 { (coord * Point::WORLD_FACTOR) - Point::WORLD_OFFSET }
+    pub fn fix_coord(coord: f32) -> f32 { (coord * Point::WORLD_FACTOR) - Point::WORLD_OFFSET }
 
     fn restore_coord(coord: f32) -> f32 { (coord + Point::WORLD_OFFSET) / Point::WORLD_FACTOR }
 }

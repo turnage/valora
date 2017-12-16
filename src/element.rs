@@ -1,25 +1,11 @@
-use errors::Result;
-use geom::Geometry;
-use raster::{Tessellate, Tessellation};
+use raster::Tessellate;
 use shaders::Shader;
 
-pub enum Element<'a> {
-    Geometry(&'a (Shader, Vec<Geometry>)),
+pub struct Element<'a> {
+    pub shader: &'a Shader,
+    pub geometry: &'a Tessellate,
 }
 
-impl<'a> Element<'a> {
-    pub fn prerender(self) -> Result<Vec<Tessellation>> {
-        match self {
-            Element::Geometry(&(ref shader, ref geometries)) => {
-                geometries
-                    .into_iter()
-                    .map(|g| g.tessellate(&shader))
-                    .collect()
-            }
-        }
-    }
-}
-
-impl<'a> From<&'a (Shader, Vec<Geometry>)> for Element<'a> {
-    fn from(src: &(Shader, Vec<Geometry>)) -> Element { Element::Geometry(src) }
+impl<'a, G: Tessellate> From<&'a (Shader, G)> for Element<'a> {
+    fn from(&(ref shader, ref geometry): &'a (Shader, G)) -> Self { Self { shader, geometry } }
 }

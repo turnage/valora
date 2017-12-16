@@ -1,8 +1,8 @@
+use element::Element;
 use errors::Result;
 use glium;
 use pipeline::Pipeline;
 use rand::{SeedableRng, StdRng, random};
-use render::Render;
 use std::{fs, thread, time};
 
 pub struct SketchCfg {
@@ -19,7 +19,7 @@ pub struct SketchContext {
 }
 
 pub trait Sketch: Seed {
-    fn draw(&self, ctx: &SketchContext) -> Result<Render>;
+    fn draw<'a>(&'a self, ctx: &SketchContext) -> Result<Box<Iterator<Item = Element<'a>> + 'a>>;
     fn step(self,
             _ctx: &SketchContext,
             _events: Vec<glium::glutin::WindowEvent>)
@@ -57,19 +57,19 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
             sketch_bin = Some(sketch_bin.unwrap().seed(&context)?);
         }
         pipeline
-            .draw(sketch_bin.as_ref().unwrap().draw(&context)?.build())?;
-        context.frame += 1;
+            .draw(sketch_bin.as_ref().unwrap().draw(&context)?)?;
+        sketch_bin = sketch_bin.unwrap().step(&context, events)?;
         if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
             let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
             fs::create_dir_all(&saves_dir)?;
             pipeline.save_frame(&saves_dir, context.frame)?;
         }
-        sketch_bin = sketch_bin.unwrap().step(&context, events)?;
         cycle = match sketch_bin {
             Some(_) => pipeline.events(),
             None => Ok(None),
         };
         thread::sleep(time::Duration::from_millis(16));
+        context.frame += 1;
     }
     cycle.map(|_| ())
 }

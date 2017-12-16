@@ -32,6 +32,8 @@ impl Poly {
         Poly::Rect(Rect { bottom_left, width: size, height: size })
     }
 
+    pub fn frame() -> Poly { Poly::square(Point { x: 0.0, y: 0.0 }, 1.0) }
+
     pub fn vertices(&self) -> Vec<Point> {
         match *self {
             Poly::Rect(Rect { bottom_left, width, height }) => {
@@ -59,7 +61,7 @@ impl Tessellate for Poly {
                vertices: vertex_buffers
                    .vertices
                    .into_iter()
-                   .map(|v| (v, shader.shade(v.into()).into_premultiplied()))
+                   .map(|v| (v, shader.color_vertex(v.into()).into_premultiplied()))
                    .map(|(v, c)| {
                             GpuVertex {
                                 position: [v.position.x, v.position.y],

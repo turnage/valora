@@ -43,7 +43,7 @@ impl Tessellate for Ellipse {
                vertices: vertex_buffers
                    .vertices
                    .into_iter()
-                   .map(|v| (v, shader.shade(v.into()).into_premultiplied()))
+                   .map(|v| (v, shader.color_vertex(v.into()).into_premultiplied()))
                    .map(|(v, c)| {
                             GpuVertex {
                                 position: [v.position.x, v.position.y],

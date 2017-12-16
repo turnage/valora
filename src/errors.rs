@@ -14,6 +14,7 @@ error_chain!{
         DisplayCreation(glium::backend::glutin::DisplayCreationError);
         TextureCreation(glium::texture::TextureCreationError);
         Io(std::io::Error);
+        BufferCreation(glium::buffer::BufferCreationError);
     }
 }
 

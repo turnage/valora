@@ -1,18 +1,17 @@
-
 extern crate rand;
 extern crate valora;
 
 use rand::Rng;
+use valora::element::*;
 use valora::errors::*;
 use valora::geom::*;
 use valora::palette::*;
-use valora::render::*;
 use valora::shaders::*;
 use valora::sketch::*;
 
 pub struct Circles {
     count: usize,
-    circles: Vec<(Shader, Vec<Geometry>)>,
+    circles: Vec<(Shader, Ellipse)>,
 }
 
 impl Circles {
@@ -32,22 +31,20 @@ impl Circles {
             .collect::<Vec<Shader>>();
         Circles {
             count,
-            circles: (0..count)
+            circles: shaders
                 .into_iter()
-                .map(|_| rand::random::<Point>())
-                .map(|p| ellipse::Ellipse::circle(p, rng.gen_range(0.1, 0.3), 0.0))
-                .zip(shaders.into_iter())
-                .map(|(c, s)| (s, vec![Geometry::Ellipse(c)]))
+                .zip((0..count)
+                         .into_iter()
+                         .map(|_| rand::random::<Point>())
+                         .map(|p| Ellipse::circle(p, rng.gen_range(0.1, 0.3), 0.0)))
                 .collect(),
         }
     }
 }
 
 impl Sketch for Circles {
-    fn draw(&self, _ctx: &SketchContext) -> Result<Render> {
-        self.circles
-            .iter()
-            .fold(Ok(Render::new()), |r, g| r.and_then(|r| r.add(g)))
+    fn draw<'a>(&'a self, _ctx: &SketchContext) -> Result<Box<Iterator<Item = Element<'a>> + 'a>> {
+        Ok(Box::new(self.circles.iter().map(Into::into)))
     }
 }
 

@@ -1,11 +1,9 @@
+use element::Element;
 use errors::Result;
-use geom::Point;
-use geom::poly::Poly;
 use glium::{self, Surface};
+use glium::uniforms::Uniforms;
 use image;
-use raster::{Tessellate, Tessellation};
-use render::Renderable;
-use shaders::Shader;
+use raster::Tessellation;
 use std;
 
 #[derive(Copy, Clone)]
@@ -15,12 +13,26 @@ pub struct GpuVertex {
 }
 
 implement_vertex!(GpuVertex, position, color);
+implement_uniform_block!(GpuVertex, position, color);
 
 pub struct Pipeline {
     events_loop: glium::glutin::EventsLoop,
     display: glium::Display,
-    shader_program: glium::program::Program,
-    texture_program: glium::program::Program,
+}
+
+pub struct DrawCmd<'a, 'b> {
+    pub display: &'a glium::Display,
+    frame: &'b mut glium::Frame,
+    vertex_buffer: glium::VertexBuffer<GpuVertex>,
+    index_buffer: glium::IndexBuffer<u32>,
+}
+
+impl<'a, 'b> DrawCmd<'a, 'b> {
+    pub fn draw<U: Uniforms>(&mut self, shader: &glium::program::Program, u: &U) -> Result<()> {
+        self.frame
+            .draw(&self.vertex_buffer, &self.index_buffer, shader, u, &Default::default())
+            .map_err(Into::into)
+    }
 }
 
 impl Pipeline {
@@ -33,87 +45,23 @@ impl Pipeline {
             .with_multisampling(16)
             .with_vsync(true);
         let display = glium::Display::new(window, context, &events_loop)?;
-        let shader_program = program!(&display,
-            150 => {
-                vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-                                               "/shaders/default.glslv")),
-                fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-                                                 "/shaders/default.glslf")),
-            }
-        )?;
-        let texture_program = program!(&display,
-            150 => {
-                vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-                                               "/shaders/texture.glslv")),
-                fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-                                                 "/shaders/texture.glslf")),
-            }
-        )?;
-        Ok(Pipeline { events_loop, shader_program, display, texture_program })
+        Ok(Pipeline { events_loop, display })
     }
 
-    pub fn draw(&mut self, renderables: Vec<Renderable>) -> Result<()> {
+    pub fn draw<'a>(&mut self, elements: Box<Iterator<Item = Element<'a>> + 'a>) -> Result<()> {
         let mut frame = self.display.draw();
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
-        for renderable in renderables {
-            match renderable {
-                Renderable::Tessellations(ts) => {
-                    self.draw_tesselations(&mut frame, ts)?;
-                }
-                Renderable::Texture(texture) => {
-                    let tex = glium::texture::Texture2d::new(&self.display, texture)?;
-                    let uniforms = uniform! {
-                        matrix: [
-                            [1.0, 0.0, 0.0, 0.0],
-                            [0.0, 1.0, 0.0, 0.0],
-                            [0.0, 0.0, 1.0, 0.0],
-                            [0.0 , 0.0, 0.0, 1.0f32],
-                        ],
-                        tex: tex.sampled()
-                          .magnify_filter(glium::uniforms::MagnifySamplerFilter::Linear)
-                          .minify_filter(glium::uniforms::MinifySamplerFilter::Linear),
-                    };
-                    let (vertex_buffer, index_buffer) =
-                        self.make_buffers(Poly::square(Point { x: 0.0, y: 0.0 }, 1.0)
-                                              .tessellate(&Shader::empty())?)?;
-                    frame
-                        .draw(&vertex_buffer,
-                              &index_buffer,
-                              &self.texture_program,
-                              &uniforms,
-                              &Default::default())?;
-                }
-            }
+        for Element { ref shader, ref geometry } in elements {
+            let (vertex_buffer, index_buffer) = self.make_buffers(geometry.tessellate(shader)?)?;
+            shader
+                .shade(DrawCmd {
+                           display: &self.display,
+                           frame: &mut frame,
+                           vertex_buffer,
+                           index_buffer,
+                       })?;
         }
         frame.finish()?;
-        Ok(())
-    }
-
-    fn draw_tesselations(&self,
-                         frame: &mut glium::Frame,
-                         tessellations: Vec<Tessellation>)
-                         -> Result<()> {
-        let bundle = tessellations
-            .into_iter()
-            .fold(Tessellation::default(), |mut bundle, mut tess| {
-                let vertices_len = bundle.vertices.len() as u32;
-                bundle
-                    .indices
-                    .extend(tess.indices
-                                .into_iter()
-                                .map(|i| i as u32 + vertices_len));
-                bundle.vertices.append(&mut tess.vertices);
-                bundle
-            });
-
-        let (vertex_buffer, index_buffer) = self.make_buffers(bundle)?;
-
-        frame
-            .draw(&vertex_buffer,
-                  &index_buffer,
-                  &self.shader_program,
-                  &glium::uniforms::EmptyUniforms,
-                  &Default::default())?;
         Ok(())
     }
 
@@ -141,7 +89,7 @@ impl Pipeline {
     pub fn events(self) -> Result<Option<(Self, Vec<glium::glutin::WindowEvent>)>> {
         let mut terminate = false;
         let mut events = Vec::new();
-        let Pipeline { mut events_loop, shader_program, display, texture_program } = self;
+        let Pipeline { mut events_loop, display } = self;
         events_loop.poll_events(|event| {
             use glium::glutin::WindowEvent::*;
             match event {
@@ -164,10 +112,7 @@ impl Pipeline {
         });
         match terminate {
             true => Ok(None),
-            false => {
-                Ok(Some((Pipeline { events_loop, shader_program, display, texture_program },
-                         events)))
-            }
+            false => Ok(Some((Pipeline { events_loop, display }, events))),
         }
     }
 }
