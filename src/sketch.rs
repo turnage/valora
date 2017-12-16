@@ -54,6 +54,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
                .is_some() {
             context.current_seed = random();
             context.rng = StdRng::from_seed(&[context.current_seed]);
+            context.frame = 0;
             sketch_bin = Some(sketch_bin.unwrap().seed(&context)?);
         }
         pipeline
