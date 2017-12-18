@@ -1,5 +1,5 @@
 use errors::Result;
-use geom::Point;
+use geom::{Centered, Point, Translate};
 use lyon::math::Radians;
 use palette::Blend;
 use pipeline::GpuVertex;
@@ -25,6 +25,14 @@ impl Ellipse {
             tolerance: None,
         }
     }
+}
+
+impl Centered for Ellipse {
+    fn centroid(&self) -> Point { self.center }
+}
+
+impl Translate for Ellipse {
+    fn translate_to(self, dest: Point) -> Self { Self { center: dest, ..self } }
 }
 
 impl Tessellate for Ellipse {

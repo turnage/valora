@@ -1,22 +1,71 @@
 use errors::Result;
-use geom::Point;
+use geom::{Centered, Distance, Point, Translate};
 use palette::Blend;
 use pipeline::GpuVertex;
 use properties::clipping::Bounded;
 use raster::{Tessellate, Tessellation};
 use shaders::Shader;
+use std::f32;
 
-#[derive(Debug, Clone)]
-pub enum Poly {
-    Rect(Rect),
-    Irregular(Vec<Point>),
+pub trait Poly: Sized {
+    fn vertices<'a>(&'a self) -> &'a [Point];
 }
 
-#[derive(Clone, Copy, Debug)]
+impl<P: Poly> Centered for P {
+    fn centroid(&self) -> Point {
+        let mut min = Point { x: f32::MAX, y: f32::MAX };
+        let mut max = Point { x: f32::MIN, y: f32::MIN };
+        for v in self.vertices() {
+            if v.x < min.x {
+                min.x = v.x;
+            }
+            if v.y < min.y {
+                min.y = v.y;
+            }
+            if v.x > max.x {
+                max.x = v.x;
+            }
+            if v.y > max.y {
+                max.y = v.y;
+            }
+        }
+        min.midpoint(max)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IrregularPoly {
+    vertices: Vec<Point>,
+}
+
+impl Poly for IrregularPoly {
+    fn vertices<'a>(&'a self) -> &'a [Point] { &self.vertices }
+}
+
+impl Translate for IrregularPoly {
+    fn translate_to(self, dest: Point) -> Self {
+        let delta = dest - self.centroid();
+        IrregularPoly { vertices: self.vertices().iter().map(|p| *p + delta).collect() }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Rect {
-    pub bottom_left: Point,
-    pub width: f32,
-    pub height: f32,
+    bottom_left: Point,
+    width: f32,
+    height: f32,
+    vertices: Vec<Point>,
+}
+
+impl Poly for Rect {
+    fn vertices<'a>(&'a self) -> &'a [Point] { &self.vertices }
+}
+
+impl Translate for Rect {
+    fn translate_to(self, dest: Point) -> Self {
+        let delta = dest - self.centroid();
+        Rect::new(self.bottom_left + delta, self.height, self.width)
+    }
 }
 
 impl Bounded for Rect {
@@ -24,36 +73,39 @@ impl Bounded for Rect {
         point.x >= self.bottom_left.x && point.x < self.bottom_left.x + self.width &&
         point.y >= self.bottom_left.y && point.y < self.bottom_left.y + self.height
     }
-    fn bounding_box(&self) -> Rect { *self }
+    fn bounding_box(&self) -> Rect { self.clone() }
 }
 
-impl Poly {
-    pub fn square(bottom_left: Point, size: f32) -> Poly {
-        Poly::Rect(Rect { bottom_left, width: size, height: size })
-    }
+impl Rect {
+    pub fn square(bottom_left: Point, size: f32) -> Self { Self::new(bottom_left, size, size) }
 
-    pub fn frame() -> Poly { Poly::square(Point { x: 0.0, y: 0.0 }, 1.0) }
+    pub fn frame() -> Self { Self::square(Point { x: 0.0, y: 0.0 }, 1.0) }
 
-    pub fn vertices(&self) -> Vec<Point> {
-        match *self {
-            Poly::Rect(Rect { bottom_left, width, height }) => {
-                vec![bottom_left,
-                     Point { x: bottom_left.x, y: bottom_left.y + height },
-                     Point { x: bottom_left.x + width, y: bottom_left.y + height },
-                     Point { x: bottom_left.x + width, y: bottom_left.y }]
-            }
-            Poly::Irregular(ref vertices) => vertices.clone(),
+    pub fn new(bottom_left: Point, height: f32, width: f32) -> Self {
+        Self {
+            height,
+            width,
+            bottom_left,
+            vertices: vec![bottom_left,
+                           Point { x: bottom_left.x, y: bottom_left.y + height },
+                           Point { x: bottom_left.x + width, y: bottom_left.y + height },
+                           Point { x: bottom_left.x + width, y: bottom_left.y }],
         }
     }
 }
 
-impl Tessellate for Poly {
+impl<P: Poly> Tessellate for P {
     fn tessellate(&self, shader: &Shader) -> Result<Tessellation> {
         use lyon::tessellation::*;
         use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
+        use lyon;
 
         let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
-        basic_shapes::fill_polyline(self.vertices().into_iter().map(Into::into),
+        basic_shapes::fill_polyline(self.vertices()
+                                        .into_iter()
+                                        .map(|v: &Point| -> lyon::math::Point {
+                                                 (*v).into()
+                                             }),
                                     &mut FillTessellator::new(),
                                     &FillOptions::default(),
                                     &mut simple_builder(&mut vertex_buffers))?;

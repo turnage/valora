@@ -1,3 +1,4 @@
+use geom::{Distance, SubdivideEdges};
 use lyon::math::TypedPoint2D;
 use lyon::tessellation::FillVertex;
 use rand::{Rand, Rng};
@@ -59,6 +60,44 @@ impl MulAssign<f32> for Point {
     }
 }
 
+impl Div<f32> for Point {
+    type Output = Self;
+    fn div(self, rhs: f32) -> Self { self * (1.0 / rhs) }
+}
+
+impl SubdivideEdges for Vec<Point> {
+    fn subdivide_edges(self) -> Self {
+        let p1s = self.iter();
+        let p2s = self.iter().skip(1);
+        let pairs = p1s.zip(p2s);
+        let mut pairs: Vec<Point> = pairs
+            .flat_map(|(p1, p2)| {
+                          let midpoint = *p1 + ((*p2 - *p1) / 2.0);
+                          vec![*p1, midpoint]
+                      })
+            .collect();
+        if let Some(last) = self.last() {
+            pairs.push(*last);
+        }
+        pairs
+    }
+}
+
+impl Distance<Self> for Point {
+    fn distance(&self, dest: Self) -> f32 {
+        let delta = (*self - dest).abs();
+        (delta.x.powi(2) + delta.y.powi(2)).sqrt()
+    }
+
+    fn delta(&self, dest: Self) -> Self { (*self - dest).abs() }
+
+    fn midpoint(&self, dest: Self) -> Self { *self + ((dest - *self) / 2.0) }
+
+    fn manhattan_distance(&self, dest: Self) -> f32 {
+        (self.x - dest.x).abs() + (self.y - dest.y).abs()
+    }
+}
+
 impl Point {
     const WORLD_OFFSET: f32 = 1.0;
     const WORLD_FACTOR: f32 = 2.0;
@@ -66,13 +105,6 @@ impl Point {
     pub fn center() -> Point { Point { x: 0.5, y: 0.5 } }
 
     pub fn abs(self) -> Point { Point { x: self.x.abs(), y: self.y.abs() } }
-
-    pub fn distance(self, point: Point) -> f32 { self.raw_distance(point).sqrt() }
-
-    pub fn raw_distance(self, point: Point) -> f32 {
-        let delta = (self - point).abs();
-        delta.x.powi(2) + delta.y.powi(2)
-    }
 
     pub fn manhattan(self, point: Point) -> f32 {
         (self.x - point.x).abs() + (self.y - point.y).abs()

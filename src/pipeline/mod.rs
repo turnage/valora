@@ -1,9 +1,9 @@
-use element::Element;
 use errors::Result;
 use glium::{self, Surface};
 use glium::uniforms::Uniforms;
 use image;
 use raster::Tessellation;
+use shaders::Shader;
 use std;
 
 #[derive(Copy, Clone)]
@@ -48,11 +48,11 @@ impl Pipeline {
         Ok(Pipeline { events_loop, display })
     }
 
-    pub fn draw<'a>(&mut self, elements: Box<Iterator<Item = Element<'a>> + 'a>) -> Result<()> {
+    pub fn draw<'a>(&mut self, elements: Vec<(&'a Shader, Tessellation)>) -> Result<()> {
         let mut frame = self.display.draw();
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
-        for Element { ref shader, ref geometry } in elements {
-            let (vertex_buffer, index_buffer) = self.make_buffers(geometry.tessellate(shader)?)?;
+        for (shader, tessellation) in elements.into_iter() {
+            let (vertex_buffer, index_buffer) = self.make_buffers(tessellation)?;
             shader
                 .shade(DrawCmd {
                            display: &self.display,

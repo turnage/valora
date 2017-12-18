@@ -1,8 +1,9 @@
-use element::Element;
 use errors::Result;
 use glium;
 use pipeline::Pipeline;
 use rand::{SeedableRng, StdRng, random};
+use raster::{Tessellate, Tessellation};
+use shaders::Shader;
 use std::{fs, thread, time};
 
 pub struct SketchCfg {
@@ -18,8 +19,22 @@ pub struct SketchContext {
     pub current_seed: usize,
 }
 
+pub struct Canvas<'a> {
+    queue: Vec<(&'a Shader, Tessellation)>,
+}
+
+impl<'a> Canvas<'a> {
+    pub fn new() -> Self { Self { queue: Vec::new() } }
+
+    pub fn draw<T: Tessellate>(&mut self, shader: &'a Shader, t: &T) -> Result<()> {
+        Ok(self.queue.push((shader, t.tessellate(shader)?)))
+    }
+
+    pub fn drain(self) -> Vec<(&'a Shader, Tessellation)> { self.queue }
+}
+
 pub trait Sketch: Seed {
-    fn draw<'a>(&'a self, ctx: &SketchContext) -> Result<Box<Iterator<Item = Element<'a>> + 'a>>;
+    fn draw(&self, ctx: &SketchContext) -> Result<Canvas>;
     fn step(self,
             _ctx: &SketchContext,
             _events: Vec<glium::glutin::WindowEvent>)
@@ -58,7 +73,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
             sketch_bin = Some(sketch_bin.unwrap().seed(&context)?);
         }
         pipeline
-            .draw(sketch_bin.as_ref().unwrap().draw(&context)?)?;
+            .draw(sketch_bin.as_ref().unwrap().draw(&context)?.drain())?;
         sketch_bin = sketch_bin.unwrap().step(&context, events)?;
         if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
             let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);

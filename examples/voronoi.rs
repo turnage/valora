@@ -17,24 +17,31 @@ pub struct Voronoi {
     element: (Shader, Poly),
     speed: f32,
     map_height: f32,
+    movers: usize,
+    statics: usize,
     sites: Vec<(Colora, Point)>,
+    static_sites: Vec<(Colora, Point)>,
 }
 
 impl Voronoi {
-    fn new(speed: f32, map_height: f32, size: u32) -> Self {
-        let sparkles = sparkles(100, map_height);
+    fn new(movers: usize, statics: usize, speed: f32, map_height: f32, size: u32) -> Self {
+        let sparks = sparkles(movers, map_height);
         let theme = rand::OsRng::new().unwrap().gen_range(0.0, 360.0);
-        let palette = (0..8)
+        let palette = (0..10)
             .into_iter()
-            .map(|h: usize| Colora::hsv(RgbHue::from(theme + ((h as f32) * 15.0)), 0.85, 1.0, 1.0))
+            .map(|h: usize| Colora::hsv(RgbHue::from(theme + ((h as f32) * 8.0)), 0.85, 1.0, 1.0))
             .collect::<Vec<Colora>>();
-        let colors = sparkles
+        let colors = sparks
             .iter()
             .map(|_| palette[rand::OsRng::new().unwrap().gen_range(0, palette.len())])
             .collect::<Vec<Colora>>();
+        let static_sites = sparkles(statics, 1.0)
+            .into_iter()
+            .map(|p| (palette[rand::OsRng::new().unwrap().gen_range(0, palette.len())], p))
+            .collect::<Vec<(Colora, Point)>>();
         let sites = colors
             .into_iter()
-            .zip(sparkles.clone().into_iter())
+            .zip(sparks.clone().into_iter())
             .collect::<Vec<(Colora, Point)>>();
         let sites: Vec<(Colora, Point)> = {
             let shift = |shift: Point, sites: Vec<(Colora, Point)>| -> Vec<(Colora, Point)> {
@@ -51,6 +58,9 @@ impl Voronoi {
             speed,
             sites: sites.clone(),
             map_height,
+            movers,
+            statics,
+            static_sites,
             element: (Shader::voronoi(sites, size), Poly::frame()),
         }
     }
@@ -58,7 +68,7 @@ impl Voronoi {
 
 impl Seed for Voronoi {
     fn seed(self, ctx: &SketchContext) -> Result<Voronoi> {
-        Ok(Voronoi::new(self.speed, self.map_height, ctx.cfg.size))
+        Ok(Voronoi::new(self.movers, self.statics, self.speed, self.map_height, ctx.cfg.size))
     }
 }
 
@@ -81,6 +91,7 @@ impl Sketch for Voronoi {
                                 .clone()
                                 .into_iter()
                                 .map(|(c, p)| (c, p + Point { x: 0.0, y: self.y }))
+                                .chain(self.static_sites.clone().into_iter())
                                 .collect();
                             (Shader::voronoi(sites_, ctx.cfg.size), self.element.1)
                         },
@@ -96,6 +107,6 @@ fn main() {
                seed: None,
                root_frame_filename: Some(String::from("voronoi")),
            },
-           Voronoi::new(0.0035, 1.0, 1080))
+           Voronoi::new(100, 30, 0.0035, 1.2, 1080))
             .expect("working sketch");
 }
