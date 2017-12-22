@@ -6,28 +6,63 @@ use properties::clipping::Bounded;
 use rand::Rng;
 use sketch::*;
 
-pub struct DebugWalk(Walker);
+pub struct DebugWalk {
+    walker: Walker,
+    strands: Vec<Tweener<DottedLine>>,
+}
 
-impl Sketch for DebugWalk {
+impl Draw for DebugWalk {
     fn draw(&self, ctx: &SketchContext) -> Result<Canvas> {
-        let canvases = self.0
-            .edges()
-            .into_iter()
-            .map(|(start, end)| Line::new(start, end).subdivide_edges_n(4))
-            .map(|line| {
-                     DottedLine::new(line, Shader::constant(Colora::rgb(1.0, 1.0, 0.0, 1.0)), 0.02)
-                 })
+        let canvases = self.strands
+            .iter()
             .map(|dl| dl.draw(ctx))
             .collect::<Result<Vec<Canvas>>>()?;
         Ok(canvases
                .into_iter()
                .fold(Canvas::new(), |bg, fg| fg.atop(bg)))
     }
-    fn step(self,
+}
+
+impl Step for DebugWalk {
+    fn step(mut self,
             ctx: &SketchContext,
+            rng: &mut StdRng,
             _events: Vec<glium::glutin::WindowEvent>)
             -> Result<Option<Self>> {
-        Ok(Some(DebugWalk(self.0.walk(1, &mut ctx.rng.clone()))))
+        println!("{:?}", self.walker.edges().len());
+        Ok(Some(DebugWalk {
+                    strands: if self.strands
+                           .last()
+                           .map(|s| s.done(ctx.frame))
+                           .unwrap_or(false) ||
+                                self.strands.is_empty() {
+                        self.strands
+                            .extend(self.walker
+                                        .step(rng)
+                                        .into_iter()
+                                        .map(|(p1, p2)| {
+                                                 DottedLine::new(Line::new(p1, p2),
+                                                                 Shader::constant(Colora::rgb(1.0,
+                                                                                              1.0,
+                                                                                              0.0,
+                                                                                              1.0)),
+                                                                 0.02)
+                                             })
+                                        .map(|dl| dl.subdivide_edges_n(5))
+                                        .map(|dl| {
+                                                 dl.anim_percent(0.0,
+                                                                 1.0,
+                                                                 Interpolation::Linear {
+                                                                     start: ctx.frame,
+                                                                     len: 100,
+                                                                 })
+                                             }));
+                        self.strands
+                    } else {
+                        self.strands
+                    },
+                    walker: self.walker,
+                }))
     }
 }
 
@@ -37,11 +72,11 @@ impl Seed for DebugWalk {
                                  WalkHeuristic::Greedy(Box::new(|point, rng| {
                                                                     (0..(rng.gen_range(1, 4)))
                 .into_iter()
-                .map(|_| point + (rng.gen::<Point>() / 7.0))
+                .map(|_| point + (rng.gen::<Point>() / 2.0))
                 .filter(|p| Rect::frame().in_bounds(*p))
                 .collect()
                                                                 })));
-        Ok(DebugWalk(walker))
+        Ok(DebugWalk { walker, strands: Vec::new() })
     }
 }
 

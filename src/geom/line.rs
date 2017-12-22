@@ -1,4 +1,4 @@
-use geom::{Centered, Point, Poly, SubdivideEdges, Translate};
+use geom::{Centered, Percent, Point, Poly, SubdivideEdges, Translate};
 
 #[derive(Clone, Debug)]
 pub struct Line {
@@ -21,6 +21,21 @@ impl Connect<Line> for Line {
 
 impl Line {
     pub fn new(start: Point, end: Point) -> Self { Self { vertices: vec![start, end] } }
+
+    pub fn start(&self) -> Point { *self.vertices.first().unwrap() }
+
+    pub fn end(self) -> Point { *self.vertices.last().unwrap() }
+}
+
+impl Percent for Line {
+    fn percent(self, percent: f32) -> Self {
+        let n = (percent * (self.vertices.len() as f32)) as usize;
+        Self { vertices: self.vertices[0..n].to_vec() }
+    }
+}
+
+impl Into<Line> for Vec<Point> {
+    fn into(self) -> Line { Line { vertices: self } }
 }
 
 impl SubdivideEdges for Line {

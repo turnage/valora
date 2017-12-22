@@ -21,7 +21,6 @@ pub struct SketchCfg {
 pub struct SketchContext {
     pub cfg: SketchCfg,
     pub frame: usize,
-    pub rng: StdRng,
     pub current_seed: usize,
 }
 
@@ -45,10 +44,14 @@ impl Canvas {
     pub fn drain(self) -> Vec<(Shader, Tessellation)> { self.queue }
 }
 
-pub trait Sketch: Sized {
+pub trait Draw: Sized {
     fn draw(&self, ctx: &SketchContext) -> Result<Canvas>;
+}
+
+pub trait Step: Sized {
     fn step(self,
             _ctx: &SketchContext,
+            _rng: &mut StdRng,
             _events: Vec<glium::glutin::WindowEvent>)
             -> Result<Option<Self>> {
         Ok(Some(self))
@@ -59,11 +62,11 @@ pub trait Seed: Sized {
     fn seed(ctx: &SketchContext) -> Result<Self>;
 }
 
-pub fn sketch<S: Sketch + Seed>(cfg: SketchCfg) -> Result<()> {
+pub fn sketch<S: Draw + Step + Seed>(cfg: SketchCfg) -> Result<()> {
     let pipeline = Pipeline::new(cfg.size)?;
     let current_seed = cfg.seed.unwrap_or(random());
-    let rng = StdRng::from_seed(&[current_seed]);
-    let mut context = SketchContext { cfg, frame: 0, rng, current_seed };
+    let mut rng = StdRng::from_seed(&[current_seed]);
+    let mut context = SketchContext { cfg, frame: 0, current_seed };
     let mut sketch_bin = Some(S::seed(&context)?);
 
     let mut cycle = pipeline.events();
@@ -76,13 +79,13 @@ pub fn sketch<S: Sketch + Seed>(cfg: SketchCfg) -> Result<()> {
                      })
                .is_some() {
             context.current_seed = random();
-            context.rng = StdRng::from_seed(&[context.current_seed]);
+            rng = StdRng::from_seed(&[context.current_seed]);
             context.frame = 0;
             sketch_bin = Some(S::seed(&context)?);
         }
         pipeline
             .draw(sketch_bin.as_ref().unwrap().draw(&context)?.drain())?;
-        sketch_bin = sketch_bin.unwrap().step(&context, events)?;
+        sketch_bin = sketch_bin.unwrap().step(&context, &mut rng, events)?;
         if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
             let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
             fs::create_dir_all(&saves_dir)?;

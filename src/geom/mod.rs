@@ -16,6 +16,10 @@ pub trait Geometry: Tessellate + Clone {}
 
 impl<T: Tessellate + Clone> Geometry for T {}
 
+pub trait Percent: Sized {
+    fn percent(self, percent: f32) -> Self;
+}
+
 pub trait SubdivideEdges: Sized {
     // Cuts the edges of the geometry in half so that points exist at the
     // midpoint of all previously existing edges. The actual shape should
