@@ -1,3 +1,9 @@
+pub mod animation;
+pub mod skins;
+
+pub use self::animation::*;
+pub use self::skins::*;
+
 use errors::Result;
 use glium;
 use pipeline::Pipeline;
@@ -19,26 +25,27 @@ pub struct SketchContext {
     pub current_seed: usize,
 }
 
-pub struct Canvas<'a> {
-    queue: Vec<(&'a Shader, Tessellation)>,
+pub struct Canvas {
+    queue: Vec<(Shader, Tessellation)>,
 }
 
-impl<'a> Canvas<'a> {
+impl Canvas {
     pub fn new() -> Self { Self { queue: Vec::new() } }
 
-    pub fn draw<T: Tessellate>(&mut self, shader: &'a Shader, t: &T) -> Result<()> {
-        Ok(self.queue.push((shader, t.tessellate(shader)?)))
+    pub fn draw<T: Tessellate>(&mut self, shader: Shader, t: &T) -> Result<()> {
+        let tessellation = t.tessellate(&shader)?;
+        Ok(self.queue.push((shader, tessellation)))
     }
 
-    pub fn atop(mut self, mut bg: Canvas<'a>) -> Canvas {
+    pub fn atop(mut self, mut bg: Canvas) -> Canvas {
         bg.queue.append(&mut self.queue);
         bg
     }
 
-    pub fn drain(self) -> Vec<(&'a Shader, Tessellation)> { self.queue }
+    pub fn drain(self) -> Vec<(Shader, Tessellation)> { self.queue }
 }
 
-pub trait Sketch: Seed {
+pub trait Sketch: Sized {
     fn draw(&self, ctx: &SketchContext) -> Result<Canvas>;
     fn step(self,
             _ctx: &SketchContext,
@@ -52,7 +59,7 @@ pub trait Seed: Sized {
     fn seed(ctx: &SketchContext) -> Result<Self>;
 }
 
-pub fn sketch<S: Sketch>(cfg: SketchCfg) -> Result<()> {
+pub fn sketch<S: Sketch + Seed>(cfg: SketchCfg) -> Result<()> {
     let pipeline = Pipeline::new(cfg.size)?;
     let current_seed = cfg.seed.unwrap_or(random());
     let rng = StdRng::from_seed(&[current_seed]);

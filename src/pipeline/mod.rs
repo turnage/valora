@@ -48,7 +48,7 @@ impl Pipeline {
         Ok(Pipeline { events_loop, display })
     }
 
-    pub fn draw<'a>(&mut self, elements: Vec<(&'a Shader, Tessellation)>) -> Result<()> {
+    pub fn draw(&mut self, elements: Vec<(Shader, Tessellation)>) -> Result<()> {
         let mut frame = self.display.draw();
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
         for (shader, tessellation) in elements.into_iter() {

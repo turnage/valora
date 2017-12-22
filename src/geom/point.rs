@@ -10,6 +10,10 @@ pub struct Point {
     pub y: f32,
 }
 
+impl Default for Point {
+    fn default() -> Self { Self::center() }
+}
+
 impl Add for Point {
     type Output = Self;
     fn add(self, rhs: Self) -> Self { Self { x: self.x + rhs.x, y: self.y + rhs.y } }

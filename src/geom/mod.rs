@@ -22,7 +22,7 @@ pub trait SubdivideEdges: Sized {
     // not change.
     fn subdivide_edges(self) -> Self;
 
-    fn subdivides_edges_n(self, n: usize) -> Self {
+    fn subdivide_edges_n(self, n: usize) -> Self {
         (0..n).into_iter().fold(self, |s, _| s.subdivide_edges())
     }
 }

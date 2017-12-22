@@ -10,10 +10,12 @@ use glium::uniforms::EmptyUniforms;
 use image::{ImageBuffer, Rgb};
 use palette::Colora;
 use pipeline::DrawCmd;
+use std::rc::Rc;
 
+#[derive(Clone)]
 pub enum Shader {
     Constant(Colora),
-    Linear(Box<Fn(Point) -> Colora>),
+    Linear(Rc<Fn(Point) -> Colora>),
     Texture(ImageBuffer<Rgb<u8>, Vec<u8>>),
     Voronoi { sites: Vec<(Colora, Point)>, frame: u32 },
     Empty,
@@ -24,7 +26,7 @@ impl Shader {
 
     pub fn constant(color: Colora) -> Self { Shader::Constant(color) }
 
-    pub fn linear<F: 'static + Fn(Point) -> Colora>(f: F) -> Self { Shader::Linear(Box::new(f)) }
+    pub fn linear<F: 'static + Fn(Point) -> Colora>(f: F) -> Self { Shader::Linear(Rc::new(f)) }
 
     pub fn empty() -> Self { Shader::Empty }
 
