@@ -1,6 +1,15 @@
-use geom::Point;
-use rand;
+use geom::{Point, Rect};
+use rand::Rng;
 
-pub fn sparkles(n: usize, scale: f32) -> Vec<Point> {
-    (0..n).map(|_| rand::random::<Point>() * scale).collect()
+pub struct Sparkles(Vec<Point>);
+
+pub fn sparkles<R: Rng>(n: usize, bounds: &Rect, rng: &mut R) -> Vec<Point> {
+    (0..n)
+        .map(|_| {
+                 Point {
+                     x: rng.gen_range(0.0, bounds.width),
+                     y: rng.gen_range(0.0, bounds.height),
+                 } + bounds.bottom_left
+             })
+        .collect()
 }

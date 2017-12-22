@@ -1,5 +1,5 @@
 use errors::Result;
-use geom::{Centered, Distance, Point, Translate};
+use geom::{Centered, Distance, Place, Point, Translate};
 use palette::Blend;
 use pipeline::GpuVertex;
 use properties::clipping::Bounded;
@@ -33,6 +33,13 @@ impl<P: Poly> Centered for P {
     }
 }
 
+impl<P: Poly + Translate> Place for P {
+    fn place(self, dest: Point) -> Self {
+        let delta = dest - self.centroid();
+        self.translate(delta)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct IrregularPoly {
     vertices: Vec<Point>,
@@ -43,17 +50,16 @@ impl Poly for IrregularPoly {
 }
 
 impl Translate for IrregularPoly {
-    fn translate_to(self, dest: Point) -> Self {
-        let delta = dest - self.centroid();
+    fn translate(self, delta: Point) -> Self {
         IrregularPoly { vertices: self.vertices().iter().map(|p| *p + delta).collect() }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Rect {
-    bottom_left: Point,
-    width: f32,
-    height: f32,
+    pub bottom_left: Point,
+    pub width: f32,
+    pub height: f32,
     vertices: Vec<Point>,
 }
 
@@ -62,8 +68,7 @@ impl Poly for Rect {
 }
 
 impl Translate for Rect {
-    fn translate_to(self, dest: Point) -> Self {
-        let delta = dest - self.centroid();
+    fn translate(self, delta: Point) -> Self {
         Rect::new(self.bottom_left + delta, self.height, self.width)
     }
 }
@@ -81,7 +86,7 @@ impl Rect {
 
     pub fn frame() -> Self { Self::square(Point { x: 0.0, y: 0.0 }, 1.0) }
 
-    pub fn new(bottom_left: Point, height: f32, width: f32) -> Self {
+    pub fn new(bottom_left: Point, width: f32, height: f32) -> Self {
         Self {
             height,
             width,

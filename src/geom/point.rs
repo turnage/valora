@@ -1,4 +1,4 @@
-use geom::{Distance, SubdivideEdges};
+use geom::{Distance, SubdivideEdges, Translate};
 use lyon::math::TypedPoint2D;
 use lyon::tessellation::FillVertex;
 use rand::{Rand, Rng};
@@ -81,6 +81,10 @@ impl SubdivideEdges for Vec<Point> {
         }
         pairs
     }
+}
+
+impl Translate for Point {
+    fn translate(self, delta: Point) -> Self { self + delta }
 }
 
 impl Distance<Self> for Point {

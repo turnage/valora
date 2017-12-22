@@ -30,6 +30,11 @@ impl<'a> Canvas<'a> {
         Ok(self.queue.push((shader, t.tessellate(shader)?)))
     }
 
+    pub fn atop(mut self, mut bg: Canvas<'a>) -> Canvas {
+        bg.queue.append(&mut self.queue);
+        bg
+    }
+
     pub fn drain(self) -> Vec<(&'a Shader, Tessellation)> { self.queue }
 }
 
@@ -44,19 +49,15 @@ pub trait Sketch: Seed {
 }
 
 pub trait Seed: Sized {
-    fn seed(self, ctx: &SketchContext) -> Result<Self>;
+    fn seed(ctx: &SketchContext) -> Result<Self>;
 }
 
-impl<T: Default> Seed for T {
-    fn seed(self, _ctx: &SketchContext) -> Result<Self> { Ok(Self::default()) }
-}
-
-pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
+pub fn sketch<S: Sketch>(cfg: SketchCfg) -> Result<()> {
     let pipeline = Pipeline::new(cfg.size)?;
     let current_seed = cfg.seed.unwrap_or(random());
     let rng = StdRng::from_seed(&[current_seed]);
     let mut context = SketchContext { cfg, frame: 0, rng, current_seed };
-    let mut sketch_bin = Some(sketch);
+    let mut sketch_bin = Some(S::seed(&context)?);
 
     let mut cycle = pipeline.events();
     while let Ok(Some((mut pipeline, events))) = cycle {
@@ -70,7 +71,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
             context.current_seed = random();
             context.rng = StdRng::from_seed(&[context.current_seed]);
             context.frame = 0;
-            sketch_bin = Some(sketch_bin.unwrap().seed(&context)?);
+            sketch_bin = Some(S::seed(&context)?);
         }
         pipeline
             .draw(sketch_bin.as_ref().unwrap().draw(&context)?.drain())?;

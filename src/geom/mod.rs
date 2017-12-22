@@ -38,6 +38,10 @@ pub trait Centered {
     fn centroid(&self) -> Point;
 }
 
+pub trait Place: Sized {
+    fn place(self, dest: Point) -> Self;
+}
+
 pub trait Translate: Sized {
-    fn translate_to(self, dest: Point) -> Self;
+    fn translate(self, delta: Point) -> Self;
 }

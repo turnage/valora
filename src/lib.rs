@@ -1,3 +1,5 @@
+#![feature(specialization)]
+
 #[macro_use]
 extern crate error_chain;
 #[macro_use]
