@@ -4,7 +4,7 @@ use sketch::*;
 
 #[derive(Clone)]
 pub struct DottedLine {
-    shader: Shader,
+    shader: Rc<Shader>,
     pub line: Line,
     spawner: Instancer<Ellipse>,
 }
@@ -18,17 +18,15 @@ impl SubdivideEdges for DottedLine {
 }
 
 impl DottedLine {
-    pub fn new(line: Line, shader: Shader, size: f32) -> Self {
+    pub fn new(line: Line, shader: Rc<Shader>, size: f32) -> Self {
         Self { line, shader, spawner: Instancer::new(Ellipse::circle(Point::center(), size, 0.0)) }
     }
 }
 
 impl Draw for DottedLine {
     fn draw(&self, _ctx: &SketchContext) -> Result<Canvas> {
-        let mut canvas = Canvas::new();
-        for dot in spawn(&self.spawner, &self.line) {
-            canvas.draw(self.shader.clone(), &dot)?;
-        }
-        Ok(canvas)
+        Canvas::compose(spawn(&self.spawner, &self.line)
+                            .into_iter()
+                            .map(|dot| Canvas::new().draw(self.shader.clone(), &dot)))
     }
 }

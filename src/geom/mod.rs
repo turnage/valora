@@ -38,6 +38,10 @@ pub trait Distance<Dest> {
     fn manhattan_distance(&self, dest: Dest) -> f32;
 }
 
+pub trait Scale {
+    fn scale(self, scale: f32) -> Self;
+}
+
 pub trait Centered {
     fn centroid(&self) -> Point;
 }

@@ -1,8 +1,10 @@
 pub mod animation;
 pub mod skins;
+pub mod shaded;
 
 pub use self::animation::*;
 pub use self::skins::*;
+pub use self::shaded::*;
 
 use errors::Result;
 use glium;
@@ -10,7 +12,8 @@ use pipeline::Pipeline;
 use rand::{SeedableRng, StdRng, random};
 use raster::{Tessellate, Tessellation};
 use shaders::Shader;
-use std::{fs, thread, time};
+use std::{fs, thread, time, rc::Rc};
+use itertools::Itertools;
 
 pub struct SketchCfg {
     pub size: u32,
@@ -25,23 +28,28 @@ pub struct SketchContext {
 }
 
 pub struct Canvas {
-    queue: Vec<(Shader, Tessellation)>,
+    queue: Vec<(Rc<Shader>, Tessellation)>,
 }
 
 impl Canvas {
-    pub fn new() -> Self { Self { queue: Vec::new() } }
-
-    pub fn draw<T: Tessellate>(&mut self, shader: Shader, t: &T) -> Result<()> {
-        let tessellation = t.tessellate(&shader)?;
-        Ok(self.queue.push((shader, tessellation)))
+    pub fn compose<I: Iterator<Item=Result<Canvas>>>(mut i: I) -> Result<Canvas> {
+        i.fold_results(Canvas::new(), |bg, fg| fg.atop(bg))
     }
 
-    pub fn atop(mut self, mut bg: Canvas) -> Canvas {
+    pub fn new() -> Self { Self { queue: Vec::new() } }
+
+    pub fn draw<T: Tessellate>(mut self, shader: Rc<Shader>, t: &T) -> Result<Self> {
+        let tessellation = t.tessellate(shader.as_ref())?;
+        self.queue.push((shader, tessellation));
+        Ok(self)
+    }
+
+    pub fn atop(mut self, mut bg: Self) -> Self {
         bg.queue.append(&mut self.queue);
         bg
     }
 
-    pub fn drain(self) -> Vec<(Shader, Tessellation)> { self.queue }
+    pub fn drain(self) -> Vec<(Rc<Shader>, Tessellation)> { self.queue }
 }
 
 pub trait Draw: Sized {
@@ -50,10 +58,18 @@ pub trait Draw: Sized {
 
 pub trait Step: Sized {
     fn step(self,
-            _ctx: &SketchContext,
-            _rng: &mut StdRng,
-            _events: Vec<glium::glutin::WindowEvent>)
-            -> Result<Option<Self>> {
+            ctx: &SketchContext,
+            rng: &mut StdRng,
+            events: Vec<glium::glutin::WindowEvent>)
+            -> Result<Option<Self>>;
+}
+
+impl<T> Step for T {
+    default fn step(self,
+                    _ctx: &SketchContext,
+                    _rng: &mut StdRng,
+                    _events: Vec<glium::glutin::WindowEvent>)
+                    -> Result<Option<Self>> {
         Ok(Some(self))
     }
 }

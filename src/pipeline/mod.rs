@@ -4,7 +4,7 @@ use glium::uniforms::Uniforms;
 use image;
 use raster::Tessellation;
 use shaders::Shader;
-use std;
+use std::{self, rc::Rc};
 
 #[derive(Copy, Clone)]
 pub struct GpuVertex {
@@ -48,7 +48,7 @@ impl Pipeline {
         Ok(Pipeline { events_loop, display })
     }
 
-    pub fn draw(&mut self, elements: Vec<(Shader, Tessellation)>) -> Result<()> {
+    pub fn draw(&mut self, elements: Vec<(Rc<Shader>, Tessellation)>) -> Result<()> {
         let mut frame = self.display.draw();
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
         for (shader, tessellation) in elements.into_iter() {

@@ -1,5 +1,5 @@
 use errors::Result;
-use geom::{Centered, Place, Point, Translate};
+use geom::{Centered, Place, Point, Scale, Translate};
 use lyon::math::Radians;
 use palette::Blend;
 use pipeline::GpuVertex;
@@ -24,6 +24,12 @@ impl Ellipse {
             rotation: Radians::new(rotation.to_radians()),
             tolerance: None,
         }
+    }
+}
+
+impl Scale for Ellipse {
+    fn scale(self, scale: f32) -> Self {
+        Self { width: self.width * scale, height: self.height * scale, ..self }
     }
 }
 

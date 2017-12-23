@@ -1,18 +1,10 @@
 use errors::Result;
-use geom::Percent;
+use geom::{Percent, Scale};
+use raster::{Tessellate, Tessellation};
+use shaders::Shader;
 use sketch::{Canvas, Draw, SketchContext};
-
-pub trait Animate {
-    type Output;
-    fn tween(&self, frame: usize) -> Self::Output;
-    fn done(&self, frame: usize) -> bool;
-}
-
-impl<A: Animate> Draw for A
-    where A::Output: Draw
-{
-    fn draw(&self, ctx: &SketchContext) -> Result<Canvas> { self.tween(ctx.frame).draw(ctx) }
-}
+use std::{boxed::FnBox, ops::Deref};
+/*
 
 pub trait AnimPercent {
     type Output: Animate;
@@ -30,42 +22,99 @@ impl<P: Percent + Clone> AnimPercent for P {
     }
 }
 
-pub struct Tweener<T: Clone> {
-    src: T,
-    f: Box<Fn(f32, T) -> T>,
+pub trait AnimScale {
+    type Output: Animate;
+    fn anim_scale(self, start: f32, end: f32, interp: Interpolation) -> Self::Output;
+}
+
+impl<S: 'static + Midtween> AnimScale for S
+    where S::Element: Scale    {
+    type Output = Tweener<S>;
+    fn anim_scale(self, start: f32, end: f32, interp: Interpolation) -> Tweener<S> {
+        Tweener {
+            f: Box::new(move |completion, frame| {
+                            let src: S::Element = self.wrap().tween(frame).unwrap();
+                            S::wrap(src.scale(start + completion * (end - start)))
+                        }),
+            interp,
+        }
+    }
+}*/
+
+pub struct Tweener<T: 'static + Clone> {
+    f: Box<Fn(f32, usize) -> T>,
     interp: Interpolation,
 }
 
-impl<T: Clone> Animate for Tweener<T> {
-    type Output = T;
-    fn tween(&self, frame: usize) -> T {
-        (self.f)(self.interp.interpolate(frame), self.src.clone())
+impl<T: 'static + Clone> Tweener<T> {
+    pub fn id(src: T) -> Tweener<T> {
+        Tweener { f: Box::new(move |_, _| src.clone()), interp: Interpolation::Linear { start: 0, len: 0 } }
     }
-    fn done(&self, frame: usize) -> bool { self.interp.done(frame) }
+        
+    pub fn tween(&self, frame: usize) -> T {
+        (self.f)(self.interp.interpolate(frame), frame)
+    }
+
+    pub fn done(&self, frame: usize) -> bool { self.interp.done(frame) }
+}
+
+impl<T: 'static + Clone + Scale> Tweener<T> {
+    pub fn anim_scale(self, start: f32, end: f32, interp: Interpolation) -> Self {
+        Tweener {
+            f: Box::new(move |completion, frame| {
+                            self.tween(frame).scale(start + completion * (end - start))
+                        }),
+            interp,
+        }
+    }
+}
+
+pub enum Oscillation {
+    Sine,
+    Cosine,
+}
+
+impl Oscillation {
+    pub fn oscillate(&self, x: f32, period: f32) -> f32 {
+        use std::f32::consts::PI;
+
+        let x = x * ((2.0 * PI) / period);
+        match *self {
+            Oscillation::Sine => f32::sin(x),
+            Oscillation::Cosine => f32::cos(x),
+        }
+    }
 }
 
 pub enum Interpolation {
     Linear { start: usize, len: usize },
+    Oscillation { oscillation: Oscillation, start: usize, period: usize },
 }
 
 impl Interpolation {
-    pub fn interpolate(&self, frame: usize) -> f32 { Self::clamp(self.raw(frame)) }
+    pub fn interpolate(&self, frame: usize) -> f32 { self.clamp(self.raw(frame)) }
 
     pub fn done(&self, frame: usize) -> bool { self.raw(frame) > 1.0 }
 
     fn raw(&self, frame: usize) -> f32 {
         match *self {
             Interpolation::Linear { start, len } => (frame - start) as f32 / len as f32,
+            Interpolation::Oscillation { ref oscillation, start, period } => {
+                oscillation.oscillate(start as f32 -  frame as f32, period as f32)
+            }
         }
     }
 
-    fn clamp(raw: f32) -> f32 {
-        if raw < 0.0 {
-            0.0
-        } else if raw > 1.0 {
-            1.0
-        } else {
-            raw
+    fn clamp(&self, raw: f32) -> f32 {
+        match *self {
+            Interpolation::Oscillation {..} => (raw + 1.0)/2.0,  
+            _ =>  if raw < 0.0 {
+                0.0
+            } else if raw > 1.0 {
+                1.0
+            } else {
+                raw
+            },
         }
     }
 }

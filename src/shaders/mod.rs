@@ -12,7 +12,6 @@ use palette::Colora;
 use pipeline::DrawCmd;
 use std::rc::Rc;
 
-#[derive(Clone)]
 pub enum Shader {
     Constant(Colora),
     Linear(Rc<Fn(Point) -> Colora>),
