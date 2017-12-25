@@ -1,10 +1,7 @@
 use errors::Result;
 use geom::{Centered, Place, Point, Scale, Translate};
 use lyon::math::Radians;
-use palette::Blend;
-use pipeline::GpuVertex;
-use raster::{Tessellate, Tessellation};
-use shaders::Shader;
+use tessellation::{Tessellate, Tessellation};
 
 #[derive(Debug, Clone)]
 pub struct Ellipse {
@@ -46,7 +43,7 @@ impl Translate for Ellipse {
 }
 
 impl Tessellate for Ellipse {
-    fn tessellate(&self, shader: &Shader) -> Result<Tessellation> {
+    fn tessellate(&self) -> Result<Tessellation> {
         use lyon::tessellation::*;
         use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
         use lyon::path_iterator::math::Vec2;
@@ -61,13 +58,7 @@ impl Tessellate for Ellipse {
                vertices: vertex_buffers
                    .vertices
                    .into_iter()
-                   .map(|v| (v, shader.color_vertex(v.into()).into_premultiplied()))
-                   .map(|(v, c)| {
-                            GpuVertex {
-                                position: [v.position.x, v.position.y],
-                                color: [c.red, c.green, c.blue],
-                            }
-                        })
+                   .map(|p| p.position)
                    .collect(),
                indices: vertex_buffers
                    .indices

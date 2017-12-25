@@ -2,6 +2,8 @@
 #![feature(use_nested_groups)]
 #![feature(unboxed_closures)]
 #![feature(fnbox)]
+#![feature(nll)]
+#![feature(crate_in_paths)]
 
 #[macro_use]
 extern crate error_chain;
@@ -9,27 +11,33 @@ extern crate error_chain;
 pub extern crate glium;
 extern crate lyon;
 extern crate image;
-extern crate rand;
+pub extern crate rand;
 extern crate petgraph;
 extern crate itertools;
 pub extern crate palette;
+#[macro_use]
+extern crate maplit;
+#[macro_use]
+extern crate lazy_static;
 
 pub mod geom;
 pub mod sketch;
-pub mod shaders;
 pub mod patterns;
 pub mod actors;
-pub mod textures;
 pub mod errors;
+pub mod composition;
 
+mod color;
 mod properties;
-mod raster;
-mod pipeline;
+mod tessellation;
+mod gpu;
+mod mesh;
 
 pub use actors::*;
 pub use errors::*;
 pub use geom::*;
 pub use patterns::*;
-pub use shaders::*;
 pub use sketch::*;
-pub use textures::*;
+pub use color::*;
+pub use mesh::*;
+pub use composition::*;

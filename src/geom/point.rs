@@ -1,6 +1,5 @@
 use geom::{Distance, SubdivideEdges, Translate};
-use lyon::math::TypedPoint2D;
-use lyon::tessellation::FillVertex;
+use lyon::tessellation::{math::Point2D, FillVertex};
 use rand::{Rand, Rng};
 use std::ops::*;
 
@@ -107,9 +106,6 @@ impl Distance<Self> for Point {
 }
 
 impl Point {
-    const WORLD_OFFSET: f32 = 1.0;
-    const WORLD_FACTOR: f32 = 2.0;
-
     pub fn center() -> Point { Point { x: 0.5, y: 0.5 } }
 
     pub fn abs(self) -> Point { Point { x: self.x.abs(), y: self.y.abs() } }
@@ -117,30 +113,20 @@ impl Point {
     pub fn manhattan(self, point: Point) -> f32 {
         (self.x - point.x).abs() + (self.y - point.y).abs()
     }
-
-    // OpenGL places the origin in the center of the screen. We rescale
-    // and offset vertices one world unit so the origin is in the bottom
-    // left, and y and x point up and right respectively. If you think
-    // it should be done differently, you are wrong.
-    pub fn fix_coord(coord: f32) -> f32 { (coord * Point::WORLD_FACTOR) - Point::WORLD_OFFSET }
-
-    fn restore_coord(coord: f32) -> f32 { (coord + Point::WORLD_OFFSET) / Point::WORLD_FACTOR }
 }
 
 impl Rand for Point {
     fn rand<R: Rng>(rng: &mut R) -> Point { Point { x: rng.next_f32(), y: rng.next_f32() } }
 }
 
-impl<U> Into<TypedPoint2D<f32, U>> for Point {
-    fn into(self) -> TypedPoint2D<f32, U> {
-        TypedPoint2D::new(Point::fix_coord(self.x), Point::fix_coord(self.y))
+impl Into<Point2D<f32>> for Point {
+    fn into(self) -> Point2D<f32> {
+        Point2D::new(self.x, self.y)
     }
 }
 
-impl<U> From<TypedPoint2D<f32, U>> for Point {
-    fn from(point: TypedPoint2D<f32, U>) -> Point {
-        Point { x: Point::restore_coord(point.x), y: Point::restore_coord(point.y) }
-    }
+impl From<Point2D<f32>> for Point {
+    fn from(point: Point2D<f32>) -> Point { Point { x: point.x, y: point.y } }
 }
 
 impl From<FillVertex> for Point {

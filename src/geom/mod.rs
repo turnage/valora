@@ -10,12 +10,6 @@ pub use self::point::*;
 pub use self::poly::*;
 pub use self::spawner::*;
 
-use raster::Tessellate;
-
-pub trait Geometry: Tessellate + Clone {}
-
-impl<T: Tessellate + Clone> Geometry for T {}
-
 pub trait Percent: Sized {
     fn percent(self, percent: f32) -> Self;
 }

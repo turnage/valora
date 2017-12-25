@@ -1,11 +1,8 @@
 use errors::Result;
 use geom::{Centered, Distance, Place, Point, Translate};
-use palette::Blend;
-use pipeline::GpuVertex;
 use properties::clipping::Bounded;
-use raster::{Tessellate, Tessellation};
-use shaders::Shader;
 use std::f32;
+use tessellation::{Tessellate, Tessellation};
 
 pub trait Poly: Sized {
     fn vertices<'a>(&'a self) -> &'a [Point];
@@ -100,17 +97,15 @@ impl Rect {
 }
 
 impl<P: Poly> Tessellate for P {
-    fn tessellate(&self, shader: &Shader) -> Result<Tessellation> {
+    fn tessellate(&self) -> Result<Tessellation> {
         use lyon::tessellation::*;
         use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
-        use lyon;
+        use lyon::math;
 
         let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
         basic_shapes::fill_polyline(self.vertices()
                                         .into_iter()
-                                        .map(|v: &Point| -> lyon::math::Point {
-                                                 (*v).into()
-                                             }),
+                                        .map(|v: &Point| -> math::Point { (*v).into() }),
                                     &mut FillTessellator::new(),
                                     &FillOptions::default(),
                                     &mut simple_builder(&mut vertex_buffers))?;
@@ -118,13 +113,7 @@ impl<P: Poly> Tessellate for P {
                vertices: vertex_buffers
                    .vertices
                    .into_iter()
-                   .map(|v| (v, shader.color_vertex(v.into()).into_premultiplied()))
-                   .map(|(v, c)| {
-                            GpuVertex {
-                                position: [v.position.x, v.position.y],
-                                color: [c.red, c.green, c.blue],
-                            }
-                        })
+                   .map(|p| p.position)
                    .collect(),
                indices: vertex_buffers
                    .indices

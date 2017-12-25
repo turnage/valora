@@ -1,45 +1,4 @@
-use errors::Result;
-use geom::{Percent, Scale};
-use raster::{Tessellate, Tessellation};
-use shaders::Shader;
-use sketch::{Canvas, Draw, SketchContext};
-use std::{boxed::FnBox, ops::Deref};
-/*
-
-pub trait AnimPercent {
-    type Output: Animate;
-    fn anim_percent(self, start: f32, end: f32, interp: Interpolation) -> Self::Output;
-}
-
-impl<P: Percent + Clone> AnimPercent for P {
-    type Output = Tweener<P>;
-    fn anim_percent(self, start: f32, end: f32, interp: Interpolation) -> Tweener<P> {
-        Tweener {
-            src: self,
-            f: Box::new(move |completion, src| src.percent(start + completion * (end - start))),
-            interp,
-        }
-    }
-}
-
-pub trait AnimScale {
-    type Output: Animate;
-    fn anim_scale(self, start: f32, end: f32, interp: Interpolation) -> Self::Output;
-}
-
-impl<S: 'static + Midtween> AnimScale for S
-    where S::Element: Scale    {
-    type Output = Tweener<S>;
-    fn anim_scale(self, start: f32, end: f32, interp: Interpolation) -> Tweener<S> {
-        Tweener {
-            f: Box::new(move |completion, frame| {
-                            let src: S::Element = self.wrap().tween(frame).unwrap();
-                            S::wrap(src.scale(start + completion * (end - start)))
-                        }),
-            interp,
-        }
-    }
-}*/
+use geom::Scale;
 
 pub struct Tweener<T: 'static + Clone> {
     f: Box<Fn(f32, usize) -> T>,
@@ -48,12 +7,13 @@ pub struct Tweener<T: 'static + Clone> {
 
 impl<T: 'static + Clone> Tweener<T> {
     pub fn id(src: T) -> Tweener<T> {
-        Tweener { f: Box::new(move |_, _| src.clone()), interp: Interpolation::Linear { start: 0, len: 0 } }
+        Tweener {
+            f: Box::new(move |_, _| src.clone()),
+            interp: Interpolation::Linear { start: 0, len: 0 },
+        }
     }
-        
-    pub fn tween(&self, frame: usize) -> T {
-        (self.f)(self.interp.interpolate(frame), frame)
-    }
+
+    pub fn tween(&self, frame: usize) -> T { (self.f)(self.interp.interpolate(frame), frame) }
 
     pub fn done(&self, frame: usize) -> bool { self.interp.done(frame) }
 }
@@ -62,7 +22,8 @@ impl<T: 'static + Clone + Scale> Tweener<T> {
     pub fn anim_scale(self, start: f32, end: f32, interp: Interpolation) -> Self {
         Tweener {
             f: Box::new(move |completion, frame| {
-                            self.tween(frame).scale(start + completion * (end - start))
+                            self.tween(frame)
+                                .scale(start + completion * (end - start))
                         }),
             interp,
         }
@@ -100,21 +61,23 @@ impl Interpolation {
         match *self {
             Interpolation::Linear { start, len } => (frame - start) as f32 / len as f32,
             Interpolation::Oscillation { ref oscillation, start, period } => {
-                oscillation.oscillate(start as f32 -  frame as f32, period as f32)
+                oscillation.oscillate(start as f32 - frame as f32, period as f32)
             }
         }
     }
 
     fn clamp(&self, raw: f32) -> f32 {
         match *self {
-            Interpolation::Oscillation {..} => (raw + 1.0)/2.0,  
-            _ =>  if raw < 0.0 {
-                0.0
-            } else if raw > 1.0 {
-                1.0
-            } else {
-                raw
-            },
+            Interpolation::Oscillation { .. } => (raw + 1.0) / 2.0,  
+            _ => {
+                if raw < 0.0 {
+                    0.0
+                } else if raw > 1.0 {
+                    1.0
+                } else {
+                    raw
+                }
+            }
         }
     }
 }

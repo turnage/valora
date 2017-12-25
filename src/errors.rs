@@ -1,23 +1,26 @@
-use glium;
-use lyon;
-use std;
+use glium::{SwapBuffersError, glutin::{CreationError, ContextError},
+            program::ProgramChooserCreationError, DrawError, index, vertex,
+            backend::glutin::DisplayCreationError, texture::TextureCreationError,
+            buffer::BufferCreationError};
+use lyon::tessellation::FillError;
+use std::io;
 
 error_chain!{
     foreign_links {
-        GlutinContext(glium::glutin::ContextError);
-        SwapBuffer(glium::SwapBuffersError);
-        ProgramChooser(glium::program::ProgramChooserCreationError);
-        Draw(glium::DrawError);
-        Creation(glium::glutin::CreationError);
-        IndexCreation(glium::index::BufferCreationError);
-        VertexCreation(glium::vertex::BufferCreationError);
-        DisplayCreation(glium::backend::glutin::DisplayCreationError);
-        TextureCreation(glium::texture::TextureCreationError);
-        Io(std::io::Error);
-        BufferCreation(glium::buffer::BufferCreationError);
+        GlutinContext(ContextError);
+        SwapBuffer(SwapBuffersError);
+        ProgramChooser(ProgramChooserCreationError);
+        Draw(DrawError);
+        Creation(CreationError);
+        IndexCreation(index::BufferCreationError);
+        VertexCreation(vertex::BufferCreationError);
+        DisplayCreation(DisplayCreationError);
+        TextureCreation(TextureCreationError);
+        Io(io::Error);
+        BufferCreation(BufferCreationError);
     }
 }
 
-impl From<lyon::tessellation::FillError> for Error {
-    fn from(_: lyon::tessellation::FillError) -> Error { "Fill error".into() }
+impl From<FillError> for Error {
+    fn from(_: FillError) -> Error { "Fill error".into() }
 }

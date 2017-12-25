@@ -1,4 +1,4 @@
-use geom::{Geometry, Place, Point, Poly};
+use geom::{Place, Point, Poly};
 use std::rc::Rc;
 
 pub trait SpawnSrc {
@@ -9,21 +9,21 @@ impl<P: Poly> SpawnSrc for P {
     fn spawn_points<'a>(&'a self) -> &'a [Point] { self.vertices() }
 }
 
-pub trait Spawner<G: Geometry> {
+pub trait Spawner<G> {
     fn spawn(&self, point: Point, index: usize) -> G;
 }
 
 #[derive(Clone)]
-pub struct Instancer<G: Geometry + Place> {
+pub struct Instancer<G: Place + Clone> {
     src: G,
     f: Option<Rc<Fn(&G, Point, usize) -> G>>,
 }
 
-impl<G: Geometry + Place> Instancer<G> {
+impl<G: Place + Clone> Instancer<G> {
     pub fn new(src: G) -> Self { Self { src, f: None } }
 }
 
-impl<G: Geometry + Place> Spawner<G> for Instancer<G> {
+impl<G: Place + Clone> Spawner<G> for Instancer<G> {
     fn spawn(&self, point: Point, index: usize) -> G {
         let instance = self.src.clone().place(point);
         match self.f {
@@ -37,8 +37,7 @@ impl<G: Geometry + Place> Spawner<G> for Instancer<G> {
 }
 
 pub fn spawn<G, Src, S>(s: &S, src: &Src) -> Vec<G>
-    where G: Geometry,
-          Src: SpawnSrc,
+    where Src: SpawnSrc,
           S: Spawner<G>
 {
     src.spawn_points()
