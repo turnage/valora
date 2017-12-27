@@ -2,9 +2,7 @@
 
 A declarative generative art toolkit!
 
-Here's a demo. (Code follows)
-
-![demo](https://i.imgur.com/aLAJrKH.gif)
+[Here's a demo](https://i.imgur.com/aLAJrKH.gif). (Code below)
 
 See some actual pieces I've made with it [here](https://www.instagram.com/venlute/).
 
