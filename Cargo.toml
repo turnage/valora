@@ -2,6 +2,8 @@
 name = "valora"
 version = "0.1.0"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
+description = "Declarative generative art toolkit."
+license = "MIT"
 
 [dependencies]
 glium = "0.19"
