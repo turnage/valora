@@ -15,7 +15,8 @@ use palette::Colora;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use tessellation::Tessellation;
+use tessellation::{Tessellate, Tessellation};
+use mesh::Mesh;
 
 pub struct Gpu {
     display: Display,
@@ -105,9 +106,8 @@ impl DerefMut for Gpu {
     fn deref_mut(&mut self) -> &mut Display { &mut self.display }
 }
 
-pub trait Factory: Sized {
-    type Spec;
-    fn produce(spec: &Self::Spec, gpu: Rc<Gpu>) -> Result<Self>;
+pub trait Factory<Spec>: Sized {
+    fn produce(spec: &Spec, gpu: Rc<Gpu>) -> Result<Self>;
 }
 
 #[derive(Copy, Clone)]
@@ -150,17 +150,12 @@ pub struct GpuMesh {
     pub indices: Rc<IndexBuffer<u32>>,
 }
 
-pub struct GpuMeshSpec {
-    pub tessellation: Tessellation,
-    pub colorer: Colorer,
-}
-
-impl Factory for GpuMesh {
-    type Spec = GpuMeshSpec;
-    fn produce(spec: &GpuMeshSpec, gpu: Rc<Gpu>) -> Result<Self> {
+impl<T: Tessellate + Clone> Factory<Mesh<T>> for GpuMesh {
+    fn produce(spec: &Mesh<T>, gpu: Rc<Gpu>) -> Result<Self> {
+        let tessellation = spec.src.tessellate()?;
         Ok(GpuMesh {
                vertices: Rc::new(VertexBuffer::new(gpu.as_ref(),
-                                                   spec.tessellation
+                                                   tessellation
                                                        .vertices
                                                        .iter()
                                                        .map(|tv| {
@@ -172,7 +167,7 @@ impl Factory for GpuMesh {
                                                        .as_slice())?),
                indices: Rc::new(IndexBuffer::new(gpu.as_ref(),
                                                  TrianglesList,
-                                                 spec.tessellation.indices.as_slice())?),
+                                                 tessellation.indices.as_slice())?),
            })
     }
 }

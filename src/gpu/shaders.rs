@@ -14,8 +14,7 @@ pub struct DefaultShader {
     program: Rc<Program>,
 }
 
-impl Factory for DefaultShader {
-    type Spec = ();
+impl Factory<()> for DefaultShader {
     fn produce(_: &(), gpu: Rc<Gpu>) -> Result<Self> {
         Ok(Self { program: gpu.program(Gpu::PROGRAM_DEFAULT).unwrap() })
     }
@@ -48,8 +47,7 @@ pub struct TextureShaderSpec {
     tex: Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>,
 }
 
-impl Factory for TextureShader {
-    type Spec = TextureShaderSpec;
+impl Factory<TextureShaderSpec> for TextureShader {
     fn produce(spec: &TextureShaderSpec, gpu: Rc<Gpu>) -> Result<Self> {
         let dims = spec.tex.dimensions();
         let img = spec.tex.as_ref().clone();

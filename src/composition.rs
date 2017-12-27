@@ -57,8 +57,10 @@ pub trait Layer {
     fn blend_mode(&self) -> BlendMode { BlendMode::Normal }
 }
 
-impl<T: Tessellate> Layer for Vec<Mesh<T>> {
-    fn render(&mut self, _ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        Ok(self.iter().map(|m| m.mesh.clone()).collect())
+impl<T: Tessellate + Clone> Layer for Vec<Mesh<T>> {
+    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
+        self.iter()
+            .map(|m| GpuMesh::produce(m, ctx.gpu.clone()))
+            .collect()
     }
 }
