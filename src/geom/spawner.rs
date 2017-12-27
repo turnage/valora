@@ -9,6 +9,10 @@ impl<P: Poly> SpawnSrc for P {
     default fn spawn_points(&self) -> Vec<Point> { self.vertices() }
 }
 
+impl SpawnSrc for Vec<Point> {
+    fn spawn_points(&self) -> Vec<Point> { self.clone() }
+}
+
 pub trait Spawner<G> {
     fn spawn(&self, point: Point, index: usize) -> G;
 }
