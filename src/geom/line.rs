@@ -43,7 +43,7 @@ impl SubdivideEdges for Line {
 }
 
 impl Poly for Line {
-    fn vertices<'a>(&'a self) -> &'a [Point] { &self.vertices }
+    fn vertices(&self) -> Vec<Point> { self.vertices.clone() }
 }
 
 impl Translate for Line {
@@ -51,7 +51,7 @@ impl Translate for Line {
         Self {
             vertices: self.vertices()
                 .into_iter()
-                .map(|p| *p + delta)
+                .map(|p| p + delta)
                 .collect(),
         }
     }

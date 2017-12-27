@@ -5,7 +5,7 @@ use std::f32;
 use tessellation::{Tessellate, Tessellation};
 
 pub trait Poly: Sized {
-    fn vertices<'a>(&'a self) -> &'a [Point];
+    fn vertices(&self) -> Vec<Point>;
 }
 
 impl<P: Poly> Centered for P {
@@ -43,25 +43,29 @@ pub struct IrregularPoly {
 }
 
 impl Poly for IrregularPoly {
-    fn vertices<'a>(&'a self) -> &'a [Point] { &self.vertices }
+    fn vertices(&self) -> Vec<Point> { self.vertices.clone() }
 }
 
 impl Translate for IrregularPoly {
     fn translate(self, delta: Point) -> Self {
-        IrregularPoly { vertices: self.vertices().iter().map(|p| *p + delta).collect() }
+        IrregularPoly { vertices: self.vertices.into_iter().map(|p| p + delta).collect() }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub struct Rect {
     pub bottom_left: Point,
     pub width: f32,
     pub height: f32,
-    vertices: Vec<Point>,
 }
 
 impl Poly for Rect {
-    fn vertices<'a>(&'a self) -> &'a [Point] { &self.vertices }
+    fn vertices(&self) -> Vec<Point> {
+        vec![self.bottom_left,
+             Point { x: self.bottom_left.x, y: self.bottom_left.y + self.height },
+             Point { x: self.bottom_left.x + self.width, y: self.bottom_left.y + self.height },
+             Point { x: self.bottom_left.x + self.width, y: self.bottom_left.y }]
+    }
 }
 
 impl Translate for Rect {
@@ -84,15 +88,7 @@ impl Rect {
     pub fn frame() -> Self { Self::square(Point { x: 0.0, y: 0.0 }, 1.0) }
 
     pub fn new(bottom_left: Point, width: f32, height: f32) -> Self {
-        Self {
-            height,
-            width,
-            bottom_left,
-            vertices: vec![bottom_left,
-                           Point { x: bottom_left.x, y: bottom_left.y + height },
-                           Point { x: bottom_left.x + width, y: bottom_left.y + height },
-                           Point { x: bottom_left.x + width, y: bottom_left.y }],
-        }
+        Self { height, width, bottom_left }
     }
 }
 
@@ -103,9 +99,7 @@ impl<P: Poly> Tessellate for P {
         use lyon::math;
 
         let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
-        basic_shapes::fill_polyline(self.vertices()
-                                        .into_iter()
-                                        .map(|v: &Point| -> math::Point { (*v).into() }),
+        basic_shapes::fill_polyline(self.vertices().into_iter().map(Into::into),
                                     &mut FillTessellator::new(),
                                     &FillOptions::default(),
                                     &mut simple_builder(&mut vertex_buffers))?;

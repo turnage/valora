@@ -2,11 +2,11 @@ use geom::{Place, Point, Poly};
 use std::rc::Rc;
 
 pub trait SpawnSrc {
-    fn spawn_points<'a>(&'a self) -> &'a [Point];
+    fn spawn_points(&self) -> Vec<Point>;
 }
 
 impl<P: Poly> SpawnSrc for P {
-    fn spawn_points<'a>(&'a self) -> &'a [Point] { self.vertices() }
+    default fn spawn_points(&self) -> Vec<Point> { self.vertices() }
 }
 
 pub trait Spawner<G> {
