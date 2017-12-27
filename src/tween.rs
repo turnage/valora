@@ -1,26 +1,26 @@
 use geom::Scale;
 
-pub struct Tweener<T: 'static + Clone> {
+pub struct Tween<T: 'static + Clone> {
     f: Box<Fn(f32, usize) -> T>,
     interp: Interpolation,
 }
 
-impl<T: 'static + Clone> Tweener<T> {
-    pub fn id(src: T) -> Tweener<T> {
-        Tweener {
+impl<T: 'static + Clone> Tween<T> {
+    pub fn tween(&self, frame: usize) -> T { (self.f)(self.interp.interpolate(frame), frame) }
+}
+
+impl<T: 'static + Clone> From<T> for Tween<T> {
+    fn from(src: T) -> Self {
+        Self {
             f: Box::new(move |_, _| src.clone()),
             interp: Interpolation::Linear { start: 0, len: 0 },
         }
     }
-
-    pub fn tween(&self, frame: usize) -> T { (self.f)(self.interp.interpolate(frame), frame) }
-
-    pub fn done(&self, frame: usize) -> bool { self.interp.done(frame) }
 }
 
-impl<T: 'static + Clone + Scale> Tweener<T> {
+impl<T: 'static + Clone + Scale> Tween<T> {
     pub fn anim_scale(self, start: f32, end: f32, interp: Interpolation) -> Self {
-        Tweener {
+        Tween {
             f: Box::new(move |completion, frame| {
                             self.tween(frame)
                                 .scale(start + completion * (end - start))
@@ -54,8 +54,6 @@ pub enum Interpolation {
 
 impl Interpolation {
     pub fn interpolate(&self, frame: usize) -> f32 { self.clamp(self.raw(frame)) }
-
-    pub fn done(&self, frame: usize) -> bool { self.raw(frame) > 1.0 }
 
     fn raw(&self, frame: usize) -> f32 {
         match *self {

@@ -7,18 +7,18 @@ use tessellation::{Tessellate, Tessellation};
 pub struct Ellipse {
     pub center: Point,
     pub width: f32,
-    pub height: f32,
+    pub height: Option<f32>,
     pub rotation: Radians<f32>,
     pub tolerance: Option<f32>,
 }
 
 impl Ellipse {
-    pub fn circle(center: Point, radius: f32, rotation: f32) -> Self {
+    pub fn circle(center: Point, radius: f32) -> Self {
         Ellipse {
             center,
             width: radius,
-            height: radius,
-            rotation: Radians::new(rotation.to_radians()),
+            height: None,
+            rotation: Radians::new(0.0),
             tolerance: None,
         }
     }
@@ -26,7 +26,7 @@ impl Ellipse {
 
 impl Scale for Ellipse {
     fn scale(self, scale: f32) -> Self {
-        Self { width: self.width * scale, height: self.height * scale, ..self }
+        Self { width: self.width * scale, height: self.height.map(|h| h * scale), ..self }
     }
 }
 
@@ -49,11 +49,21 @@ impl Tessellate for Ellipse {
         use lyon::path_iterator::math::Vec2;
 
         let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
-        basic_shapes::fill_ellipse(self.center.into(),
-                                   Vec2::new(self.width, self.height),
-                                   self.rotation,
-                                   self.tolerance.unwrap_or(0.001),
-                                   &mut simple_builder(&mut vertex_buffers));
+        match self.height {
+            Some(height) => {
+                basic_shapes::fill_ellipse(self.center.into(),
+                                           Vec2::new(self.width, height),
+                                           self.rotation,
+                                           self.tolerance.unwrap_or(0.000001),
+                                           &mut simple_builder(&mut vertex_buffers));
+            }
+            None => {
+                basic_shapes::fill_circle(self.center.into(),
+                                          self.width,
+                                          self.tolerance.unwrap_or(0.000001),
+                                          &mut simple_builder(&mut vertex_buffers));
+            }
+        }
         Ok(Tessellation {
                vertices: vertex_buffers
                    .vertices

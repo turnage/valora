@@ -3,7 +3,6 @@ mod shaders;
 
 pub use self::shaders::*;
 
-use color::Colorer;
 use errors::Result;
 use geom::Point;
 use glium::{glutin, Surface, Display, DrawParameters, Frame, IndexBuffer, Program, VertexBuffer};
@@ -15,7 +14,7 @@ use palette::Colora;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use tessellation::{Tessellate, Tessellation};
+use tessellation::Tessellate;
 use mesh::Mesh;
 
 pub struct Gpu {

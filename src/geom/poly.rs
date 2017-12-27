@@ -96,7 +96,6 @@ impl<P: Poly> Tessellate for P {
     fn tessellate(&self) -> Result<Tessellation> {
         use lyon::tessellation::*;
         use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
-        use lyon::math;
 
         let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
         basic_shapes::fill_polyline(self.vertices().into_iter().map(Into::into),

@@ -13,21 +13,26 @@ struct Circle {
 impl Sketch for Circle {
     fn sketch(&self, ctx: &SketchContext, mut rng: StdRng) -> Result<Composition> {
         let dot_gen = |c: Colorer| {
-            move |p: Point| {
-                ctx.produce(&MeshSpec {
-                                 src: Ellipse::circle(p, self.radius, 0.0),
-                                 colorer: c.clone(),
-                             })
-            }
+            move |p: Point| Mesh { src: Ellipse::circle(p, self.radius), colorer: c.clone() }
         };
-        let dots = [Colorer::red(), Colorer::blue()]
+        let dots: Vec<Tween<Mesh<Ellipse>>> = [Colorer::red(), Colorer::blue()]
             .into_iter()
             .flat_map(|c| {
                           sparkles(self.count, &Rect::frame(), &mut rng)
                               .into_iter()
                               .map(dot_gen(c.clone()))
                       })
-            .collect::<Result<Vec<Mesh<Ellipse>>>>()?;
+            .enumerate()
+            .map(|(i, mesh)| {
+                Tween::from(mesh).anim_scale(1.0,
+                                             1.5,
+                                             Interpolation::Oscillation {
+                                                 oscillation: Oscillation::Sine,
+                                                 start: i,
+                                                 period: 100,
+                                             })
+            })
+            .collect();
         /*let dots = Entanglement::NtoN(dots,
                                       |this, other| if this.colorer.color(this.centroid()) ==
                                                        other.colorer.color(other.centroid()) {

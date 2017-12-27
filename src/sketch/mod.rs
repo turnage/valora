@@ -1,7 +1,3 @@
-pub mod animation;
-
-pub use self::animation::*;
-
 use errors::Result;
 use rand::{SeedableRng, StdRng, random};
 use std::{fs, thread, time, rc::Rc};

@@ -1,7 +1,5 @@
 use color::Colorer;
-use errors::Result;
 use geom::Scale;
-use std::rc::Rc;
 use tessellation::Tessellate;
 
 #[derive(Clone)]

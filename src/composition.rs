@@ -5,6 +5,7 @@ use sketch::SketchContext;
 use std::ops::DerefMut;
 use std::rc::Rc;
 use tessellation::Tessellate;
+use tween::Tween;
 
 #[derive(Default)]
 pub struct Composition {
@@ -57,10 +58,25 @@ pub trait Layer {
     fn blend_mode(&self) -> BlendMode { BlendMode::Normal }
 }
 
-impl<T: Tessellate + Clone> Layer for Vec<Mesh<T>> {
+impl<T: Tessellate + Clone> Layer for Mesh<T> {
     fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        self.iter()
-            .map(|m| GpuMesh::produce(m, ctx.gpu.clone()))
+        Ok(vec![GpuMesh::produce(&self, ctx.gpu.clone())?])
+    }
+}
+
+impl<L: Layer + Clone> Layer for Tween<L> {
+    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
+        self.tween(ctx.frame).render(ctx)
+    }
+}
+
+impl<L: Layer> Layer for Vec<L> {
+    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
+        self.iter_mut()
+            .flat_map(|l| match l.render(ctx) {
+                          Ok(meshes) => meshes.into_iter().map(|m| Ok(m)).collect(),
+                          Err(e) => vec![Err(e)],
+                      })
             .collect()
     }
 }
