@@ -29,16 +29,18 @@ impl Sketch for Circle {
                                                  Interpolation::Oscillation {
                                                      oscillation: Oscillation::Sine,
                                                      start: i,
-                                                     period: 30,
+                                                     period: 100,
                                                  })
                 })
                 .collect();
-        Ok(Composition::new().add(dots))
+        Ok(Composition::new()
+               .add(Mesh { src: Rect::frame(), colorer: Colorer::black() })
+               .add(dots))
     }
 }
 
 fn main() {
-    sketch(SketchCfg { size: 500, root_frame_filename: None, seed: None },
+    sketch(SketchCfg { size: 500, root_frame_filename: Some(String::from("circle")), seed: None },
            Circle { radius: 0.05, count: 25 })
             .expect("sketch");
 }

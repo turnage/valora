@@ -29,7 +29,7 @@ impl Composition {
 
     pub fn render(&mut self, ctx: &SketchContext) -> Result<()> {
         let mut composition = ctx.gpu.canvas()?;
-        for mut layer in self.layers.iter_mut() {
+        for mut layer in self.layers.iter_mut().rev() {
             let mut cmds = Vec::new();
             let shader = layer.shader(ctx)?;
             for mesh in layer.render(ctx)? {

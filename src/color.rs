@@ -28,6 +28,7 @@ impl<F: 'static + Fn(Point) -> Colora> From<Rc<F>> for Colorer {
 impl Colorer {
     pub fn red() -> Self { Self::from(Colora::rgb(1.0, 0.0, 0.0, 1.0)) }
     pub fn blue() -> Self { Self::from(Colora::rgb(0.0, 0.0, 1.0, 1.0)) }
+    pub fn black() -> Self { Self::from(Colora::rgb(0.0, 0.0, 0.0, 1.0)) }
 
     pub fn color(&self, point: Point) -> Colora {
         match self.0 {

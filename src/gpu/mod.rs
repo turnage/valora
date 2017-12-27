@@ -56,7 +56,7 @@ impl Gpu {
         use glium::uniforms::MagnifySamplerFilter;
 
         let (size, _) = self.display.get_framebuffer_dimensions();
-        let mut frame = self.display.draw();
+        let frame = self.display.draw();
         SimpleFrameBuffer::new(&self.display, &tex)?.blit_whole_color_to(
             &frame,
             &BlitTarget {
@@ -72,9 +72,6 @@ impl Gpu {
     pub fn screen(&self) -> Target { self.display.draw().into() }
 
     pub fn render_to_texture(&self, cmds: Vec<(Rc<Shader>, GpuMesh)>) -> Result<Texture2d> {
-        use glium::texture::{MipmapsOption, UncompressedFloatFormat};
-
-        let (size, _) = self.display.get_framebuffer_dimensions();
         let dest = self.canvas()?;
         {
             let target = Target::from(SimpleFrameBuffer::new(&self.display, &dest)?);

@@ -51,7 +51,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
         if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
             let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
             fs::create_dir_all(&saves_dir)?;
-            context.gpu.save_frame(&format!("{}{}", saves_dir, context.frame))?;
+            context.gpu.save_frame(&format!("{}{:08}", saves_dir, context.frame))?;
         }
         cycle = Gpu::events(events_loop);
         thread::sleep(time::Duration::from_millis(16));
