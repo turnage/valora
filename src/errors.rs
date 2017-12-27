@@ -1,12 +1,13 @@
 use glium::{SwapBuffersError, glutin::{CreationError, ContextError},
             program::ProgramChooserCreationError, DrawError, index, vertex,
             backend::glutin::DisplayCreationError, texture::TextureCreationError,
-            buffer::BufferCreationError};
+            buffer::BufferCreationError, framebuffer::ValidationError};
 use lyon::tessellation::FillError;
 use std::io;
 
 error_chain!{
     foreign_links {
+        FrameValidation(ValidationError);   
         GlutinContext(ContextError);
         SwapBuffer(SwapBuffersError);
         ProgramChooser(ProgramChooserCreationError);

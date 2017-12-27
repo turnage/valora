@@ -2,6 +2,10 @@ use geom::Point;
 use palette::Colora;
 use std::rc::Rc;
 
+pub enum BlendMode {
+    Normal,
+}
+
 #[derive(Clone)]
 pub struct Colorer(Option<Rc<Fn(Point) -> Colora>>);
 

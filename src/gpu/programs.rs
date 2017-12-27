@@ -22,9 +22,15 @@ lazy_static! {
     };
     pub static ref PROGRAM_SPEC_TEXTURE: ProgramSpec  = ProgramSpec {
         vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-                                          "/shaders/texture.glslv")),
+                                          "/shaders/texture.vert")),
         fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                             "/shaders/texture.glslf")),
+    };
+    pub static ref PROGRAM_SPEC_BLEND_NORMAL: ProgramSpec  = ProgramSpec {
+        vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                          "/shaders/texture.vert")),
+        fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                            "/shaders/blends/normal.frag")),
     };
 }
 

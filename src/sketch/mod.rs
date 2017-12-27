@@ -19,8 +19,8 @@ pub struct SketchContext {
 }
 
 impl SketchContext {
-    pub fn produce<Spec, F: Factory<Spec>>(&self, spec: &Spec) -> Result<F> {
-        F::produce(&spec, self.gpu.clone())
+    pub fn produce<Spec, F: Factory<Spec>>(&self, spec: Spec) -> Result<F> {
+        F::produce(spec, self.gpu.clone())
     }
 }
 

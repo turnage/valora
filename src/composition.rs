@@ -1,8 +1,11 @@
+use color::BlendMode;
 use errors::Result;
-use gpu::{DefaultShader, Factory, GpuMesh, Shader};
+use geom::Rect;
+use glium::texture::Texture2d;
+use gpu::{BlendShader, BlendShaderSpec, DefaultShader, Factory, Gpu, GpuMesh, Shader,
+          TextureShader};
 use mesh::Mesh;
 use sketch::SketchContext;
-use std::ops::DerefMut;
 use std::rc::Rc;
 use tessellation::Tessellate;
 use tween::Tween;
@@ -25,34 +28,36 @@ impl Composition {
     }
 
     pub fn render(&mut self, ctx: &SketchContext) -> Result<()> {
-        ctx.gpu
-            .screen()
-            .draw_all(self.layers
-                          .iter_mut()
-                          .flat_map(|l| match (l.deref_mut().shader(ctx),
-                                               l.deref_mut().render(ctx)) {
-                                        (Ok(shader), Ok(meshes)) => {
-                                            meshes
-                                                .into_iter()
-                                                .map(|mesh| Ok((shader.clone(), mesh)))
-                                                .collect()
-                                        }
-                                        (Err(e1), Err(e2)) => vec![Err(e1), Err(e2)],
-                                        (Err(e), _) => vec![Err(e)],
-                                        (_, Err(e)) => vec![Err(e)],
-                                    })
-                          .collect::<Result<Vec<(Rc<Shader>, GpuMesh)>>>()?)
+        let mut composition = ctx.gpu.canvas()?;
+        for mut layer in self.layers.iter_mut() {
+            let mut cmds = Vec::new();
+            let shader = layer.shader(ctx)?;
+            for mesh in layer.render(ctx)? {
+                cmds.push((shader.clone(), mesh))
+            }
+            let fg = ctx.gpu.render_to_texture(cmds)?;
+            composition = Self::blend(ctx.gpu.clone(), fg, composition, layer.blend_mode())?;
+        }
+        let mut screen = ctx.gpu.screen();
+        TextureShader::produce(composition, ctx.gpu.clone())?
+            .draw(&mut screen, Self::frame_mesh(ctx.gpu.clone())?)?;
+        screen.finish()
     }
-}
 
-pub enum BlendMode {
-    Normal,
+    fn blend(gpu: Rc<Gpu>, fg: Texture2d, bg: Texture2d, mode: BlendMode) -> Result<Texture2d> {
+        let shader = Rc::new(BlendShader::produce(BlendShaderSpec { bg, fg, mode }, gpu.clone())?);
+        gpu.render_to_texture(vec![(shader, Self::frame_mesh(gpu.clone())?)])
+    }
+
+    fn frame_mesh(gpu: Rc<Gpu>) -> Result<GpuMesh> {
+        GpuMesh::produce(Mesh { src: Rect::frame(), colorer: Default::default() }, gpu)
+    }
 }
 
 pub trait Layer {
     fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>>;
     fn shader(&mut self, ctx: &SketchContext) -> Result<Rc<Shader>> {
-        let shader: DefaultShader = DefaultShader::produce(&(), ctx.gpu.clone())?;
+        let shader: DefaultShader = DefaultShader::produce((), ctx.gpu.clone())?;
         Ok(Rc::new(shader))
     }
     fn blend_mode(&self) -> BlendMode { BlendMode::Normal }
@@ -60,7 +65,7 @@ pub trait Layer {
 
 impl<T: Tessellate + Clone> Layer for Mesh<T> {
     fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        Ok(vec![GpuMesh::produce(&self, ctx.gpu.clone())?])
+        Ok(vec![GpuMesh::produce(self.clone(), ctx.gpu.clone())?])
     }
 }
 

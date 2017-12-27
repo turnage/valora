@@ -8,6 +8,8 @@ use geom::Point;
 use glium::{glutin, Surface, Display, DrawParameters, Frame, IndexBuffer, Program, VertexBuffer};
 use glium::{index::IndicesSource, vertex::MultiVerticesSource};
 use glium::backend::{Context, Facade};
+use glium::texture::Texture2d;
+use glium::framebuffer::SimpleFrameBuffer;
 use glium::index::PrimitiveType::TrianglesList;
 use glium::uniforms::Uniforms;
 use palette::Colora;
@@ -25,6 +27,7 @@ pub struct Gpu {
 impl Gpu {
     pub const PROGRAM_DEFAULT: &'static str = "default";
     pub const PROGRAM_TEXTURE: &'static str = "texture";
+    pub const PROGRAM_BLEND_NORMAL: &'static str = "blend_normal";
 
     pub fn new(size: u32) -> Result<(Self, glutin::EventsLoop)> {
         let events_loop = glutin::EventsLoop::new();
@@ -36,10 +39,11 @@ impl Gpu {
             .with_vsync(true);
         let display = Display::new(window, context, &events_loop)?;
 
-        let programs = hashmap!(
+        let programs = hashmap!{
             Self::PROGRAM_DEFAULT => Rc::new(programs::load(&programs::PROGRAM_SPEC_DEFAULT, &display)?),
-            Self::PROGRAM_TEXTURE => Rc::new(programs::load(&programs::PROGRAM_SPEC_TEXTURE, &display)?)
-        );
+            Self::PROGRAM_TEXTURE => Rc::new(programs::load(&programs::PROGRAM_SPEC_TEXTURE, &display)?),
+            Self::PROGRAM_BLEND_NORMAL => Rc::new(programs::load(&programs::PROGRAM_SPEC_BLEND_NORMAL, &display)?),
+        };
         Ok((Self { display, programs }, events_loop))
     }
 
@@ -47,7 +51,47 @@ impl Gpu {
         self.programs.get(id).map(|p| (*p).clone())
     }
 
+    pub fn blit(&self, tex: Texture2d) -> Result<()> {
+        use glium::BlitTarget;
+        use glium::uniforms::MagnifySamplerFilter;
+
+        let (size, _) = self.display.get_framebuffer_dimensions();
+        let mut frame = self.display.draw();
+        SimpleFrameBuffer::new(&self.display, &tex)?.blit_whole_color_to(
+            &frame,
+            &BlitTarget {
+                left: 0,
+                bottom: 0,
+                width: size as i32,
+                height: size as i32,
+            },
+            MagnifySamplerFilter::Linear);
+        Ok(frame.finish()?)
+    }
+
     pub fn screen(&self) -> Target { self.display.draw().into() }
+
+    pub fn render_to_texture(&self, cmds: Vec<(Rc<Shader>, GpuMesh)>) -> Result<Texture2d> {
+        use glium::texture::{MipmapsOption, UncompressedFloatFormat};
+
+        let (size, _) = self.display.get_framebuffer_dimensions();
+        let dest = self.canvas()?;
+        {
+            let target = Target::from(SimpleFrameBuffer::new(&self.display, &dest)?);
+            target.draw_all(cmds)?;
+        }
+        Ok(dest)
+    }
+
+    pub fn canvas(&self) -> Result<Texture2d> {
+        use glium::texture::{MipmapsOption, UncompressedFloatFormat};
+
+        let (size, _) = self.display.get_framebuffer_dimensions();
+        Texture2d::empty_with_format(
+                &self.display,
+                UncompressedFloatFormat::U16U16U16U16,
+                MipmapsOption::NoMipmap, size * 4, size * 4).map_err(Into::into)
+    }
 
     pub fn save_frame(&self, filename: &str) -> Result<()> {
         use glium::texture::RawImage2d;
@@ -106,7 +150,7 @@ impl DerefMut for Gpu {
 }
 
 pub trait Factory<Spec>: Sized {
-    fn produce(spec: &Spec, gpu: Rc<Gpu>) -> Result<Self>;
+    fn produce(spec: Spec, gpu: Rc<Gpu>) -> Result<Self>;
 }
 
 #[derive(Copy, Clone)]
@@ -150,7 +194,7 @@ pub struct GpuMesh {
 }
 
 impl<T: Tessellate + Clone> Factory<Mesh<T>> for GpuMesh {
-    fn produce(spec: &Mesh<T>, gpu: Rc<Gpu>) -> Result<Self> {
+    fn produce(spec: Mesh<T>, gpu: Rc<Gpu>) -> Result<Self> {
         let tessellation = spec.src.tessellate()?;
         Ok(GpuMesh {
                vertices: Rc::new(VertexBuffer::new(gpu.as_ref(),
@@ -171,15 +215,22 @@ impl<T: Tessellate + Clone> Factory<Mesh<T>> for GpuMesh {
     }
 }
 
-pub enum Target {
+pub enum Target<'a> {
     Screen(Frame),
+    Buffer(SimpleFrameBuffer<'a>),
 }
 
-impl From<Frame> for Target {
+impl<'a> From<Frame> for Target<'a> {
     fn from(frame: Frame) -> Self { Target::Screen(frame) }
 }
 
-impl Target {
+impl<'a> From<SimpleFrameBuffer<'a>> for Target<'a> {
+    fn from(buffer: SimpleFrameBuffer<'a>) -> Self {
+        Target::Buffer(buffer)
+    }
+}
+
+impl<'a> Target<'a> {
     pub fn draw_all(mut self, cmds: Vec<(Rc<Shader>, GpuMesh)>) -> Result<()> {
         self.clear();
         for (shader, mesh) in cmds {
@@ -188,32 +239,35 @@ impl Target {
         self.finish()
     }
 
-    pub fn draw<'a, 'b, 'v, V, I, U>(&mut self,
+    pub fn draw<'b, 'c, 'v, V, I, U>(&mut self,
                                      vb: V,
                                      ib: I,
                                      program: &Program,
                                      uniforms: &U,
                                      draw_parameters: &DrawParameters)
                                      -> Result<()>
-        where V: MultiVerticesSource<'b>,
-              I: Into<IndicesSource<'a>>,
+        where V: MultiVerticesSource<'c>,
+              I: Into<IndicesSource<'b>>,
               U: Uniforms
     {
         use glium::Surface;
         match *self {
             Target::Screen(ref mut frame) => frame.draw(vb, ib, program, uniforms, draw_parameters).map_err(Into::into),
+            Target::Buffer(ref mut buffer) => buffer.draw(vb, ib, program, uniforms, draw_parameters).map_err(Into::into),
         }
     }
 
     fn clear(&mut self) {
         match *self {
-            Target::Screen(ref mut frame) => frame.clear_color(0.0, 0.0, 0.0, 1.0),
+            Target::Screen(ref mut frame) => frame.clear_color(0.0, 0.0, 0.0, 0.0),
+            Target::Buffer(ref mut buffer) => buffer.clear_color(0.0, 0.0, 0.0, 0.0),
         }
     }
 
-    fn finish(self) -> Result<()> {
+    pub fn finish(self) -> Result<()> {
         match self {
             Target::Screen(frame) => frame.finish().map_err(Into::into),
+            Target::Buffer(_) => Ok(()),
         }
     }
 }
