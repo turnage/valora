@@ -23,6 +23,7 @@ pub mod actors;
 pub mod errors;
 pub mod composition;
 pub mod tween;
+pub mod transforms;
 
 mod color;
 mod properties;

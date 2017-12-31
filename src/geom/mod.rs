@@ -23,10 +23,6 @@ pub trait SubdivideEdges: Sized {
     // midpoint of all previously existing edges. The actual shape should
     // not change.
     fn subdivide_edges(self) -> Self;
-
-    fn subdivide_edges_n(self, n: usize) -> Self {
-        (0..n).into_iter().fold(self, |s, _| s.subdivide_edges())
-    }
 }
 
 pub trait Distance<Dest> {
