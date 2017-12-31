@@ -1,7 +1,4 @@
-use color::Colorer;
 use geom::{Path, Place, Scale};
-use mesh::Mesh;
-use palette::Colora;
 use std::rc::Rc;
 
 #[derive(Clone)]

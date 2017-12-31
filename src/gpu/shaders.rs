@@ -1,4 +1,3 @@
-use color::BlendMode;
 use errors::Result;
 use glium::Program;
 use glium::texture::{RawImage2d, Texture2d};

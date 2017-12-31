@@ -5,7 +5,6 @@ use gpu::{GpuNormal, GpuVertex};
 use lyon::path_iterator::math::Vec2;
 use lyon::tessellation::*;
 use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
-use mesh::DrawMode;
 
 const ELLIPSE_TOLERANCE: f32 = 0.00001;
 
@@ -114,7 +113,7 @@ impl<P: Poly> Tessellate for P {
         let mut vertex_buffers: VertexBuffers<StrokeVertex> = VertexBuffers::new();
         basic_shapes::stroke_polyline(self.vertices().into_iter().map(Into::into),
                                       true,
-                                      &StrokeOptions::default(),
+                                      &StrokeOptions::default().with_line_width(thickness),
                                       &mut simple_builder(&mut vertex_buffers));
         Ok(Tessellation::from_stroke_buffer(vertex_buffers, colorer))
     }

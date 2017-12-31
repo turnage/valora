@@ -1,8 +1,7 @@
 use color::{BlendMode, Colorer};
 use errors::Result;
 use geom::Rect;
-use glium::texture::Texture2d;
-use gpu::{DefaultShader, Factory, Gpu, GpuMesh, Shader, Tessellate, TextureShader};
+use gpu::{DefaultShader, Factory, GpuMesh, Shader, Tessellate};
 use mesh::{DrawMode, Mesh};
 use sketch::SketchContext;
 use std::rc::Rc;

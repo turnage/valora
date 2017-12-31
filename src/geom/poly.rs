@@ -1,4 +1,3 @@
-use errors::Result;
 use geom::{Centered, Distance, Place, Point, Translate};
 use properties::clipping::Bounded;
 use std::f32;
