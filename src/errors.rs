@@ -4,6 +4,7 @@ use glium::{SwapBuffersError, glutin::{CreationError, ContextError},
             buffer::BufferCreationError, framebuffer::ValidationError};
 use lyon::tessellation::FillError;
 use std::io;
+use num::traits::ParseFloatError;
 
 error_chain!{
     foreign_links {
@@ -24,4 +25,10 @@ error_chain!{
 
 impl From<FillError> for Error {
     fn from(_: FillError) -> Error { "Fill error".into() }
+}
+
+impl From<ParseFloatError> for Error {
+    fn from(e: ParseFloatError) -> Error {
+        format!("parse float error: {:?}", e).into()
+    }
 }

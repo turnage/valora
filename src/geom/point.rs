@@ -1,10 +1,14 @@
+use errors;
 use geom::{Distance, SubdivideEdges, Translate};
 use lyon::tessellation::{FillVertex, StrokeVertex};
 use lyon::tessellation::math::Point2D;
+use num::traits::{Num, NumOps, Signed};
+use num::traits::identities::{One, Zero};
 use rand::{Rand, Rng};
+use rand::distributions::{IndependentSample, Normal, Sample};
 use std::ops::*;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -12,6 +16,20 @@ pub struct Point {
 
 impl Default for Point {
     fn default() -> Self { Self::center() }
+}
+
+impl Sample<Point> for Normal {
+    fn sample<R: Rng>(&mut self, rng: &mut R) -> Point {
+        let (x, y): (f64, f64) = (self.sample(rng), self.sample(rng));
+        Point { x: x as f32, y: y as f32 }
+    }
+}
+
+impl IndependentSample<Point> for Normal {
+    fn ind_sample<R: Rng>(&self, rng: &mut R) -> Point {
+        let (x, y): (f64, f64) = (self.ind_sample(rng), self.ind_sample(rng));
+        Point { x: x as f32, y: y as f32 }
+    }
 }
 
 impl Add for Point {
@@ -64,9 +82,51 @@ impl MulAssign<f32> for Point {
     }
 }
 
+impl Div<Point> for Point {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self { Self { x: self.x / rhs.y, y: self.y / rhs.y } }
+}
+
 impl Div<f32> for Point {
     type Output = Self;
     fn div(self, rhs: f32) -> Self { self * (1.0 / rhs) }
+}
+
+impl Rem for Point {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self { Self { x: rhs.x % self.x, y: rhs.y % self.y } }
+}
+
+impl Neg for Point {
+    type Output = Self;
+    fn neg(self) -> Self { Self { x: -self.x, y: -self.y } }
+}
+
+impl Zero for Point {
+    fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
+    fn is_zero(&self) -> bool { *self == Self::zero() }
+}
+
+impl One for Point {
+    fn one() -> Self { Self { x: 1.0, y: 1.0 } }
+}
+
+impl NumOps for Point {}
+
+impl Num for Point {
+    type FromStrRadixErr = errors::Error;
+    fn from_str_radix(str: &str, radix: u32) -> Result<Self, Self::FromStrRadixErr> {
+        let v: f32 = f32::from_str_radix(str, radix)?;
+        Ok(Self { x: v, y: v })
+    }
+}
+
+impl Signed for Point {
+    fn abs(&self) -> Self { Self { x: self.x.abs(), y: self.y.abs() } }
+    fn abs_sub(&self, other: &Self) -> Self { (*self - *other).abs() }
+    fn signum(&self) -> Self { Point { x: self.x.signum(), y: self.y.signum() } }
+    fn is_positive(&self) -> bool { self.x.is_positive() && self.y.is_positive() }
+    fn is_negative(&self) -> bool { self.x.is_negative() && self.y.is_negative() }
 }
 
 impl SubdivideEdges for Vec<Point> {
@@ -103,6 +163,11 @@ impl Distance<Self> for Point {
 
     fn manhattan_distance(&self, dest: &Self) -> f32 {
         (self.x - dest.x).abs() + (self.y - dest.y).abs()
+    }
+
+    fn sign_to(&self, dest: &Self) -> Point {
+        use num::Signed;
+        (*dest - *self).signum()
     }
 }
 

@@ -1,4 +1,4 @@
-use color::{BlendMode, Colorer};
+use color::{BlendMode, Colorer, Opacity};
 use geom::{Place, Point, Scale};
 
 #[derive(Debug, Clone, Copy)]
@@ -32,4 +32,10 @@ impl<T: Scale + Clone> Scale for Mesh<T> {
 
 impl<T: Place + Clone> Place for Mesh<T> {
     fn place(self, dest: Point) -> Self { Self { src: self.src.place(dest), ..self } }
+}
+
+impl<T: Clone> Opacity for Mesh<T> {
+    fn opacity(self, opacity: f32) -> Self {
+        Self { colorer: self.colorer.opacity(opacity), ..self }
+    }
 }

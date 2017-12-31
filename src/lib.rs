@@ -4,6 +4,7 @@
 #![feature(fnbox)]
 #![feature(nll)]
 #![feature(crate_in_paths)]
+#![recursion_limit="128"]
 
 #[macro_use] extern crate error_chain;
 #[macro_use] pub extern crate glium;
@@ -12,6 +13,7 @@ extern crate image;
 pub extern crate rand;
 extern crate petgraph;
 extern crate itertools;
+extern crate num;
 pub extern crate palette;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate lazy_static;

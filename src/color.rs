@@ -6,8 +6,13 @@ use std::rc::Rc;
 pub enum BlendMode {
     Normal,
     Add,
+    Subtract,
     MaskOpaque,
     MaskTransparent,
+}
+
+pub trait Opacity {
+    fn opacity(self, opacity: f32) -> Self;
 }
 
 #[derive(Clone)]
@@ -15,6 +20,12 @@ pub struct Colorer(Option<Rc<Fn(Point) -> Colora>>);
 
 impl Default for Colorer {
     fn default() -> Self { Colorer(None) }
+}
+
+impl Opacity for Colorer {
+    fn opacity(self, opacity: f32) -> Self {
+        Colorer(Some(Rc::new(move |point| Colora { alpha: opacity, ..self.color(point) })))
+    }
 }
 
 impl From<Colora> for Colorer {

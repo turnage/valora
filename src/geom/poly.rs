@@ -1,31 +1,14 @@
-use geom::{Centered, Distance, Place, Point, Translate};
+use geom::{Centered, Distance, Place, Point, Scale, SubdivideEdges, Translate};
 use properties::clipping::Bounded;
 use std::f32;
 
 pub trait Poly: Sized {
     fn vertices(&self) -> Vec<Point>;
+    fn as_irregular(&self) -> IrregularPoly { IrregularPoly { vertices: self.vertices() } }
 }
 
 impl<P: Poly> Centered for P {
-    fn centroid(&self) -> Point {
-        let mut min = Point { x: f32::MAX, y: f32::MAX };
-        let mut max = Point { x: f32::MIN, y: f32::MIN };
-        for v in self.vertices() {
-            if v.x < min.x {
-                min.x = v.x;
-            }
-            if v.y < min.y {
-                min.y = v.y;
-            }
-            if v.x > max.x {
-                max.x = v.x;
-            }
-            if v.y > max.y {
-                max.y = v.y;
-            }
-        }
-        min.midpoint(&max)
-    }
+    fn centroid(&self) -> Point { self.vertices().centroid() }
 }
 
 impl<P: Poly + Translate> Place for P {
@@ -37,7 +20,22 @@ impl<P: Poly + Translate> Place for P {
 
 #[derive(Debug, Clone)]
 pub struct IrregularPoly {
-    vertices: Vec<Point>,
+    pub vertices: Vec<Point>,
+}
+
+impl SubdivideEdges for IrregularPoly {
+    fn subdivide_edges(self) -> Self {
+        Self {
+            vertices: self.vertices
+                .iter()
+                .zip(self.vertices
+                         .iter()
+                         .skip(1)
+                         .chain(self.vertices.iter().take(1)))
+                .flat_map(|(p1, p2)| vec![*p1, p1.midpoint(p2)])
+                .collect(),
+        }
+    }
 }
 
 impl Poly for IrregularPoly {
@@ -47,6 +45,24 @@ impl Poly for IrregularPoly {
 impl Translate for IrregularPoly {
     fn translate(self, delta: Point) -> Self {
         IrregularPoly { vertices: self.vertices.into_iter().map(|p| p + delta).collect() }
+    }
+}
+
+impl Scale for IrregularPoly {
+    fn scale(self, scale: f32) -> Self { Self { vertices: self.vertices().scale(scale) } }
+}
+
+pub struct Ngon {
+    pub n: usize,
+    pub rotation: f32,
+    pub radius: f32,
+    pub center: Point,
+}
+
+impl Poly for Ngon {
+    fn vertices(&self) -> Vec<Point> {
+        use geom::Ellipse;
+        Ellipse::circle(self.center, self.radius).circumpoints(self.n, self.rotation)
     }
 }
 
