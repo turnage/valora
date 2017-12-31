@@ -1,23 +1,27 @@
 mod programs;
 mod shaders;
+mod tessellation;
 
 pub use self::shaders::*;
+pub use self::tessellation::*;
 
+use color::BlendMode;
 use errors::Result;
 use geom::Point;
-use glium::{glutin, Surface, Display, DrawParameters, Frame, IndexBuffer, Program, VertexBuffer};
-use glium::{index::IndicesSource, vertex::MultiVerticesSource};
+use glium::{Blend, Display, DrawParameters, Frame, IndexBuffer, Program, Surface, VertexBuffer,
+            glutin};
 use glium::backend::{Context, Facade};
-use glium::texture::Texture2d;
 use glium::framebuffer::SimpleFrameBuffer;
-use glium::index::PrimitiveType::TrianglesList;
+use glium::index::IndicesSource;
+use glium::index::PrimitiveType;
+use glium::texture::Texture2d;
 use glium::uniforms::Uniforms;
+use glium::vertex::MultiVerticesSource;
+use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use tessellation::Tessellate;
-use mesh::Mesh;
 
 pub struct Gpu {
     display: Display,
@@ -27,7 +31,6 @@ pub struct Gpu {
 impl Gpu {
     pub const PROGRAM_DEFAULT: &'static str = "default";
     pub const PROGRAM_TEXTURE: &'static str = "texture";
-    pub const PROGRAM_BLEND_NORMAL: &'static str = "blend_normal";
 
     pub fn new(size: u32) -> Result<(Self, glutin::EventsLoop)> {
         let events_loop = glutin::EventsLoop::new();
@@ -42,7 +45,6 @@ impl Gpu {
         let programs = hashmap!{
             Self::PROGRAM_DEFAULT => Rc::new(programs::load(&programs::PROGRAM_SPEC_DEFAULT, &display)?),
             Self::PROGRAM_TEXTURE => Rc::new(programs::load(&programs::PROGRAM_SPEC_TEXTURE, &display)?),
-            Self::PROGRAM_BLEND_NORMAL => Rc::new(programs::load(&programs::PROGRAM_SPEC_BLEND_NORMAL, &display)?),
         };
         Ok((Self { display, programs }, events_loop))
     }
@@ -57,15 +59,15 @@ impl Gpu {
 
         let (size, _) = self.display.get_framebuffer_dimensions();
         let frame = self.display.draw();
-        SimpleFrameBuffer::new(&self.display, &tex)?.blit_whole_color_to(
-            &frame,
-            &BlitTarget {
-                left: 0,
-                bottom: 0,
-                width: size as i32,
-                height: size as i32,
-            },
-            MagnifySamplerFilter::Linear);
+        SimpleFrameBuffer::new(&self.display, &tex)?
+            .blit_whole_color_to(&frame,
+                                 &BlitTarget {
+                                      left: 0,
+                                      bottom: 0,
+                                      width: size as i32,
+                                      height: size as i32,
+                                  },
+                                 MagnifySamplerFilter::Linear);
         Ok(frame.finish()?)
     }
 
@@ -84,10 +86,12 @@ impl Gpu {
         use glium::texture::{MipmapsOption, UncompressedFloatFormat};
 
         let (size, _) = self.display.get_framebuffer_dimensions();
-        Texture2d::empty_with_format(
-                &self.display,
-                UncompressedFloatFormat::U16U16U16U16,
-                MipmapsOption::NoMipmap, size * 4, size * 4).map_err(Into::into)
+        Texture2d::empty_with_format(&self.display,
+                                     UncompressedFloatFormat::U16U16U16U16,
+                                     MipmapsOption::NoMipmap,
+                                     size * 4,
+                                     size * 4)
+                .map_err(Into::into)
     }
 
     pub fn save_frame(&self, filename: &str) -> Result<()> {
@@ -96,14 +100,16 @@ impl Gpu {
         use std::fs::File;
 
         let image: RawImage2d<u8> = self.display.read_front_buffer();
-        let image = ImageBuffer::from_raw(image.width, image.height, image.data.into_owned()).unwrap();
+        let image = ImageBuffer::from_raw(image.width, image.height, image.data.into_owned())
+            .unwrap();
         let image = DynamicImage::ImageRgba8(image).flipv();
         let mut output = File::create(format!("{}.png", filename))?;
         image.save(&mut output, ImageFormat::PNG).unwrap();
         Ok(())
     }
 
-    pub fn events(mut events_loop: glutin::EventsLoop) -> Option<(glutin::EventsLoop, Vec<glutin::WindowEvent>)> {
+    pub fn events(mut events_loop: glutin::EventsLoop)
+                  -> Option<(glutin::EventsLoop, Vec<glutin::WindowEvent>)> {
         let mut terminate = false;
         let mut events = Vec::new();
         events_loop.poll_events(|event| {
@@ -150,7 +156,14 @@ pub trait Factory<Spec>: Sized {
     fn produce(spec: Spec, gpu: Rc<Gpu>) -> Result<Self>;
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
+pub struct GpuNormal {
+    pub normal: (f32, f32, f32),
+}
+
+implement_vertex!(GpuNormal, normal);
+
+#[derive(Debug, Copy, Clone)]
 pub struct GpuVertex {
     pub position: [f32; 2],
     pub color: [f32; 4],
@@ -184,30 +197,89 @@ impl From<(Point, Colora)> for GpuVertex {
     }
 }
 
+impl From<BlendMode> for Blend {
+    fn from(src: BlendMode) -> Self {
+        use glium::{BlendingFunction, LinearBlendingFactor};
+        match src {
+            BlendMode::Normal => {
+                Blend {
+                    color: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::SourceAlpha,
+                        destination: LinearBlendingFactor::OneMinusDestinationAlpha,
+                    },
+                    alpha: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::SourceAlpha,
+                        destination: LinearBlendingFactor::OneMinusDestinationAlpha,
+                    },
+                    constant_value: (0.0, 0.0, 0.0, 0.0),
+                }
+            }
+            BlendMode::Add => {
+                Blend {
+                    color: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::One,
+                        destination: LinearBlendingFactor::One,
+                    },
+                    alpha: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::SourceAlpha,
+                        destination: LinearBlendingFactor::OneMinusDestinationAlpha,
+                    },
+                    constant_value: (0.0, 0.0, 0.0, 0.0),
+                }
+            }
+            BlendMode::MaskOpaque => {
+                Blend {
+                    color: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::DestinationAlpha,
+                        destination: LinearBlendingFactor::Zero,
+                    },
+                    alpha: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::Zero,
+                        destination: LinearBlendingFactor::SourceAlpha,
+                    },
+                    constant_value: (0.0, 0.0, 0.0, 0.0),
+                }
+            }
+            BlendMode::MaskTransparent => {
+                Blend {
+                    color: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::OneMinusDestinationAlpha,
+                        destination: LinearBlendingFactor::DestinationAlpha,
+                    },
+                    alpha: BlendingFunction::Addition {
+                        source: LinearBlendingFactor::Zero,
+                        destination: LinearBlendingFactor::SourceAlpha,
+                    },
+                    constant_value: (0.0, 0.0, 0.0, 0.0),
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct GpuMesh {
     pub vertices: Rc<VertexBuffer<GpuVertex>>,
+    pub normals: Rc<VertexBuffer<GpuNormal>>,
     pub indices: Rc<IndexBuffer<u32>>,
+    pub blend: Blend,
 }
 
 impl<T: Tessellate + Clone> Factory<Mesh<T>> for GpuMesh {
     fn produce(spec: Mesh<T>, gpu: Rc<Gpu>) -> Result<Self> {
-        let tessellation = spec.src.tessellate()?;
+        let tessellation = match spec.draw_mode {
+            DrawMode::Fill => spec.src.tessellate_fill(spec.colorer)?,
+            DrawMode::Stroke { thickness } => spec.src.tessellate_stroke(thickness, spec.colorer)?,
+        };
+
         Ok(GpuMesh {
                vertices: Rc::new(VertexBuffer::new(gpu.as_ref(),
-                                                   tessellation
-                                                       .vertices
-                                                       .iter()
-                                                       .map(|tv| {
-                                                                let point = (*tv).into();
-                                                                (point, spec.colorer.color(point))
-                                                                    .into()
-                                                            })
-                                                       .collect::<Vec<GpuVertex>>()
-                                                       .as_slice())?),
+                                                   tessellation.vertices.as_slice())?),
+               normals: Rc::new(VertexBuffer::new(gpu.as_ref(), tessellation.normals.as_slice())?),
                indices: Rc::new(IndexBuffer::new(gpu.as_ref(),
-                                                 TrianglesList,
+                                                 PrimitiveType::TrianglesList,
                                                  tessellation.indices.as_slice())?),
+               blend: Blend::from(spec.blend_mode),
            })
     }
 }
@@ -222,9 +294,7 @@ impl<'a> From<Frame> for Target<'a> {
 }
 
 impl<'a> From<SimpleFrameBuffer<'a>> for Target<'a> {
-    fn from(buffer: SimpleFrameBuffer<'a>) -> Self {
-        Target::Buffer(buffer)
-    }
+    fn from(buffer: SimpleFrameBuffer<'a>) -> Self { Target::Buffer(buffer) }
 }
 
 impl<'a> Target<'a> {
@@ -249,8 +319,16 @@ impl<'a> Target<'a> {
     {
         use glium::Surface;
         match *self {
-            Target::Screen(ref mut frame) => frame.draw(vb, ib, program, uniforms, draw_parameters).map_err(Into::into),
-            Target::Buffer(ref mut buffer) => buffer.draw(vb, ib, program, uniforms, draw_parameters).map_err(Into::into),
+            Target::Screen(ref mut frame) => {
+                frame
+                    .draw(vb, ib, program, uniforms, draw_parameters)
+                    .map_err(Into::into)
+            }
+            Target::Buffer(ref mut buffer) => {
+                buffer
+                    .draw(vb, ib, program, uniforms, draw_parameters)
+                    .map_err(Into::into)
+            }
         }
     }
 

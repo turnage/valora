@@ -26,7 +26,6 @@ pub mod tween;
 
 mod color;
 mod properties;
-mod tessellation;
 mod gpu;
 mod mesh;
 

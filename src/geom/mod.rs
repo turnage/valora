@@ -10,6 +10,10 @@ pub use self::point::*;
 pub use self::poly::*;
 pub use self::spawner::*;
 
+pub trait Path {
+    fn path(&self, completion: f32) -> Point;
+}
+
 pub trait Percent: Sized {
     fn percent(self, percent: f32) -> Self;
 }
@@ -26,10 +30,22 @@ pub trait SubdivideEdges: Sized {
 }
 
 pub trait Distance<Dest> {
-    fn distance(&self, dest: Dest) -> f32;
-    fn delta(&self, dest: Dest) -> Point;
-    fn midpoint(&self, dest: Dest) -> Point;
-    fn manhattan_distance(&self, dest: Dest) -> f32;
+    fn distance(&self, dest: &Dest) -> f32;
+    fn delta(&self, dest: &Dest) -> Point;
+    fn midpoint(&self, dest: &Dest) -> Point;
+    fn manhattan_distance(&self, dest: &Dest) -> f32;
+}
+
+impl<C1: Centered, C2: Centered> Distance<C2> for C1 {
+    default fn distance(&self, dest: &C2) -> f32 { self.centroid().distance(&dest.centroid()) }
+
+    default fn delta(&self, dest: &C2) -> Point { self.centroid().delta(&dest.centroid()) }
+
+    default fn midpoint(&self, dest: &C2) -> Point { self.centroid().midpoint(&dest.centroid()) }
+
+    default fn manhattan_distance(&self, dest: &C2) -> f32 {
+        self.centroid().manhattan_distance(&dest.centroid())
+    }
 }
 
 pub trait Scale {

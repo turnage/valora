@@ -23,76 +23,18 @@ impl Factory<()> for DefaultShader {
 impl Shader for DefaultShader {
     fn draw(&self, surface: &mut Target, mesh: GpuMesh) -> Result<()> {
         use glium::uniforms::EmptyUniforms;
-        use glium::draw_parameters::DrawParameters;
-        use glium::{Blend, BlendingFunction, LinearBlendingFactor};
+        use glium::draw_parameters::{DrawParameters, Smooth};
 
         Ok(surface
-               .draw(mesh.vertices.as_ref(),
+               .draw((mesh.vertices.as_ref(), mesh.normals.as_ref()),
                      mesh.indices.as_ref(),
                      self.program.as_ref(),
                      &EmptyUniforms,
                      &DrawParameters {
-                          blend: Blend {
-                              color: BlendingFunction::Addition {
-                                  source: LinearBlendingFactor::SourceAlpha,
-                                  destination: LinearBlendingFactor::OneMinusDestinationAlpha,
-                              },
-                              alpha: BlendingFunction::Addition {
-                                  source: LinearBlendingFactor::SourceAlpha,
-                                  destination: LinearBlendingFactor::OneMinusDestinationAlpha,
-                              },
-                              constant_value: (0.0, 0.0, 0.0, 0.0),
-                          },
+                          smooth: Some(Smooth::Nicest),
+                          blend: mesh.blend,
                           ..Default::default()
                       })?)
-    }
-}
-
-pub struct BlendShader {
-    bg: Texture2d,
-    fg: Texture2d,
-    program: Rc<Program>,
-}
-
-pub struct BlendShaderSpec {
-    pub bg: Texture2d,
-    pub fg: Texture2d,
-    pub mode: BlendMode,
-}
-
-impl Factory<BlendShaderSpec> for BlendShader {
-    fn produce(spec: BlendShaderSpec, gpu: Rc<Gpu>) -> Result<Self> {
-        let program_key = match spec.mode {
-            BlendMode::Normal => Gpu::PROGRAM_BLEND_NORMAL,
-        };
-        Ok(Self { bg: spec.bg, fg: spec.fg, program: gpu.program(program_key).unwrap() })
-    }
-}
-
-impl Shader for BlendShader {
-    fn draw(&self, surface: &mut Target, mesh: GpuMesh) -> Result<()> {
-        use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
-        Ok(surface
-               .draw(mesh.vertices.as_ref(),
-                     mesh.indices.as_ref(),
-                     self.program.as_ref(),
-                     &uniform!{
-                        matrix: [
-                            [1.0, 0.0, 0.0, 0.0],
-                            [0.0, 1.0, 0.0, 0.0],
-                            [0.0, 0.0, 1.0, 0.0],
-                            [0.0 , 0.0, 0.0, 1.0f32],
-                        ],
-                        bg: self.fg
-                               .sampled()
-                               .minify_filter(MinifySamplerFilter::Linear)
-                               .magnify_filter(MagnifySamplerFilter::Linear),
-                        fg: self.bg
-                               .sampled()
-                               .minify_filter(MinifySamplerFilter::Linear)
-                               .magnify_filter(MagnifySamplerFilter::Linear),
-                     },
-                     &Default::default())?)
     }
 }
 

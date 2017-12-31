@@ -1,9 +1,10 @@
-use errors::Result;
-use rand::{SeedableRng, StdRng, random};
-use std::{fs, thread, time, rc::Rc};
 use composition::Composition;
-use gpu::{Factory,Gpu};
+use errors::Result;
 use glium::glutin::WindowEvent;
+use gpu::{Factory, Gpu};
+use rand::{SeedableRng, StdRng, random};
+use std::{fs, thread, time};
+use std::rc::Rc;
 
 pub struct SketchCfg {
     pub size: u32,
@@ -32,7 +33,8 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
     let (gpu, events_loop) = Gpu::new(cfg.size)?;
     let current_seed = cfg.seed.unwrap_or(random());
     let mut context = SketchContext { cfg, gpu: Rc::new(gpu), frame: 0, current_seed };
-    let mut composition = sketch.sketch(&context, StdRng::from_seed(&[current_seed]))?;
+    let mut composition = sketch
+        .sketch(&context, StdRng::from_seed(&[current_seed]))?;
 
     let mut cycle = Gpu::events(events_loop);
     while let Some((events_loop, events)) = cycle {
@@ -45,13 +47,16 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
                .is_some() {
             context.current_seed = random();
             context.frame = 0;
-            composition = sketch.sketch(&context, StdRng::from_seed(&[context.current_seed]))?;
+            composition = sketch
+                .sketch(&context, StdRng::from_seed(&[context.current_seed]))?;
         }
         composition.render(&context)?;
         if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
             let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
             fs::create_dir_all(&saves_dir)?;
-            context.gpu.save_frame(&format!("{}{:08}", saves_dir, context.frame))?;
+            context
+                .gpu
+                .save_frame(&format!("{}{:08}", saves_dir, context.frame))?;
         }
         cycle = Gpu::events(events_loop);
         thread::sleep(time::Duration::from_millis(16));

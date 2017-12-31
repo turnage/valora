@@ -36,20 +36,31 @@ impl Sketch for CircleSketch {
             /// be defined in almost any color space; we just happen to be
             /// using rgb here (last value is alpha).
             colorer: Colorer::from(Colora::rgb(1.0, 0.0, 0.0, 0.7)),
+            /// We set the red dots to use the blend add mode, which works
+            /// like standard color blend modes in Photoshop or Blender.
+            blend_mode: BlendMode::Add,
+            /// We set the draw mode to stroke, so instead of filling like
+            /// the blue circles, we will see the outline only.
+            draw_mode: DrawMode::Stroke { thickness: 0.04 },
         };
-        let blue_dot =
-            Mesh { src: Ellipse::circle(Point::center(), self.radius), colorer: Colorer::blue() };
+        let blue_dot = Mesh {
+            src: Ellipse::circle(Point::center(), self.radius),
+            colorer: Colorer::blue(),
+            blend_mode: BlendMode::Normal,
+            draw_mode: DrawMode::Fill,
+        };
 
         /// We can instance any geometry supporting the "Place" trait, which
         /// allows us to place it at a point. This is both a convenient
         /// abstraction and a graphics programming optimization that means
         /// we don't have to upload many copies of geometry to the graphics
         /// card if we are only changing certain properties.
-        let red_instancer = Instancer::new(transparent_red_dot);
-        let blue_instancer = Instancer::new(blue_dot);
+        let red_instancer = Instancer::from(transparent_red_dot);
+        let blue_instancer = Instancer::from(blue_dot);
 
         /// Here we collect a set of random points from Valora's patterns
-        /// module. Rect::frame is a rectangle spanning the entire sketch frame.
+        /// module (sparkles pattern of random points in the given bounds).
+        /// Rect::frame is a rectangle spanning the entire sketch frame.
         let red_spawn_points = sparkles(self.count, &Rect::frame(), &mut rng);
         let blue_spawn_points = sparkles(self.count, &Rect::frame(), &mut rng);
 
@@ -80,7 +91,12 @@ impl Sketch for CircleSketch {
         /// We draw a background by coloring a frame sized rectangle black,
         /// then compose our dots on top.
         Ok(Composition::new()
-               .add(Mesh { src: Rect::frame(), colorer: Colorer::black() })
+               .add(Mesh {
+                        src: Rect::frame(),
+                        colorer: Colorer::black(),
+                        blend_mode: BlendMode::Normal,
+                        draw_mode: DrawMode::Fill,
+                    })
                .add(dots))
     }
 }

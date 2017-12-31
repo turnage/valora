@@ -1,5 +1,6 @@
 use geom::{Distance, SubdivideEdges, Translate};
-use lyon::tessellation::{math::Point2D, FillVertex};
+use lyon::tessellation::{FillVertex, StrokeVertex};
+use lyon::tessellation::math::Point2D;
 use rand::{Rand, Rng};
 use std::ops::*;
 
@@ -91,16 +92,16 @@ impl Translate for Point {
 }
 
 impl Distance<Self> for Point {
-    fn distance(&self, dest: Self) -> f32 {
-        let delta = (*self - dest).abs();
+    fn distance(&self, dest: &Self) -> f32 {
+        let delta = (*self - *dest).abs();
         (delta.x.powi(2) + delta.y.powi(2)).sqrt()
     }
 
-    fn delta(&self, dest: Self) -> Self { (*self - dest).abs() }
+    fn delta(&self, dest: &Self) -> Self { (*self - *dest).abs() }
 
-    fn midpoint(&self, dest: Self) -> Self { *self + ((dest - *self) / 2.0) }
+    fn midpoint(&self, dest: &Self) -> Self { *self + ((*dest - *self) / 2.0) }
 
-    fn manhattan_distance(&self, dest: Self) -> f32 {
+    fn manhattan_distance(&self, dest: &Self) -> f32 {
         (self.x - dest.x).abs() + (self.y - dest.y).abs()
     }
 }
@@ -120,9 +121,7 @@ impl Rand for Point {
 }
 
 impl Into<Point2D<f32>> for Point {
-    fn into(self) -> Point2D<f32> {
-        Point2D::new(self.x, self.y)
-    }
+    fn into(self) -> Point2D<f32> { Point2D::new(self.x, self.y) }
 }
 
 impl From<Point2D<f32>> for Point {
@@ -131,4 +130,8 @@ impl From<Point2D<f32>> for Point {
 
 impl From<FillVertex> for Point {
     fn from(point: FillVertex) -> Point { point.position.into() }
+}
+
+impl From<StrokeVertex> for Point {
+    fn from(point: StrokeVertex) -> Point { point.position.into() }
 }

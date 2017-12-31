@@ -18,26 +18,25 @@ pub trait Spawner<G> {
 }
 
 #[derive(Clone)]
-pub struct Instancer<G: Place + Clone> {
-    src: G,
-    f: Option<Rc<Fn(&G, Point, usize) -> G>>,
+pub struct Instancer<S, G> {
+    src: S,
+    f: Rc<Fn(&S, Point, usize) -> G>,
 }
 
-impl<G: Place + Clone> Instancer<G> {
-    pub fn new(src: G) -> Self { Self { src, f: None } }
-}
-
-impl<G: Place + Clone> Spawner<G> for Instancer<G> {
-    fn spawn(&self, point: Point, index: usize) -> G {
-        let instance = self.src.clone().place(point);
-        match self.f {
-            Some(ref f) => {
-                let f = f.as_ref();
-                f(&instance, point, index)
-            }
-            None => instance,
-        }
+impl<G: Clone + Place> From<G> for Instancer<G, G> {
+    fn from(src: G) -> Self {
+        Self { src, f: Rc::new(|src, point, _index| src.clone().place(point)) }
     }
+}
+
+impl<S, G> Instancer<S, G> {
+    pub fn with<F: 'static + Fn(&S, Point, usize) -> G>(src: S, f: F) -> Self {
+        Self { src, f: Rc::new(f) }
+    }
+}
+
+impl<S, G> Spawner<G> for Instancer<S, G> {
+    fn spawn(&self, point: Point, index: usize) -> G { (self.f)(&self.src, point, index) }
 }
 
 pub fn spawn<G, Src, S>(s: &S, src: &Src) -> Vec<G>

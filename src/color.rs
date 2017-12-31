@@ -2,8 +2,12 @@ use geom::Point;
 use palette::Colora;
 use std::rc::Rc;
 
+#[derive(Clone, Debug)]
 pub enum BlendMode {
     Normal,
+    Add,
+    MaskOpaque,
+    MaskTransparent,
 }
 
 #[derive(Clone)]
@@ -29,6 +33,8 @@ impl Colorer {
     pub fn red() -> Self { Self::from(Colora::rgb(1.0, 0.0, 0.0, 1.0)) }
     pub fn blue() -> Self { Self::from(Colora::rgb(0.0, 0.0, 1.0, 1.0)) }
     pub fn black() -> Self { Self::from(Colora::rgb(0.0, 0.0, 0.0, 1.0)) }
+    pub fn white() -> Self { Self::from(Colora::rgb(1.0, 1.0, 1.0, 1.0)) }
+    pub fn empty() -> Self { Self::from(Colora::rgb(1.0, 1.0, 1.0, 0.0)) }
 
     pub fn color(&self, point: Point) -> Colora {
         match self.0 {

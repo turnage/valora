@@ -1,7 +1,5 @@
-use errors::Result;
-use geom::{Centered, Place, Point, Scale, Translate};
+use geom::{Centered, Path, Place, Point, Scale, Translate};
 use lyon::math::Radians;
-use tessellation::{Tessellate, Tessellation};
 
 #[derive(Debug, Clone)]
 pub struct Ellipse {
@@ -22,6 +20,40 @@ impl Ellipse {
             tolerance: None,
         }
     }
+
+    pub fn circumpoint(&self, angle: f32) -> Point {
+        Point {
+            x: self.center.x + angle.cos() * self.width,
+            y: self.center.y + angle.sin() * self.height.unwrap_or(self.width),
+        }
+    }
+
+    pub fn circumpoints(&self, resolution: usize, phase: f32) -> Vec<Point> {
+        use std::f32;
+
+        let interval = (f32::consts::PI * 2.0) / (resolution as f32);
+        (0..resolution)
+            .into_iter()
+            .map(|i| (i as f32) * interval + phase)
+            .map(|a| self.circumpoint(a))
+            .collect()
+    }
+
+    pub fn path(self, phase: f32) -> EllipsePath { EllipsePath { ellipse: self, phase } }
+}
+
+pub struct EllipsePath {
+    ellipse: Ellipse,
+    phase: f32,
+}
+
+impl Path for EllipsePath {
+    fn path(&self, completion: f32) -> Point {
+        use std::f32;
+
+        let angle = completion * (f32::consts::PI * 2.0);
+        self.ellipse.circumpoint(angle + self.phase)
+    }
 }
 
 impl Scale for Ellipse {
@@ -40,41 +72,4 @@ impl Place for Ellipse {
 
 impl Translate for Ellipse {
     fn translate(self, delta: Point) -> Self { Self { center: self.center + delta, ..self } }
-}
-
-impl Tessellate for Ellipse {
-    fn tessellate(&self) -> Result<Tessellation> {
-        use lyon::tessellation::*;
-        use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
-        use lyon::path_iterator::math::Vec2;
-
-        let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
-        match self.height {
-            Some(height) => {
-                basic_shapes::fill_ellipse(self.center.into(),
-                                           Vec2::new(self.width, height),
-                                           self.rotation,
-                                           self.tolerance.unwrap_or(0.000001),
-                                           &mut simple_builder(&mut vertex_buffers));
-            }
-            None => {
-                basic_shapes::fill_circle(self.center.into(),
-                                          self.width,
-                                          self.tolerance.unwrap_or(0.000001),
-                                          &mut simple_builder(&mut vertex_buffers));
-            }
-        }
-        Ok(Tessellation {
-               vertices: vertex_buffers
-                   .vertices
-                   .into_iter()
-                   .map(|p| p.position)
-                   .collect(),
-               indices: vertex_buffers
-                   .indices
-                   .into_iter()
-                   .map(Into::into)
-                   .collect(),
-           })
-    }
 }

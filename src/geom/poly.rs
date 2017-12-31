@@ -2,7 +2,6 @@ use errors::Result;
 use geom::{Centered, Distance, Place, Point, Translate};
 use properties::clipping::Bounded;
 use std::f32;
-use tessellation::{Tessellate, Tessellation};
 
 pub trait Poly: Sized {
     fn vertices(&self) -> Vec<Point>;
@@ -26,7 +25,7 @@ impl<P: Poly> Centered for P {
                 max.y = v.y;
             }
         }
-        min.midpoint(max)
+        min.midpoint(&max)
     }
 }
 
@@ -89,30 +88,5 @@ impl Rect {
 
     pub fn new(bottom_left: Point, width: f32, height: f32) -> Self {
         Self { height, width, bottom_left }
-    }
-}
-
-impl<P: Poly> Tessellate for P {
-    fn tessellate(&self) -> Result<Tessellation> {
-        use lyon::tessellation::*;
-        use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
-
-        let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
-        basic_shapes::fill_polyline(self.vertices().into_iter().map(Into::into),
-                                    &mut FillTessellator::new(),
-                                    &FillOptions::default(),
-                                    &mut simple_builder(&mut vertex_buffers))?;
-        Ok(Tessellation {
-               vertices: vertex_buffers
-                   .vertices
-                   .into_iter()
-                   .map(|p| p.position)
-                   .collect(),
-               indices: vertex_buffers
-                   .indices
-                   .into_iter()
-                   .map(Into::into)
-                   .collect(),
-           })
     }
 }
