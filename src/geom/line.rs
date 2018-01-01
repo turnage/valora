@@ -1,4 +1,7 @@
-use geom::{Centered, Percent, Point, Poly, SubdivideEdges, Translate};
+use geom::{Point, Poly};
+use geom::transforms::SubdivideEdges;
+use properties::Centered;
+use transforms::{Percent, Translate};
 
 #[derive(Clone, Debug)]
 pub struct Line {

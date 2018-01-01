@@ -1,12 +1,14 @@
 use errors;
-use geom::{Distance, SubdivideEdges, Translate};
+use geom::transforms::SubdivideEdges;
 use lyon::tessellation::{FillVertex, StrokeVertex};
 use lyon::tessellation::math::Point2D;
 use num::traits::{Num, NumOps, Signed};
 use num::traits::identities::{One, Zero};
+use properties::{Centered, Distance};
 use rand::{Rand, Rng};
 use rand::distributions::{IndependentSample, Normal, Sample};
 use std::ops::*;
+use transforms::{Scale, Translate};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point {
@@ -144,6 +146,17 @@ impl SubdivideEdges for Vec<Point> {
             pairs.push(*last);
         }
         pairs
+    }
+}
+
+impl Scale for Vec<Point> {
+    fn scale(self, scale: f32) -> Self {
+        let centroid = self.centroid();
+        let deltas: Vec<Point> = self.iter().map(|p| *p - centroid).collect();
+        self.into_iter()
+            .zip(deltas.into_iter())
+            .map(|(p, d)| p + (d * scale))
+            .collect()
     }
 }
 

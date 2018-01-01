@@ -235,7 +235,7 @@ impl From<BlendMode> for Blend {
                     },
                     alpha: BlendingFunction::Addition {
                         source: LinearBlendingFactor::SourceAlpha,
-                        destination: LinearBlendingFactor::OneMinusDestinationAlpha,
+                        destination: LinearBlendingFactor::DestinationAlpha,
                     },
                     constant_value: (0.0, 0.0, 0.0, 0.0),
                 }
@@ -260,7 +260,7 @@ impl From<BlendMode> for Blend {
                         destination: LinearBlendingFactor::DestinationAlpha,
                     },
                     alpha: BlendingFunction::Addition {
-                        source: LinearBlendingFactor::Zero,
+                        source: LinearBlendingFactor::SourceAlpha,
                         destination: LinearBlendingFactor::SourceAlpha,
                     },
                     constant_value: (0.0, 0.0, 0.0, 0.0),

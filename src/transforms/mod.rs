@@ -1,3 +1,9 @@
+pub mod warp;
+pub mod spatial;
+
+pub use self::spatial::*;
+pub use self::warp::*;
+
 use rand::Rng;
 
 pub fn iterate<S, F: Fn(S) -> S>(s: S, n: usize, f: F) -> S {

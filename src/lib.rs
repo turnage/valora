@@ -26,6 +26,7 @@ pub mod errors;
 pub mod composition;
 pub mod tween;
 pub mod transforms;
+pub mod generators;
 
 mod color;
 mod properties;
@@ -41,3 +42,5 @@ pub use color::*;
 pub use mesh::*;
 pub use composition::*;
 pub use tween::*;
+pub use generators::*;
+pub use transforms::*;

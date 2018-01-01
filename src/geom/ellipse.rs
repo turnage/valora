@@ -1,5 +1,7 @@
-use geom::{Centered, Path, Place, Point, Scale, Translate};
+use geom::Point;
 use lyon::math::Radians;
+use properties::{Centered, Path};
+use transforms::{Place, Scale, Translate};
 
 #[derive(Debug, Clone)]
 pub struct Ellipse {

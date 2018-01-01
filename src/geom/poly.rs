@@ -1,6 +1,11 @@
-use geom::{Centered, Distance, Place, Point, Scale, SubdivideEdges, Translate};
-use properties::clipping::Bounded;
+use geom::Point;
+use geom::transforms::SubdivideEdges;
+use properties::{Bounded, Centered, Distance};
+use rand::Rng;
+use rand::distributions::{IndependentSample, Normal};
 use std::f32;
+use transforms::{Place, Scale, Translate};
+use transforms::warp::*;
 
 pub trait Poly: Sized {
     fn vertices(&self) -> Vec<Point>;
@@ -50,6 +55,49 @@ impl Translate for IrregularPoly {
 
 impl Scale for IrregularPoly {
     fn scale(self, scale: f32) -> Self { Self { vertices: self.vertices().scale(scale) } }
+}
+
+impl Warp for IrregularPoly {
+    fn warp<R: Rng>(self, cfg: WarpCfg, rng: &mut R) -> Self {
+        let dist = Normal::new(0.0, cfg.variance.sqrt() as f64);
+        let static_sample: Point = dist.ind_sample(rng);
+        let centroid = self.centroid();
+        let vertices = self.vertices();
+        IrregularPoly {
+            vertices: self.vertices
+                .into_iter()
+                .enumerate()
+                .map(move |(i, v)| match (i % 2 == 0, cfg.coverage) {
+                         (_, WarpCoverage::AllVertices) |
+                         (false, WarpCoverage::OddVertices) => {
+                    let neighbor_factor = if cfg.adapt_to_neighbors {
+                        let left =
+                            if i == 0 { vertices[vertices.len() - 1] } else { vertices[i - 1] };
+                        let right = vertices[(i + 1) % vertices.len()];
+                        left.distance(&right) * 0.5
+
+                    } else {
+                        1.0
+                    };
+                    let spatial_factor = match cfg.spatial_adapter {
+                        Some(ref f) => f(v),
+                        None => 1.0,
+                    };
+                    let delta = if cfg.share_sample { static_sample } else { dist.ind_sample(rng) };
+                    let delta = delta * neighbor_factor * spatial_factor;
+                    let out_sign = centroid.sign_to(&v);
+                    let delta = match cfg.expansion {
+                        WarpExpansion::Inward => delta.abs() * -out_sign,
+                        WarpExpansion::Outward => delta.abs() * out_sign,
+                        WarpExpansion::Neutral => delta,
+                    };
+                    v + delta
+                }
+                         _ => v,
+                     })
+                .collect(),
+        }
+    }
 }
 
 pub struct Ngon {

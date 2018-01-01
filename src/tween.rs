@@ -1,5 +1,6 @@
-use geom::{Path, Place, Scale};
+use properties::Path;
 use std::rc::Rc;
+use transforms::{Place, Scale};
 
 #[derive(Clone)]
 pub struct Tween<T> {

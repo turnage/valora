@@ -2,7 +2,7 @@ use geom::Point;
 use palette::Colora;
 use std::rc::Rc;
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum BlendMode {
     Normal,
     Add,

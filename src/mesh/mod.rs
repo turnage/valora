@@ -1,5 +1,6 @@
 use color::{BlendMode, Colorer, Opacity};
-use geom::{Place, Point, Scale};
+use geom::Point;
+use transforms::{Place, Scale};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DrawMode {
