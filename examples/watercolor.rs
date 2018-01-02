@@ -57,19 +57,19 @@ impl Sketch for Pendulum {
 
         let splotch = Ngon { n: 5, center: Point::center(), rotation: 0.0, radius: 0.1 }
             .as_irregular();
-        let splotch = generate(&WaterColor::new(splotch,
-                                                WaterColorCfg {
-                                                    spread: rng.gen_range(0.04, 0.1),
-                                                    color: Colora::hsv(RgbHue::from(base_hue),
-                                                                       1.0,
-                                                                       1.0,
-                                                                       0.03),
-                                                    ..Default::default()
-                                                }),
-                               &mut rng);
+        let splotch =
+            generate(&WaterColor::new(splotch,
+                                      WaterColorCfg {
+                                          spread: rng.gen_range(0.01, 0.03),
+                                          layers: rng.gen_range(50, 200),
+                                          color: Colora::hsv(RgbHue::from(0.0), 0.73, 0.74, 1.0),
+                                          ..Default::default()
+                                      },
+                                      &mut rng),
+                     rng);
 
         Ok(Composition::new()
-               .solid_layer(Colorer::white())
+               .solid_layer(Colorer::from(Colora::hsv(RgbHue::from(49.0), 0.2, 1.0, 1.0)))
                .add(splotch))
         //.add(pendulum))
     }

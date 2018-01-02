@@ -5,6 +5,9 @@ authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 description = "Declarative generative art toolkit."
 license = "MIT"
 
+[profile.release]
+debug = true
+
 [dependencies]
 glium = "0.19"
 lyon = "0.8"

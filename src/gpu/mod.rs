@@ -157,13 +157,6 @@ pub trait Factory<Spec>: Sized {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct GpuNormal {
-    pub normal: (f32, f32, f32),
-}
-
-implement_vertex!(GpuNormal, normal);
-
-#[derive(Debug, Copy, Clone)]
 pub struct GpuVertex {
     pub position: [f32; 2],
     pub color: [f32; 4],
@@ -208,8 +201,8 @@ impl From<BlendMode> for Blend {
                         destination: LinearBlendingFactor::OneMinusSourceAlpha,
                     },
                     alpha: BlendingFunction::Addition {
-                        source: LinearBlendingFactor::SourceAlpha,
-                        destination: LinearBlendingFactor::OneMinusDestinationAlpha,
+                        source: LinearBlendingFactor::One,
+                        destination: LinearBlendingFactor::OneMinusSourceAlpha,
                     },
                     constant_value: (0.0, 0.0, 0.0, 0.0),
                 }
@@ -273,7 +266,6 @@ impl From<BlendMode> for Blend {
 #[derive(Clone)]
 pub struct GpuMesh {
     pub vertices: Rc<VertexBuffer<GpuVertex>>,
-    pub normals: Rc<VertexBuffer<GpuNormal>>,
     pub indices: Rc<IndexBuffer<u32>>,
     pub blend: Blend,
 }
@@ -288,7 +280,6 @@ impl<T: Tessellate + Clone> Factory<Mesh<T>> for GpuMesh {
         Ok(GpuMesh {
                vertices: Rc::new(VertexBuffer::new(gpu.as_ref(),
                                                    tessellation.vertices.as_slice())?),
-               normals: Rc::new(VertexBuffer::new(gpu.as_ref(), tessellation.normals.as_slice())?),
                indices: Rc::new(IndexBuffer::new(gpu.as_ref(),
                                                  PrimitiveType::TrianglesList,
                                                  tessellation.indices.as_slice())?),

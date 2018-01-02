@@ -25,7 +25,7 @@ impl Shader for DefaultShader {
         use glium::draw_parameters::{DrawParameters, Smooth};
 
         Ok(surface
-               .draw((mesh.vertices.as_ref(), mesh.normals.as_ref()),
+               .draw(mesh.vertices.as_ref(),
                      mesh.indices.as_ref(),
                      self.program.as_ref(),
                      &EmptyUniforms,

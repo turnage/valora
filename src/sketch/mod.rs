@@ -59,7 +59,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
                 .save_frame(&format!("{}{:08}", saves_dir, context.frame))?;
         }
         cycle = Gpu::events(events_loop);
-        thread::sleep(time::Duration::from_millis(16));
+        thread::sleep(time::Duration::from_millis(32));
         context.frame += 1;
     }
     Ok(())

@@ -63,6 +63,7 @@ impl Warp for IrregularPoly {
         let static_sample: Point = dist.ind_sample(rng);
         let centroid = self.centroid();
         let vertices = self.vertices();
+        let n = vertices.len();
         IrregularPoly {
             vertices: self.vertices
                 .into_iter()
@@ -75,16 +76,20 @@ impl Warp for IrregularPoly {
                             if i == 0 { vertices[vertices.len() - 1] } else { vertices[i - 1] };
                         let right = vertices[(i + 1) % vertices.len()];
                         left.distance(&right) * 0.5
-
                     } else {
                         1.0
+                    };
+                    let custom_factor = if cfg.custom_factors.is_empty() {
+                        1.0
+                    } else {
+                        cfg.custom_factors[i / (n / cfg.custom_factors.len())]
                     };
                     let spatial_factor = match cfg.spatial_adapter {
                         Some(ref f) => f(v),
                         None => 1.0,
                     };
                     let delta = if cfg.share_sample { static_sample } else { dist.ind_sample(rng) };
-                    let delta = delta * neighbor_factor * spatial_factor;
+                    let delta = delta * neighbor_factor * spatial_factor * custom_factor;
                     let out_sign = centroid.sign_to(&v);
                     let delta = match cfg.expansion {
                         WarpExpansion::Inward => delta.abs() * -out_sign,
@@ -100,6 +105,7 @@ impl Warp for IrregularPoly {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct Ngon {
     pub n: usize,
     pub rotation: f32,

@@ -38,6 +38,11 @@ pub struct WarpCfg {
     pub spatial_adapter: Option<Rc<Fn(Point) -> f32>>,
     /// Which direction the warped vertices may move relative to centroid.
     pub expansion: WarpExpansion,
+    /// Strength factors to use on vertices; expanded to the whole vertex list
+    /// so if there are two elements, the first applies to the first half of
+    /// warped vertices, the next to the second half, and so on. When there are
+    /// more factors than vertices some will not be considered.
+    pub custom_factors: Vec<f32>,
 }
 
 impl Default for WarpCfg {
@@ -45,10 +50,11 @@ impl Default for WarpCfg {
         Self {
             adapt_to_neighbors: true,
             variance: 0.0,
-            coverage: WarpCoverage::OddVertices,
+            coverage: WarpCoverage::AllVertices,
             share_sample: false,
             spatial_adapter: None,
             expansion: WarpExpansion::Outward,
+            custom_factors: Vec::new(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use color::Colorer;
 use errors::Result;
 use geom::{Ellipse, Point, Poly};
-use gpu::{GpuNormal, GpuVertex};
+use gpu::GpuVertex;
 use lyon::path_iterator::math::Vec2;
 use lyon::tessellation::*;
 use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
@@ -11,7 +11,6 @@ const ELLIPSE_TOLERANCE: f32 = 0.00001;
 #[derive(Debug, Default)]
 pub struct Tessellation {
     pub vertices: Vec<GpuVertex>,
-    pub normals: Vec<GpuNormal>,
     pub indices: Vec<u32>,
 }
 
@@ -24,9 +23,6 @@ impl Tessellation {
             tessellation
                 .vertices
                 .push(GpuVertex::from((point, color)));
-            tessellation
-                .normals
-                .push(GpuNormal { normal: (v.normal.x, v.normal.y, 0.0) });
         }
         tessellation.indices = buffer.indices.into_iter().map(Into::into).collect();
         tessellation
@@ -39,9 +35,6 @@ impl Tessellation {
             tessellation
                 .vertices
                 .push(GpuVertex::from((point, color)));
-            tessellation
-                .normals
-                .push(GpuNormal { normal: (v.normal.x, v.normal.y, 0.0) });
         }
         tessellation.indices = buffer.indices.into_iter().map(Into::into).collect();
         tessellation

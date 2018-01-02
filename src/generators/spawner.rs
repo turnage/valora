@@ -49,7 +49,7 @@ impl<S, G> Spawner<G> for Instancer<S, G> {
     fn spawn(&self, cfg: SpawnCfg) -> G { (self.f)(&self.src, cfg) }
 }
 
-pub fn spawn<G, Src, S>(s: &S, src: &Src, rng: &mut StdRng) -> Vec<G>
+pub fn spawn<G, Src, S>(s: &S, src: &Src, mut rng: StdRng) -> Vec<G>
     where Src: SpawnSrc,
           S: Spawner<G>
 {
@@ -59,9 +59,15 @@ pub fn spawn<G, Src, S>(s: &S, src: &Src, rng: &mut StdRng) -> Vec<G>
         .iter()
         .enumerate()
         .map(|(i, p)| {
-                 s.spawn(SpawnCfg { point: *p, index: i, n, percent: (i as f32) / (n as f32), rng })
-             })
+            s.spawn(SpawnCfg {
+                        point: *p,
+                        index: i,
+                        n,
+                        percent: (i as f32) / (n as f32),
+                        rng: &mut rng,
+                    })
+        })
         .collect()
 }
 
-pub fn generate<G, S: SpawnSrc + Spawner<G>>(s: &S, rng: &mut StdRng) -> Vec<G> { spawn(s, s, rng) }
+pub fn generate<G, S: SpawnSrc + Spawner<G>>(s: &S, rng: StdRng) -> Vec<G> { spawn(s, s, rng) }
