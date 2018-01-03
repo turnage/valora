@@ -1,0 +1,10 @@
+[package]
+name = "tess2"
+version = "0.1.0"
+authors = ["Payton Turnage <paytonturnage@gmail.com>"]
+
+[dependencies]
+itertools = "0.7.4"
+
+[build-dependencies]
+bindgen = "0.26.3"
