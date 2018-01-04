@@ -17,6 +17,7 @@ pub struct WaterColorCfg {
     pub draw_mode: DrawMode,
     pub blend_mode: BlendMode,
     pub anchor_layer: bool,
+    pub duplicate_depth: usize,
     pub uniform_spread: bool,
     pub subdivides_per: usize,
 }
@@ -31,6 +32,7 @@ impl Default for WaterColorCfg {
             draw_mode: DrawMode::Fill,
             blend_mode: BlendMode::Normal,
             anchor_layer: false,
+            duplicate_depth: 5,
             uniform_spread: false,
             subdivides_per: 1,
         }
@@ -53,6 +55,8 @@ pub struct WaterColor<S> {
 
 impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
     pub fn new<R: Rng>(src: S, cfg: WaterColorCfg, rng: &mut R) -> Self {
+        use num::Float;
+
         let custom_factors: Option<Vec<f32>> = if cfg.uniform_spread {
             None
         } else {
@@ -69,7 +73,10 @@ impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
                 WaterColorSrc::Base(src)
             },
             custom_factors,
-            cfg,
+            cfg: WaterColorCfg {
+                spread: cfg.spread * cfg.subdivides_per.pow(cfg.depth as u32) as f32,
+                ..cfg
+            },
         }
     }
 
@@ -85,7 +92,7 @@ impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
             src = src.warp(WarpCfg {
                                variance: cfg.spread,
                                custom_factors: custom_factors.clone().unwrap_or(Vec::new()),
-                               expansion: WarpExpansion::Inward,
+                               expansion: WarpExpansion::Outward,
                                ..WarpCfg::default()
                            },
                            rng);
@@ -108,7 +115,7 @@ impl<S: SubdivideEdges + Warp + Poly + Clone> Spawner<Mesh<S>> for WaterColor<S>
                 WaterColor::warp(src.clone(),
                                  &WaterColorCfg {
                                       subdivides_per: 0,
-                                      spread: self.cfg.spread * (self.cfg.depth as f32),
+                                      depth: self.cfg.duplicate_depth,
                                       ..self.cfg
                                   },
                                  &self.custom_factors,

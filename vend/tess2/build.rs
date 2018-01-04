@@ -5,13 +5,20 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
+    let tess2_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("libtess2");
+
+    let config =
+        format!("config={}_native",
+                if &env::var("PROFILE").unwrap() == "release" { "release" } else { "debug" });
+
     Command::new("make")
-        .current_dir(PathBuf::from("libtess2").join("Build"))
+        .arg(config)
+        .current_dir(tess2_path.join("Build"))
         .output()
         .expect("libtess2 make");
 
     println!("cargo:rustc-link-lib=tess2");
-    println!("cargo:rustc-link-search=libtess2/Build");
+    println!("cargo:rustc-link-search={}", tess2_path.join("Build").to_str().unwrap());
 
     let bindings = bindgen::Builder::default()
         .header("libtess2/Include/tesselator.h")

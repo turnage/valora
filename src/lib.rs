@@ -17,6 +17,7 @@ extern crate num;
 pub extern crate palette;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate lazy_static;
+extern crate tess2;
 
 pub mod geom;
 pub mod sketch;
@@ -44,3 +45,26 @@ pub use composition::*;
 pub use tween::*;
 pub use generators::*;
 pub use transforms::*;
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn works() {
+        use lyon;
+        use rand::{Rng, StdRng};
+        use lyon::tessellation::*;
+        use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
+        use lyon::path_builder::math::Point;
+
+
+        let n = 2560;
+        let mut rng = StdRng::new().expect("");
+        let verts = (0..n).into_iter().map(|_| -> Point {Point::new(rng.gen::<f32>() * 1000.0,rng.gen::<f32>() * 1000.0) });
+        let mut buffer: VertexBuffers<FillVertex> = VertexBuffers::new();
+        basic_shapes::fill_polyline(
+            verts,
+            &mut FillTessellator::new(),
+            &FillOptions::default().assume_no_intersections(),
+            &mut simple_builder(&mut buffer));
+    }
+}

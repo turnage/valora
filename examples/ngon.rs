@@ -12,19 +12,21 @@ impl Sketch for Pendulum {
         let tengon = Ngon { n: 10, center: Point::center(), rotation: 0.0, radius: 0.2 };
         let splotcher = WaterColor::new(tengon.as_irregular(),
                                         WaterColorCfg {
-                                            spread: rng.gen_range(0.07, 0.4),
-                                            layers: rng.gen_range(20, 100),
+                                            spread: rng.gen_range(0.04, 0.8),
+                                            layers: rng.gen_range(50, 300),
                                             subdivides_per: 1,
-                                            anchor_layer: false,
+                                            anchor_layer: true,
                                             depth: 7,
-                                            color: Colora::hsv(RgbHue::from(0.0),
-                                                               0.73,
-                                                               0.74,
-                                                               rng.gen_range(0.2, 0.7)),
+                                            color: Colora::hsv(RgbHue::from(rng.gen_range(0.0,
+                                                                                          360.0)),
+                                                               1.0,
+                                                               1.0,
+                                                               rng.gen_range(0.02, 0.07)),
                                             draw_mode: DrawMode::Fill,
                                             ..WaterColorCfg::default()
                                         },
                                         &mut rng);
+
         let splotch = generate(&splotcher, rng);
 
         Ok(Composition::new()
@@ -34,7 +36,7 @@ impl Sketch for Pendulum {
 }
 
 fn main() {
-    sketch(SketchCfg { size: 1080, root_frame_filename: Some("ngon".to_string()), seed: None },
+    sketch(SketchCfg { size: 1080, root_frame_filename: Some(String::from("ngon")), seed: None },
            Pendulum {})
             .expect("sketch");
 }

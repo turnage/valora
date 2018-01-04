@@ -95,12 +95,26 @@ impl Tessellate for Ellipse {
 
 impl<P: Poly> Tessellate for P {
     fn tessellate_fill(&self, colorer: Colorer) -> Result<Tessellation> {
-        let mut vertex_buffers: VertexBuffers<FillVertex> = VertexBuffers::new();
-        basic_shapes::fill_polyline(self.vertices().into_iter().map(Into::into),
-                                    &mut FillTessellator::new(),
-                                    &FillOptions::default(),
-                                    &mut simple_builder(&mut vertex_buffers))?;
-        Ok(Tessellation::from_fill_buffer(vertex_buffers, colorer))
+        use tess2::safe::*;
+
+        let tess2_verts: Vec<Vertex> = self.vertices()
+            .into_iter()
+            .map(|v| Vertex { x: v.x, y: v.y })
+            .collect();
+        let triangles = fill(&tess2_verts)?;
+
+        Ok(Tessellation {
+               vertices: triangles
+                   .vertices
+                   .into_iter()
+                   .map(|v| {
+                            let point = Point { x: v.x, y: v.y };
+                            let color = colorer.color(point);
+                            (point, color).into()
+                        })
+                   .collect(),
+               indices: triangles.indices,
+           })
     }
     fn tessellate_stroke(&self, thickness: f32, colorer: Colorer) -> Result<Tessellation> {
         let mut vertex_buffers: VertexBuffers<StrokeVertex> = VertexBuffers::new();

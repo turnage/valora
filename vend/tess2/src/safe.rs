@@ -4,21 +4,16 @@ use super::*;
 use itertools::Itertools;
 use std::mem;
 
-pub struct Tessellator {
-    tess: *mut TESStesselator,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq  )]
 pub struct Vertex {
-    x: f32,
-    y: f32,
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Triangles {
-    vertices: Vec<Vertex>,
-    indices: Vec<u32>,
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
 }
 
 pub fn fill(poly: &[Vertex]) -> Result<Triangles, String> {

@@ -10,7 +10,7 @@ debug = true
 
 [dependencies]
 glium = "0.19"
-lyon = "0.8"
+lyon =  "0.8"
 error-chain = "0.11"
 palette = "0.2"
 rand = "0.3"
@@ -20,3 +20,4 @@ itertools = "0.7.4"
 maplit = "1"
 lazy_static = "1"
 num = "0.1"
+tess2 = {path = "vend/tess2"}
