@@ -2,13 +2,12 @@ extern crate valora;
 
 use valora::*;
 use valora::palette::*;
-use valora::rand::{Rng, SeedableRng, StdRng};
+use valora::rand::{Rng, StdRng};
 
 struct Pendulum;
 
 impl Sketch for Pendulum {
     fn sketch(&self, _ctx: &SketchContext, mut rng: StdRng) -> Result<Composition> {
-        let colorer = Colorer::from(Colora::hsv(RgbHue::from(0.0), 0.73, 0.74, 1.0));
         let tengon = Ngon { n: 10, center: Point::center(), rotation: 0.0, radius: 0.2 };
         let splotcher = WaterColor::new(tengon.as_irregular(),
                                         WaterColorCfg {

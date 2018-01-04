@@ -6,7 +6,6 @@ use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use properties::Centered;
 use rand::Rng;
-use transforms::iterate_rand;
 use transforms::warp::*;
 
 pub struct WaterColorCfg {
@@ -55,8 +54,6 @@ pub struct WaterColor<S> {
 
 impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
     pub fn new<R: Rng>(src: S, cfg: WaterColorCfg, rng: &mut R) -> Self {
-        use num::Float;
-
         let custom_factors: Option<Vec<f32>> = if cfg.uniform_spread {
             None
         } else {
@@ -104,9 +101,6 @@ impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
 
 impl<S: SubdivideEdges + Warp + Poly + Clone> Spawner<Mesh<S>> for WaterColor<S> {
     fn spawn(&self, cfg: SpawnCfg) -> Mesh<S> {
-        use color::Opacity;
-        use transforms::iterate;
-
         let src = match self.src {
             WaterColorSrc::Base(ref src) => {
                 WaterColor::warp(src.clone(), &self.cfg, &self.custom_factors, cfg.rng)

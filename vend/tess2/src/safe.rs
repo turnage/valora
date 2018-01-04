@@ -62,9 +62,7 @@ pub fn fill(poly: &[Vertex]) -> Result<Triangles, String> {
                indices: triangle_buffer.iter().map(|i| *i as u32).collect(),
            };
 
-           unsafe {
-               tessDeleteTess(tess);
-           };
+           tessDeleteTess(tess);
 
            result
 
