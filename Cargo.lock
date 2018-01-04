@@ -1187,6 +1187,7 @@ dependencies = [
 [[package]]
 name = "tess2"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bindgen 0.26.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1261,7 +1262,7 @@ dependencies = [
  "palette 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "petgraph 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
- "tess2 0.1.0",
+ "tess2 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1586,6 +1587,7 @@ dependencies = [
 "checksum tempfile 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "11ce2fe9db64b842314052e2421ac61a73ce41b898dc8e3750398b219c5fc1e0"
 "checksum term 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "fa63644f74ce96fbeb9b794f66aff2a52d601cbd5e80f4b97123e3899f4570f1"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"
+"checksum tess2 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b67fd4a27192a4c645a74adea4975c4ae7874ac327b96f12f7ed54480eeaf7fe"
 "checksum textwrap 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c0b59b6b4b44d867f1370ef1bd91bfb262bf07bf0ae65c202ea2fbc16153b693"
 "checksum thread_local 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "279ef31c19ededf577bfd12dfae728040a21f635b06a24cd670ff510edd38963"
 "checksum token_store 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a686838375fc11103b9c1529c6508320b7bd5e2401cd62831ca51b3e82e61849"
