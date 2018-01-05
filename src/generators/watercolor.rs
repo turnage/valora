@@ -6,6 +6,7 @@ use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use properties::Centered;
 use rand::Rng;
+use transforms::Place;
 use transforms::warp::*;
 
 pub struct WaterColorCfg {
@@ -99,7 +100,7 @@ impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
     }
 }
 
-impl<S: SubdivideEdges + Warp + Poly + Clone> Spawner<Mesh<S>> for WaterColor<S> {
+impl<S: SubdivideEdges + Warp + Poly + Place + Clone> Spawner<Mesh<S>> for WaterColor<S> {
     fn spawn(&self, cfg: SpawnCfg) -> Mesh<S> {
         let src = match self.src {
             WaterColorSrc::Base(ref src) => {
@@ -117,7 +118,7 @@ impl<S: SubdivideEdges + Warp + Poly + Clone> Spawner<Mesh<S>> for WaterColor<S>
             }
         };
         Mesh {
-            src,
+            src: src.place(cfg.point),
             colorer: Colorer::from(self.cfg.color),
             draw_mode: self.cfg.draw_mode,
             blend_mode: self.cfg.blend_mode,
