@@ -54,3 +54,18 @@ impl Colorer {
         }
     }
 }
+
+pub mod conversions {
+    use image;
+    use palette;
+
+    pub fn collapse(raw: palette::Rgb) -> image::Rgb<u8> {
+        image::Rgb {
+            data: [collapse_component(raw.red),
+                   collapse_component(raw.green),
+                   collapse_component(raw.blue)],
+        }
+    }
+
+    pub fn collapse_component(c: f32) -> u8 { (c * 255.0) as u8 }
+}

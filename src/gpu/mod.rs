@@ -1,5 +1,5 @@
 mod programs;
-mod shaders;
+pub mod shaders;
 mod tessellation;
 
 pub use self::shaders::*;

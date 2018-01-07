@@ -45,7 +45,7 @@ pub struct TextureShader {
 
 #[derive(Clone)]
 pub struct TextureShaderSpec {
-    tex: Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>,
+    pub tex: Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>,
 }
 
 impl Factory<TextureShaderSpec> for TextureShader {

@@ -53,6 +53,18 @@ pub trait Layer {
     }
 }
 
+impl<S: 'static + Shader + Clone> Layer for S {
+    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
+        Ok(vec![GpuMesh::produce(Mesh::from(Rect::frame()), ctx.gpu.clone())?])
+    }
+    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> { Ok(Rc::new(self.clone())) }
+}
+
+impl<S: 'static + Shader + Clone, L: Layer> Layer for (S, L) {
+    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> { self.1.render(ctx) }
+    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> { Ok(Rc::new(self.0.clone())) }
+}
+
 impl<T: Tessellate + Clone> Layer for Mesh<T> {
     fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
         Ok(vec![GpuMesh::produce(self.clone(), ctx.gpu.clone())?])

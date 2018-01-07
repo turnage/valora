@@ -9,7 +9,7 @@
 #[macro_use] extern crate error_chain;
 #[macro_use] pub extern crate glium;
 extern crate lyon;
-extern crate image;
+pub extern crate image;
 pub extern crate rand;
 extern crate petgraph;
 extern crate itertools;
@@ -18,6 +18,7 @@ pub extern crate palette;
 #[macro_use] extern crate maplit;
 #[macro_use] extern crate lazy_static;
 extern crate tess2;
+extern crate rayon;
 
 pub mod geom;
 pub mod sketch;
@@ -29,7 +30,7 @@ pub mod tween;
 pub mod transforms;
 pub mod generators;
 
-mod color;
+pub mod color;
 mod properties;
 mod gpu;
 mod mesh;
@@ -45,6 +46,7 @@ pub use composition::*;
 pub use tween::*;
 pub use generators::*;
 pub use transforms::*;
+pub use gpu::shaders;
 
 #[cfg(test)]
 mod test {
