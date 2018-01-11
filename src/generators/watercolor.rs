@@ -1,13 +1,11 @@
 use color::{BlendMode, Colorer};
 use generators::spawner::{SpawnCfg, SpawnSrc, Spawner};
-use geom::{Point, Poly};
-use geom::transforms::SubdivideEdges;
+use poly::{Point, Poly};
+use poly::transforms::*;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use properties::Centered;
 use rand::Rng;
-use transforms::Place;
-use transforms::warp::*;
 
 pub struct WaterColorCfg {
     pub layers: usize,
@@ -64,7 +62,7 @@ impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
                      .collect())
         };
         Self {
-            spawn_point: src.centroid(),
+            spawn_point: src.center(),
             src: if cfg.anchor_layer {
                 WaterColorSrc::Anchor(WaterColor::warp(src, &cfg, &custom_factors, rng))
             } else {
@@ -83,7 +81,7 @@ impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
                     custom_factors: &Option<Vec<f32>>,
                     rng: &mut R)
                     -> S {
-        use transforms::iterate;
+        use pipes::iterate;
 
         let mut src = src;
         for _ in 0..(cfg.depth) {

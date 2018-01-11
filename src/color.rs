@@ -1,4 +1,4 @@
-use geom::Point;
+use poly::Point;
 use palette::Colora;
 use std::rc::Rc;
 

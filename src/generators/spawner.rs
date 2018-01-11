@@ -1,4 +1,4 @@
-use geom::{Point, Poly};
+use poly::{Point, Poly};
 use rand::StdRng;
 use std::rc::Rc;
 use transforms::Place;
@@ -9,10 +9,6 @@ pub trait SpawnSrc {
 
 impl<P: Poly> SpawnSrc for P {
     default fn spawn_points(&self) -> Vec<Point> { self.vertices() }
-}
-
-impl SpawnSrc for Vec<Point> {
-    fn spawn_points(&self) -> Vec<Point> { self.clone() }
 }
 
 pub struct SpawnCfg<'a> {

@@ -1,15 +1,14 @@
-use geom::Point;
-use lyon::math::Radians;
+//! Ellipse-estimating polygons.
+
+use point::Point;
 use properties::{Centered, Path};
-use transforms::{Place, Scale, Translate};
+use transforms::{Scale, Translate};
 
 #[derive(Debug, Clone)]
 pub struct Ellipse {
     pub center: Point,
     pub width: f32,
     pub height: Option<f32>,
-    pub rotation: Radians<f32>,
-    pub tolerance: Option<f32>,
 }
 
 impl Ellipse {
@@ -18,8 +17,14 @@ impl Ellipse {
             center,
             width: radius,
             height: None,
-            rotation: Radians::new(0.0),
-            tolerance: None,
+        }
+    }
+
+    pub fn new(center: Point, width: f32, height: f32) -> Self {
+        Self {
+            center,
+            width,
+            height: Some(height),
         }
     }
 
@@ -30,6 +35,8 @@ impl Ellipse {
         }
     }
 
+    /// Use this function to get a polygonal estimation of the ellipse at the given phase
+    /// and resolution.
     pub fn circumpoints(&self, resolution: usize, phase: f32) -> Vec<Point> {
         use std::f32;
 
@@ -65,11 +72,7 @@ impl Scale for Ellipse {
 }
 
 impl Centered for Ellipse {
-    fn centroid(&self) -> Point { self.center }
-}
-
-impl Place for Ellipse {
-    fn place(self, dest: Point) -> Self { Self { center: dest, ..self } }
+    fn center(&self) -> Point { self.center }
 }
 
 impl Translate for Ellipse {

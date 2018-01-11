@@ -1,5 +1,5 @@
 use color::{BlendMode, Colorer, Opacity};
-use geom::Point;
+use poly::Point;
 use transforms::{Place, Scale};
 
 #[derive(Debug, Clone, Copy)]

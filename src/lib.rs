@@ -19,25 +19,24 @@ pub extern crate palette;
 #[macro_use] extern crate lazy_static;
 extern crate tess2;
 extern crate rayon;
+pub extern crate poly;
 
-pub mod geom;
 pub mod sketch;
 pub mod patterns;
 pub mod actors;
 pub mod errors;
 pub mod composition;
 pub mod tween;
-pub mod transforms;
 pub mod generators;
 
 pub mod color;
-mod properties;
+mod pipes;
 mod gpu;
 mod mesh;
 
 pub use actors::*;
 pub use errors::*;
-pub use geom::*;
+pub use poly::*;
 pub use patterns::*;
 pub use sketch::*;
 pub use color::*;
@@ -55,7 +54,7 @@ mod test {
         use lyon;
         use rand::{Rng, StdRng};
         use lyon::tessellation::*;
-        use lyon::tessellation::geometry_builder::{VertexBuffers, simple_builder};
+        use lyon::tessellation::polyetry_builder::{VertexBuffers, simple_builder};
         use lyon::path_builder::math::Point;
 
 

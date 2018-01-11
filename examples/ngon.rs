@@ -35,7 +35,7 @@ impl Sketch for Pendulum {
 }
 
 fn main() {
-    sketch(SketchCfg { size: 1080, root_frame_filename: Some(String::from("ngon")), seed: None },
+    sketch(SketchCfg { size: 1080, root_frame_filename: Some(String::from("ngon")), seed: None, still: true },
            Pendulum {})
             .expect("sketch");
 }

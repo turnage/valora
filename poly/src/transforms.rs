@@ -1,7 +1,43 @@
-use geom::Point;
+//! Transformations on polygons.
+
+use point::Point;
 use properties::Centered;
 use rand::Rng;
 use std::rc::Rc;
+
+/// Percent of a thing; usually used for paths but may be implemented with
+/// other semantics for different types.
+pub trait Percent: Sized {
+    fn percent(self, percent: f32) -> Self;
+}
+
+/// Place a type at the given point. Equivalent to calculating the delta to a point and translating
+/// that delta.
+pub trait Place: Sized {
+    fn place(self, dest: Point) -> Self;
+}
+
+impl<T: Translate + Centered> Place for T {
+    fn place(self, dest: Point) -> Self {
+        let delta = dest - self.center();
+        self.translate(delta)
+    }
+}
+
+pub trait Translate: Sized {
+    fn translate(self, delta: Point) -> Self;
+}
+
+pub trait Scale {
+    fn scale(self, scale: f32) -> Self;
+}
+
+// Cuts the edges of the geometry in half so that points exist at the
+// midpoint of all previously existing edges. The actual shape should
+// not change.
+pub trait SubdivideEdges: Sized {
+    fn subdivide_edges(self) -> Self;
+}
 
 /// Specifies which vertices should be warped.
 #[derive(Clone, Copy, Debug)]

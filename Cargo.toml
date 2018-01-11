@@ -22,3 +22,6 @@ lazy_static = "1"
 num = "0.1"
 tess2 = "0.1"
 rayon = "0.9"
+poly = { path = "poly" }
+
+[workspace]

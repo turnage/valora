@@ -1,19 +1,22 @@
-use errors;
-use geom::transforms::SubdivideEdges;
-use lyon::tessellation::{FillVertex, StrokeVertex};
-use lyon::tessellation::math::Point2D;
+//! Point definition and trait implementations.
+
 use num::traits::{Num, NumOps, Signed};
 use num::traits::identities::{One, Zero};
 use properties::{Centered, Distance};
 use rand::{Rand, Rng};
 use rand::distributions::{IndependentSample, Normal, Sample};
 use std::ops::*;
-use transforms::{Scale, Translate};
+use transforms::{Scale, Translate, SubdivideEdges};
 
+/// 2 dimensional floating point.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
+}
+
+impl Point {
+    pub fn center() -> Point { Point { x: 0.5, y: 0.5 } }
 }
 
 impl Default for Point {
@@ -116,7 +119,7 @@ impl One for Point {
 impl NumOps for Point {}
 
 impl Num for Point {
-    type FromStrRadixErr = errors::Error;
+    type FromStrRadixErr = <f32 as Num>::FromStrRadixErr;
     fn from_str_radix(str: &str, radix: u32) -> Result<Self, Self::FromStrRadixErr> {
         let v: f32 = f32::from_str_radix(str, radix)?;
         Ok(Self { x: v, y: v })
@@ -151,8 +154,8 @@ impl SubdivideEdges for Vec<Point> {
 
 impl Scale for Vec<Point> {
     fn scale(self, scale: f32) -> Self {
-        let centroid = self.centroid();
-        let deltas: Vec<Point> = self.iter().map(|p| *p - centroid).collect();
+        let center = self.center();
+        let deltas: Vec<Point> = self.iter().map(|p| *p - center).collect();
         self.into_iter()
             .zip(deltas.into_iter())
             .map(|(p, d)| p + (d * scale))
@@ -184,32 +187,6 @@ impl Distance<Self> for Point {
     }
 }
 
-impl Point {
-    pub fn center() -> Point { Point { x: 0.5, y: 0.5 } }
-
-    pub fn abs(self) -> Point { Point { x: self.x.abs(), y: self.y.abs() } }
-
-    pub fn manhattan(self, point: Point) -> f32 {
-        (self.x - point.x).abs() + (self.y - point.y).abs()
-    }
-}
-
 impl Rand for Point {
     fn rand<R: Rng>(rng: &mut R) -> Point { Point { x: rng.next_f32(), y: rng.next_f32() } }
-}
-
-impl Into<Point2D<f32>> for Point {
-    fn into(self) -> Point2D<f32> { Point2D::new(self.x, self.y) }
-}
-
-impl From<Point2D<f32>> for Point {
-    fn from(point: Point2D<f32>) -> Point { Point { x: point.x, y: point.y } }
-}
-
-impl From<FillVertex> for Point {
-    fn from(point: FillVertex) -> Point { point.position.into() }
-}
-
-impl From<StrokeVertex> for Point {
-    fn from(point: StrokeVertex) -> Point { point.position.into() }
 }

@@ -1,11 +1,11 @@
-use geom::Point;
+use point::Point;
 
 pub trait Centered {
-    fn centroid(&self) -> Point;
+    fn center(&self) -> Point;
 }
 
 impl Centered for Vec<Point> {
-    fn centroid(&self) -> Point {
+    fn center(&self) -> Point {
         use properties::Distance;
         use std::f32;
 

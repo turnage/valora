@@ -1,4 +1,4 @@
-use geom::Point;
+use poly::Point;
 use petgraph::prelude::*;
 use rand::StdRng;
 

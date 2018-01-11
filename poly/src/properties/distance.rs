@@ -1,4 +1,4 @@
-use geom::Point;
+use point::Point;
 use properties::Centered;
 
 pub trait Distance<Dest> {
@@ -12,17 +12,17 @@ pub trait Distance<Dest> {
 }
 
 impl<C1: Centered, C2: Centered> Distance<C2> for C1 {
-    default fn distance(&self, dest: &C2) -> f32 { self.centroid().distance(&dest.centroid()) }
+    default fn distance(&self, dest: &C2) -> f32 { self.center().distance(&dest.center()) }
 
-    default fn delta(&self, dest: &C2) -> Point { self.centroid().delta(&dest.centroid()) }
+    default fn delta(&self, dest: &C2) -> Point { self.center().delta(&dest.center()) }
 
-    default fn midpoint(&self, dest: &C2) -> Point { self.centroid().midpoint(&dest.centroid()) }
+    default fn midpoint(&self, dest: &C2) -> Point { self.center().midpoint(&dest.center()) }
 
     default fn manhattan_distance(&self, dest: &C2) -> f32 {
-        self.centroid().manhattan_distance(&dest.centroid())
+        self.center().manhattan_distance(&dest.center())
     }
     default fn sign_to(&self, dest: &C2) -> Point {
         use num::Signed;
-        (dest.centroid() - self.centroid()).signum()
+        (dest.center() - self.center()).signum()
     }
 }

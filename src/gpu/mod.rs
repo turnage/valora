@@ -7,7 +7,7 @@ pub use self::tessellation::*;
 
 use color::BlendMode;
 use errors::Result;
-use geom::Point;
+use poly::Point;
 use glium::{Blend, Display, DrawParameters, Frame, IndexBuffer, Program, Surface, VertexBuffer,
             glutin};
 use glium::backend::{Context, Facade};

@@ -1,6 +1,6 @@
 use color::{BlendMode, Colorer};
 use errors::Result;
-use geom::Rect;
+use poly::Rect;
 use gpu::{DefaultShader, Factory, GpuMesh, Shader, Tessellate};
 use mesh::{DrawMode, Mesh};
 use sketch::SketchContext;

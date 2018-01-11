@@ -1,5 +1,5 @@
-use geom::Point;
-use geom::poly::Rect;
+use point::Point;
+use rect::Rect;
 
 pub trait Bounded {
     fn in_bounds(&self, point: Point) -> bool;

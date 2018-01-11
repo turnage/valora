@@ -1,4 +1,4 @@
-use geom::{Point, Rect};
+use poly::{Point, Rect};
 use rand::Rng;
 
 pub struct Sparkles(Vec<Point>);
