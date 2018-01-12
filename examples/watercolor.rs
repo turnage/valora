@@ -11,10 +11,10 @@ impl Sketch for Pendulum {
         let base_hue = rng.gen_range(0.0, 360.0);
 
         let splotch = Ngon {
-            n:        5,
-            center:   Point::center(),
+            n: 5,
+            center: Point::center(),
             rotation: 0.0,
-            radius:   0.1,
+            radius: 0.1,
         }.as_irregular();
         let splotch = spawn(
             &WaterColor::new(
@@ -45,20 +45,20 @@ impl Sketch for Pendulum {
                     base_hue + hue_range * ((1.0 - cfg.percent).abs() * 2.0)
                 };
                 Tween::from(Mesh {
-                    src:        Ellipse::circle(cfg.point, 0.9),
-                    colorer:    if cfg.index == n - 1 {
+                    src: Ellipse::circle(cfg.point, 0.9),
+                    colorer: if cfg.index == n - 1 {
                         Colorer::white()
                     } else {
                         Colorer::from(Colora::hsv(RgbHue::from(hue), 1.0, 1.0, 1.0))
                     },
                     blend_mode: BlendMode::Normal,
-                    draw_mode:  DrawMode::Fill,
+                    draw_mode: DrawMode::Fill,
                 }).anim_scale(
                     0.0,
                     1.,
                     Interpolation::Linear {
                         start: cfg.index * offset,
-                        len:   100,
+                        len: 100,
                     },
                 )
             }),
@@ -80,10 +80,10 @@ impl Sketch for Pendulum {
             .add(pendulum)
             .add(splotch)
             .add(Mesh {
-                src:        Rect::frame(),
-                colorer:    Colorer::from(Colora::hsv(RgbHue::from(49.0), 0.2, 1.0, 1.0)),
+                src: Rect::frame(),
+                colorer: Colorer::from(Colora::hsv(RgbHue::from(49.0), 0.2, 1.0, 1.0)),
                 blend_mode: BlendMode::MaskTransparent,
-                draw_mode:  DrawMode::Fill,
+                draw_mode: DrawMode::Fill,
             }))
     }
 }
@@ -91,9 +91,9 @@ impl Sketch for Pendulum {
 fn main() {
     sketch(
         SketchCfg {
-            size:                1080,
+            size: 1080,
             root_frame_filename: Some(String::from("jungle")),
-            seed:                None,
+            seed: None,
         },
         Pendulum {},
     ).expect("sketch");

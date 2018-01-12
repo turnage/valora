@@ -5,14 +5,18 @@ use point::Point;
 #[derive(Clone, Debug, Copy, PartialEq)]
 pub struct Rect {
     pub bottom_left: Point,
-    pub width:       f32,
-    pub height:      f32,
+    pub width: f32,
+    pub height: f32,
 }
 
 impl Rect {
-    pub fn square(bottom_left: Point, size: f32) -> Self { Self::new(bottom_left, size, size) }
+    pub fn square(bottom_left: Point, size: f32) -> Self {
+        Self::new(bottom_left, size, size)
+    }
 
-    pub fn frame() -> Self { Self::square(Point { x: 0.0, y: 0.0 }, 1.0) }
+    pub fn frame() -> Self {
+        Self::square(Point { x: 0.0, y: 0.0 }, 1.0)
+    }
 
     pub fn new(bottom_left: Point, width: f32, height: f32) -> Self {
         Self {
@@ -51,8 +55,8 @@ impl Rect {
         let center = self.center();
         Self {
             bottom_left: center + (self.bottom_left - center) * scale,
-            width:       scale * self.width,
-            height:      scale * self.height,
+            width: scale * self.width,
+            height: scale * self.height,
         }
     }
 }

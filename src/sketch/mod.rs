@@ -7,16 +7,16 @@ use std::{fs, thread, time};
 use std::rc::Rc;
 
 pub struct SketchCfg {
-    pub size:                u32,
+    pub size: u32,
     pub root_frame_filename: Option<String>,
-    pub seed:                Option<usize>,
-    pub still:               bool,
+    pub seed: Option<usize>,
+    pub still: bool,
 }
 
 pub struct SketchContext {
-    pub cfg:          SketchCfg,
-    pub gpu:          Rc<Gpu>,
-    pub frame:        usize,
+    pub cfg: SketchCfg,
+    pub gpu: Rc<Gpu>,
+    pub frame: usize,
     pub current_seed: usize,
 }
 

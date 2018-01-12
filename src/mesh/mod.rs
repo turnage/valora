@@ -1,6 +1,6 @@
 use color::{BlendMode, Colorer};
-use poly::{Poly};
-use generators::{Spawner, SpawnCfg};
+use poly::Poly;
+use generators::{SpawnCfg, Spawner};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DrawMode {
@@ -10,10 +10,10 @@ pub enum DrawMode {
 
 #[derive(Clone)]
 pub struct Mesh {
-    pub src:        Poly,
-    pub colorer:    Colorer,
+    pub src: Poly,
+    pub colorer: Colorer,
     pub blend_mode: BlendMode,
-    pub draw_mode:  DrawMode,
+    pub draw_mode: DrawMode,
 }
 
 impl<T: Into<Poly>> From<T> for Mesh {
@@ -29,9 +29,7 @@ impl<T: Into<Poly>> From<T> for Mesh {
 
 impl Mesh {
     pub fn with_colorer(self, colorer: Colorer) -> Self {
-        Self {
-            colorer,
-            ..self}
+        Self { colorer, ..self }
     }
 }
 

@@ -15,27 +15,45 @@ pub enum BlendMode {
 pub struct Colorer(Option<Rc<Fn(Point) -> Colora>>);
 
 impl Default for Colorer {
-    fn default() -> Self { Colorer(None) }
+    fn default() -> Self {
+        Colorer(None)
+    }
 }
 
 impl From<Colora> for Colorer {
-    fn from(color: Colora) -> Self { Colorer(Some(Rc::new(move |_| color))) }
+    fn from(color: Colora) -> Self {
+        Colorer(Some(Rc::new(move |_| color)))
+    }
 }
 
 impl<F: 'static + Fn(Point) -> Colora> From<F> for Colorer {
-    default fn from(f: F) -> Self { Colorer(Some(Rc::new(f))) }
+    default fn from(f: F) -> Self {
+        Colorer(Some(Rc::new(f)))
+    }
 }
 
 impl<F: 'static + Fn(Point) -> Colora> From<Rc<F>> for Colorer {
-    fn from(f: Rc<F>) -> Self { Colorer(Some(f.clone())) }
+    fn from(f: Rc<F>) -> Self {
+        Colorer(Some(f.clone()))
+    }
 }
 
 impl Colorer {
-    pub fn red() -> Self { Self::from(Colora::rgb(1.0, 0.0, 0.0, 1.0)) }
-    pub fn blue() -> Self { Self::from(Colora::rgb(0.0, 0.0, 1.0, 1.0)) }
-    pub fn black() -> Self { Self::from(Colora::rgb(0.0, 0.0, 0.0, 1.0)) }
-    pub fn white() -> Self { Self::from(Colora::rgb(1.0, 1.0, 1.0, 1.0)) }
-    pub fn empty() -> Self { Self::from(Colora::rgb(1.0, 1.0, 1.0, 0.0)) }
+    pub fn red() -> Self {
+        Self::from(Colora::rgb(1.0, 0.0, 0.0, 1.0))
+    }
+    pub fn blue() -> Self {
+        Self::from(Colora::rgb(0.0, 0.0, 1.0, 1.0))
+    }
+    pub fn black() -> Self {
+        Self::from(Colora::rgb(0.0, 0.0, 0.0, 1.0))
+    }
+    pub fn white() -> Self {
+        Self::from(Colora::rgb(1.0, 1.0, 1.0, 1.0))
+    }
+    pub fn empty() -> Self {
+        Self::from(Colora::rgb(1.0, 1.0, 1.0, 0.0))
+    }
 
     pub fn color(&self, point: Point) -> Colora {
         match self.0 {
@@ -59,5 +77,7 @@ pub mod conversions {
         }
     }
 
-    pub fn collapse_component(c: f32) -> u8 { (c * 255.0) as u8 }
+    pub fn collapse_component(c: f32) -> u8 {
+        (c * 255.0) as u8
+    }
 }

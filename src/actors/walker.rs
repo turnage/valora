@@ -3,8 +3,8 @@ use poly::Point;
 use rand::StdRng;
 
 pub struct Walker {
-    walk:      Graph<Point, ()>,
-    leaves:    Vec<NodeIndex<u32>>,
+    walk: Graph<Point, ()>,
+    leaves: Vec<NodeIndex<u32>>,
     heuristic: WalkHeuristic,
 }
 

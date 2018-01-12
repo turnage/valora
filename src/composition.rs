@@ -1,8 +1,8 @@
-use color::{Colorer};
+use color::Colorer;
 use errors::Result;
 use gpu::{DefaultShader, Factory, GpuMesh, Shader};
-use mesh::{Mesh};
-use poly::{Rect};
+use mesh::Mesh;
+use poly::Rect;
 use sketch::SketchContext;
 use std::rc::Rc;
 
@@ -16,7 +16,9 @@ pub trait Compose<L: Layer> {
 }
 
 impl Composition {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn solid_layer(self, colorer: Colorer) -> Self {
         self.add(Mesh::from(Rect::frame()).with_colorer(colorer))
@@ -53,12 +55,18 @@ impl<S: 'static + Shader + Clone> Layer for S {
             GpuMesh::produce(Mesh::from(Rect::frame()), ctx.gpu.clone())?,
         ])
     }
-    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> { Ok(Rc::new(self.clone())) }
+    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> {
+        Ok(Rc::new(self.clone()))
+    }
 }
 
 impl<S: 'static + Shader + Clone, L: Layer> Layer for (S, L) {
-    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> { self.1.render(ctx) }
-    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> { Ok(Rc::new(self.0.clone())) }
+    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
+        self.1.render(ctx)
+    }
+    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> {
+        Ok(Rc::new(self.0.clone()))
+    }
 }
 
 impl Layer for Mesh {

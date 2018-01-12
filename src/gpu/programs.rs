@@ -29,7 +29,7 @@ lazy_static! {
 }
 
 pub struct ProgramSpec {
-    vertex:   &'static str,
+    vertex: &'static str,
     fragment: &'static str,
 }
 

@@ -61,20 +61,24 @@ impl Default for WarpCfg {
 }
 
 pub fn warp<R: Rng>(poly: Poly, cfg: &WarpCfg, rng: &mut R) -> Poly {
-        let dist = Normal::new(0.0, cfg.variance.sqrt() as f64);
-        let static_sample: Point = dist.ind_sample(rng);
-        let center = poly.center();
-        let vertices = poly.vertices();
-        let n = vertices.len();
-        Poly::Irregular(vertices.clone()
-                .into_iter()
-                .enumerate()
-                .map(move |(i, v)| match (i % 2 == 0, cfg.coverage) {
-                         (_, WarpCoverage::AllVertices) |
-                         (false, WarpCoverage::OddVertices) => {
+    let dist = Normal::new(0.0, cfg.variance.sqrt() as f64);
+    let static_sample: Point = dist.ind_sample(rng);
+    let center = poly.center();
+    let vertices = poly.vertices();
+    let n = vertices.len();
+    Poly::Irregular(
+        vertices
+            .clone()
+            .into_iter()
+            .enumerate()
+            .map(move |(i, v)| match (i % 2 == 0, cfg.coverage) {
+                (_, WarpCoverage::AllVertices) | (false, WarpCoverage::OddVertices) => {
                     let neighbor_factor = if cfg.adapt_to_neighbors {
-                        let left =
-                            if i == 0 { vertices[vertices.len() - 1] } else { vertices[i - 1] };
+                        let left = if i == 0 {
+                            vertices[vertices.len() - 1]
+                        } else {
+                            vertices[i - 1]
+                        };
                         let right = vertices[(i + 1) % vertices.len()];
                         left.distance(&right) * 0.5
                     } else {
@@ -89,7 +93,11 @@ pub fn warp<R: Rng>(poly: Poly, cfg: &WarpCfg, rng: &mut R) -> Poly {
                         Some(ref f) => f(v),
                         None => 1.0,
                     };
-                    let delta = if cfg.share_sample { static_sample } else { dist.ind_sample(rng) };
+                    let delta = if cfg.share_sample {
+                        static_sample
+                    } else {
+                        dist.ind_sample(rng)
+                    };
                     let delta = delta * neighbor_factor * spatial_factor * custom_factor;
                     let out_sign = center.sign_to(&v);
                     let delta = match cfg.expansion {
@@ -99,7 +107,8 @@ pub fn warp<R: Rng>(poly: Poly, cfg: &WarpCfg, rng: &mut R) -> Poly {
                     };
                     v + delta
                 }
-                         _ => v,
-                     })
-                .collect())
+                _ => v,
+            })
+            .collect(),
+    )
 }

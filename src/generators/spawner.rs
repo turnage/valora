@@ -6,15 +6,17 @@ pub trait SpawnSrc {
 }
 
 impl SpawnSrc for Poly {
-    fn spawn_points(&self) -> Vec<Point> { self.vertices() }
+    fn spawn_points(&self) -> Vec<Point> {
+        self.vertices()
+    }
 }
 
 pub struct SpawnCfg<'a> {
-    pub point:   Point,
-    pub index:   usize,
-    pub n:       usize,
+    pub point: Point,
+    pub index: usize,
+    pub n: usize,
     pub percent: f32,
-    pub rng:     &'a mut StdRng,
+    pub rng: &'a mut StdRng,
 }
 
 pub trait Spawner<G> {
@@ -43,4 +45,6 @@ where
         .collect()
 }
 
-pub fn generate<G, S: SpawnSrc + Spawner<G>>(s: &S, rng: StdRng) -> Vec<G> { spawn(s, s, rng) }
+pub fn generate<G, S: SpawnSrc + Spawner<G>>(s: &S, rng: StdRng) -> Vec<G> {
+    spawn(s, s, rng)
+}

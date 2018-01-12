@@ -9,10 +9,10 @@ struct Pendulum;
 impl Sketch for Pendulum {
     fn sketch(&self, _ctx: &SketchContext, mut rng: StdRng) -> Result<Composition> {
         let tengon = Ngon {
-            n:        10,
-            center:   Point::center(),
+            n: 10,
+            center: Point::center(),
             rotation: 0.0,
-            radius:   0.2,
+            radius: 0.2,
         };
         let splotcher = WaterColor::new(
             tengon.as_irregular(),
@@ -50,10 +50,10 @@ impl Sketch for Pendulum {
 fn main() {
     sketch(
         SketchCfg {
-            size:                500,
+            size: 500,
             root_frame_filename: Some(String::from("ngon")),
-            seed:                None,
-            still:               true,
+            seed: None,
+            still: true,
         },
         Pendulum {},
     ).expect("sketch");

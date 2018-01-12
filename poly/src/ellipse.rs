@@ -6,16 +6,18 @@ use point::Point;
 pub struct EllipseResolution(pub usize);
 
 impl Default for EllipseResolution {
-    fn default() -> Self { EllipseResolution(1000) }
+    fn default() -> Self {
+        EllipseResolution(1000)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ellipse {
-    pub center:     Point,
-    pub width:      f32,
-    pub height:     Option<f32>,
+    pub center: Point,
+    pub width: f32,
+    pub height: Option<f32>,
     pub resolution: EllipseResolution,
-    pub phase:      f32,
+    pub phase: f32,
 }
 
 impl Ellipse {
@@ -46,7 +48,9 @@ impl Ellipse {
         }
     }
 
-    pub fn with_phase(self, phase: f32) -> Self { Self { phase, ..self } }
+    pub fn with_phase(self, phase: f32) -> Self {
+        Self { phase, ..self }
+    }
 
     pub fn circumpoint(&self, angle: f32) -> Point {
         Point {

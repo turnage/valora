@@ -14,11 +14,15 @@ pub struct Point {
 }
 
 impl Point {
-    pub fn center() -> Point { Point { x: 0.5, y: 0.5 } }
+    pub fn center() -> Point {
+        Point { x: 0.5, y: 0.5 }
+    }
 }
 
 impl Default for Point {
-    fn default() -> Self { Self::center() }
+    fn default() -> Self {
+        Self::center()
+    }
 }
 
 impl Sample<Point> for Normal {
@@ -123,7 +127,9 @@ impl Div<Point> for Point {
 
 impl Div<f32> for Point {
     type Output = Self;
-    fn div(self, rhs: f32) -> Self { self * (1.0 / rhs) }
+    fn div(self, rhs: f32) -> Self {
+        self * (1.0 / rhs)
+    }
 }
 
 impl Rem for Point {
@@ -147,12 +153,18 @@ impl Neg for Point {
 }
 
 impl Zero for Point {
-    fn zero() -> Self { Self { x: 0.0, y: 0.0 } }
-    fn is_zero(&self) -> bool { *self == Self::zero() }
+    fn zero() -> Self {
+        Self { x: 0.0, y: 0.0 }
+    }
+    fn is_zero(&self) -> bool {
+        *self == Self::zero()
+    }
 }
 
 impl One for Point {
-    fn one() -> Self { Self { x: 1.0, y: 1.0 } }
+    fn one() -> Self {
+        Self { x: 1.0, y: 1.0 }
+    }
 }
 
 impl NumOps for Point {}
@@ -172,15 +184,21 @@ impl Signed for Point {
             y: self.y.abs(),
         }
     }
-    fn abs_sub(&self, other: &Self) -> Self { (*self - *other).abs() }
+    fn abs_sub(&self, other: &Self) -> Self {
+        (*self - *other).abs()
+    }
     fn signum(&self) -> Self {
         Point {
             x: self.x.signum(),
             y: self.y.signum(),
         }
     }
-    fn is_positive(&self) -> bool { self.x.is_positive() && self.y.is_positive() }
-    fn is_negative(&self) -> bool { self.x.is_negative() && self.y.is_negative() }
+    fn is_positive(&self) -> bool {
+        self.x.is_positive() && self.y.is_positive()
+    }
+    fn is_negative(&self) -> bool {
+        self.x.is_negative() && self.y.is_negative()
+    }
 }
 
 impl Point {
@@ -189,9 +207,13 @@ impl Point {
         (delta.x.powi(2) + delta.y.powi(2)).sqrt()
     }
 
-    pub fn delta(&self, dest: &Self) -> Self { (*self - *dest).abs() }
+    pub fn delta(&self, dest: &Self) -> Self {
+        (*self - *dest).abs()
+    }
 
-    pub fn midpoint(&self, dest: &Self) -> Self { *self + ((*dest - *self) / 2.0) }
+    pub fn midpoint(&self, dest: &Self) -> Self {
+        *self + ((*dest - *self) / 2.0)
+    }
 
     pub fn manhattan_distance(&self, dest: &Self) -> f32 {
         (self.x - dest.x).abs() + (self.y - dest.y).abs()

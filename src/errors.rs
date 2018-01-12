@@ -24,9 +24,13 @@ error_chain!{
 }
 
 impl From<FillError> for Error {
-    fn from(_: FillError) -> Error { "Fill error".into() }
+    fn from(_: FillError) -> Error {
+        "Fill error".into()
+    }
 }
 
 impl From<ParseFloatError> for Error {
-    fn from(e: ParseFloatError) -> Error { format!("parse float error: {:?}", e).into() }
+    fn from(e: ParseFloatError) -> Error {
+        format!("parse float error: {:?}", e).into()
+    }
 }

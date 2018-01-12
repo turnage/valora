@@ -42,7 +42,7 @@ impl Shader for DefaultShader {
 
 #[derive(Clone)]
 pub struct TextureShader {
-    tex:     Rc<Texture2d>,
+    tex: Rc<Texture2d>,
     program: Rc<Program>,
 }
 
@@ -67,7 +67,7 @@ impl Factory<TextureShaderSpec> for TextureShader {
 impl Factory<Texture2d> for TextureShader {
     fn produce(tex: Texture2d, gpu: Rc<Gpu>) -> Result<Self> {
         Ok(TextureShader {
-            tex:     Rc::new(tex),
+            tex: Rc::new(tex),
             program: gpu.program(Gpu::PROGRAM_TEXTURE).unwrap(),
         })
     }

@@ -7,31 +7,31 @@ use rand::Rng;
 use transforms::warp::*;
 
 pub struct WaterColorCfg {
-    pub layers:          usize,
-    pub spread:          f32,
-    pub depth:           usize,
-    pub color:           Colora,
-    pub draw_mode:       DrawMode,
-    pub blend_mode:      BlendMode,
-    pub anchor_layer:    bool,
+    pub layers: usize,
+    pub spread: f32,
+    pub depth: usize,
+    pub color: Colora,
+    pub draw_mode: DrawMode,
+    pub blend_mode: BlendMode,
+    pub anchor_layer: bool,
     pub duplicate_depth: usize,
-    pub uniform_spread:  bool,
-    pub subdivides_per:  usize,
+    pub uniform_spread: bool,
+    pub subdivides_per: usize,
 }
 
 impl Default for WaterColorCfg {
     fn default() -> Self {
         Self {
-            layers:          100,
-            spread:          0.03,
-            depth:           5,
-            color:           Colora::rgb(1.0, 1.0, 1.0, 0.04),
-            draw_mode:       DrawMode::Fill,
-            blend_mode:      BlendMode::Normal,
-            anchor_layer:    false,
+            layers: 100,
+            spread: 0.03,
+            depth: 5,
+            color: Colora::rgb(1.0, 1.0, 1.0, 0.04),
+            draw_mode: DrawMode::Fill,
+            blend_mode: BlendMode::Normal,
+            anchor_layer: false,
             duplicate_depth: 5,
-            uniform_spread:  false,
-            subdivides_per:  1,
+            uniform_spread: false,
+            subdivides_per: 1,
         }
     }
 }
@@ -44,10 +44,10 @@ enum WaterColorSrc {
 }
 
 pub struct WaterColor {
-    cfg:            WaterColorCfg,
-    src:            WaterColorSrc,
+    cfg: WaterColorCfg,
+    src: WaterColorSrc,
     custom_factors: Option<Vec<f32>>,
-    spawn_point:    Point,
+    spawn_point: Point,
 }
 
 impl WaterColor {
@@ -121,9 +121,9 @@ impl Spawner<Mesh> for WaterColor {
             ),
         };
         Mesh {
-            src:        src.place(cfg.point),
-            colorer:    Colorer::from(self.cfg.color),
-            draw_mode:  self.cfg.draw_mode,
+            src: src.place(cfg.point),
+            colorer: Colorer::from(self.cfg.color),
+            draw_mode: self.cfg.draw_mode,
             blend_mode: self.cfg.blend_mode,
         }
     }

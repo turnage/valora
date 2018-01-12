@@ -20,18 +20,20 @@ impl Oscillation {
 pub enum Interpolation {
     Linear {
         start: usize,
-        len:   usize,
+        len: usize,
     },
     Oscillation {
         oscillation: Oscillation,
-        start:       usize,
-        period:      usize,
+        start: usize,
+        period: usize,
     },
     Constant(f32),
 }
 
 impl Interpolation {
-    pub fn interpolate(&self, frame: usize) -> f32 { self.clamp(self.raw(frame)) }
+    pub fn interpolate(&self, frame: usize) -> f32 {
+        self.clamp(self.raw(frame))
+    }
 
     fn raw(&self, frame: usize) -> f32 {
         match *self {

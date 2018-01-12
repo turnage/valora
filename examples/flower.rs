@@ -158,10 +158,10 @@ impl Sketch for Pendulum {
 fn main() {
     sketch(
         SketchCfg {
-            size:                400,
+            size: 400,
             root_frame_filename: Some(String::from("flower")),
-            seed:                None,
-            still:               true,
+            seed: None,
+            still: true,
         },
         Pendulum {
             frame: flower(400, vec![Point::center()]).expect(""),

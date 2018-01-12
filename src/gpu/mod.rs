@@ -23,7 +23,7 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 pub struct Gpu {
-    display:  Display,
+    display: Display,
     programs: HashMap<&'static str, Rc<Program>>,
 }
 
@@ -42,8 +42,10 @@ impl Gpu {
         let display = Display::new(window, context, &events_loop)?;
 
         let programs = hashmap!{
-            Self::PROGRAM_DEFAULT => Rc::new(programs::load(&programs::PROGRAM_SPEC_DEFAULT, &display)?),
-            Self::PROGRAM_TEXTURE => Rc::new(programs::load(&programs::PROGRAM_SPEC_TEXTURE, &display)?),
+            Self::PROGRAM_DEFAULT => Rc::new(programs::load(&programs::PROGRAM_SPEC_DEFAULT,
+                                                            &display)?),
+            Self::PROGRAM_TEXTURE => Rc::new(programs::load(&programs::PROGRAM_SPEC_TEXTURE,
+                                                            &display)?),
         };
         Ok((Self { display, programs }, events_loop))
     }
@@ -61,9 +63,9 @@ impl Gpu {
         SimpleFrameBuffer::new(&self.display, &tex)?.blit_whole_color_to(
             &frame,
             &BlitTarget {
-                left:   0,
+                left: 0,
                 bottom: 0,
-                width:  size as i32,
+                width: size as i32,
                 height: size as i32,
             },
             MagnifySamplerFilter::Linear,
@@ -71,7 +73,9 @@ impl Gpu {
         Ok(frame.finish()?)
     }
 
-    pub fn screen(&self) -> Target { self.display.draw().into() }
+    pub fn screen(&self) -> Target {
+        self.display.draw().into()
+    }
 
     pub fn render_to_texture(&self, cmds: Vec<(Rc<Shader>, GpuMesh)>) -> Result<Texture2d> {
         let dest = self.canvas()?;
@@ -146,15 +150,21 @@ impl Gpu {
 
 impl Deref for Gpu {
     type Target = Display;
-    fn deref(&self) -> &Display { &self.display }
+    fn deref(&self) -> &Display {
+        &self.display
+    }
 }
 
 impl Facade for Gpu {
-    fn get_context(&self) -> &Rc<Context> { &self.display.get_context() }
+    fn get_context(&self) -> &Rc<Context> {
+        &self.display.get_context()
+    }
 }
 
 impl DerefMut for Gpu {
-    fn deref_mut(&mut self) -> &mut Display { &mut self.display }
+    fn deref_mut(&mut self) -> &mut Display {
+        &mut self.display
+    }
 }
 
 pub trait Factory<Spec>: Sized {
@@ -164,7 +174,7 @@ pub trait Factory<Spec>: Sized {
 #[derive(Debug, Copy, Clone)]
 pub struct GpuVertex {
     pub position: [f32; 2],
-    pub color:    [f32; 4],
+    pub color: [f32; 4],
 }
 
 implement_vertex!(GpuVertex, position, color);
@@ -184,7 +194,9 @@ impl GpuVertex {
     // and offset vertices one world unit so the origin is in the bottom
     // left, and y and x point up and right respectively. If you think
     // it should be done differently, you are wrong.
-    fn fix_coord(coord: f32) -> f32 { (coord * Self::WORLD_FACTOR) - Self::WORLD_OFFSET }
+    fn fix_coord(coord: f32) -> f32 {
+        (coord * Self::WORLD_FACTOR) - Self::WORLD_OFFSET
+    }
 }
 
 impl From<(Point, Colora)> for GpuVertex {
@@ -199,7 +211,7 @@ impl From<(Point, Colora)> for GpuVertex {
         let cp = ca.into_premultiplied();
         GpuVertex {
             position: [point.x, point.y],
-            color:    [cp.red, cp.green, cp.blue, color.alpha],
+            color: [cp.red, cp.green, cp.blue, color.alpha],
         }
     }
 }
@@ -209,56 +221,56 @@ impl From<BlendMode> for Blend {
         use glium::{BlendingFunction, LinearBlendingFactor};
         match src {
             BlendMode::Normal => Blend {
-                color:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::SourceAlpha,
+                color: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::SourceAlpha,
                     destination: LinearBlendingFactor::OneMinusSourceAlpha,
                 },
-                alpha:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::One,
+                alpha: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::One,
                     destination: LinearBlendingFactor::OneMinusSourceAlpha,
                 },
                 constant_value: (0.0, 0.0, 0.0, 0.0),
             },
             BlendMode::Add => Blend {
-                color:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::One,
+                color: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::One,
                     destination: LinearBlendingFactor::One,
                 },
-                alpha:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::SourceAlpha,
+                alpha: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::SourceAlpha,
                     destination: LinearBlendingFactor::OneMinusDestinationAlpha,
                 },
                 constant_value: (0.0, 0.0, 0.0, 0.0),
             },
             BlendMode::Subtract => Blend {
-                color:          BlendingFunction::Subtraction {
-                    source:      LinearBlendingFactor::One,
+                color: BlendingFunction::Subtraction {
+                    source: LinearBlendingFactor::One,
                     destination: LinearBlendingFactor::One,
                 },
-                alpha:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::SourceAlpha,
+                alpha: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::SourceAlpha,
                     destination: LinearBlendingFactor::DestinationAlpha,
                 },
                 constant_value: (0.0, 0.0, 0.0, 0.0),
             },
             BlendMode::MaskOpaque => Blend {
-                color:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::DestinationAlpha,
+                color: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::DestinationAlpha,
                     destination: LinearBlendingFactor::Zero,
                 },
-                alpha:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::Zero,
+                alpha: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::Zero,
                     destination: LinearBlendingFactor::SourceAlpha,
                 },
                 constant_value: (0.0, 0.0, 0.0, 0.0),
             },
             BlendMode::MaskTransparent => Blend {
-                color:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::OneMinusDestinationAlpha,
+                color: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::OneMinusDestinationAlpha,
                     destination: LinearBlendingFactor::DestinationAlpha,
                 },
-                alpha:          BlendingFunction::Addition {
-                    source:      LinearBlendingFactor::SourceAlpha,
+                alpha: BlendingFunction::Addition {
+                    source: LinearBlendingFactor::SourceAlpha,
                     destination: LinearBlendingFactor::SourceAlpha,
                 },
                 constant_value: (0.0, 0.0, 0.0, 0.0),
@@ -270,15 +282,17 @@ impl From<BlendMode> for Blend {
 #[derive(Clone)]
 pub struct GpuMesh {
     pub vertices: Rc<VertexBuffer<GpuVertex>>,
-    pub indices:  Rc<IndexBuffer<u32>>,
-    pub blend:    Blend,
+    pub indices: Rc<IndexBuffer<u32>>,
+    pub blend: Blend,
 }
 
 impl Factory<Mesh> for GpuMesh {
     fn produce(spec: Mesh, gpu: Rc<Gpu>) -> Result<Self> {
         let tessellation = match spec.draw_mode {
             DrawMode::Fill => tessellate_fill(&spec.src, spec.colorer)?,
-            DrawMode::Stroke { thickness } => tessellate_stroke(&spec.src, thickness, spec.colorer)?,
+            DrawMode::Stroke { thickness } => {
+                tessellate_stroke(&spec.src, thickness, spec.colorer)?
+            }
         };
 
         Ok(GpuMesh {
@@ -286,12 +300,12 @@ impl Factory<Mesh> for GpuMesh {
                 gpu.as_ref(),
                 tessellation.vertices.as_slice(),
             )?),
-            indices:  Rc::new(IndexBuffer::new(
+            indices: Rc::new(IndexBuffer::new(
                 gpu.as_ref(),
                 PrimitiveType::TrianglesList,
                 tessellation.indices.as_slice(),
             )?),
-            blend:    Blend::from(spec.blend_mode),
+            blend: Blend::from(spec.blend_mode),
         })
     }
 }
@@ -302,11 +316,15 @@ pub enum Target<'a> {
 }
 
 impl<'a> From<Frame> for Target<'a> {
-    fn from(frame: Frame) -> Self { Target::Screen(frame) }
+    fn from(frame: Frame) -> Self {
+        Target::Screen(frame)
+    }
 }
 
 impl<'a> From<SimpleFrameBuffer<'a>> for Target<'a> {
-    fn from(buffer: SimpleFrameBuffer<'a>) -> Self { Target::Buffer(buffer) }
+    fn from(buffer: SimpleFrameBuffer<'a>) -> Self {
+        Target::Buffer(buffer)
+    }
 }
 
 impl<'a> Target<'a> {
