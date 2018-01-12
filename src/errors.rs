@@ -1,14 +1,14 @@
-use glium::{SwapBuffersError, glutin::{CreationError, ContextError},
-            program::ProgramChooserCreationError, DrawError, index, vertex,
-            backend::glutin::DisplayCreationError, texture::TextureCreationError,
-            buffer::BufferCreationError, framebuffer::ValidationError};
+use glium::{index, vertex, DrawError, SwapBuffersError, backend::glutin::DisplayCreationError,
+            buffer::BufferCreationError, framebuffer::ValidationError,
+            glutin::{ContextError, CreationError}, program::ProgramChooserCreationError,
+            texture::TextureCreationError};
 use lyon::tessellation::FillError;
-use std::io;
 use num::traits::ParseFloatError;
+use std::io;
 
 error_chain!{
     foreign_links {
-        FrameValidation(ValidationError);   
+        FrameValidation(ValidationError);
         GlutinContext(ContextError);
         SwapBuffer(SwapBuffersError);
         ProgramChooser(ProgramChooserCreationError);
@@ -28,7 +28,5 @@ impl From<FillError> for Error {
 }
 
 impl From<ParseFloatError> for Error {
-    fn from(e: ParseFloatError) -> Error {
-        format!("parse float error: {:?}", e).into()
-    }
+    fn from(e: ParseFloatError) -> Error { format!("parse float error: {:?}", e).into() }
 }

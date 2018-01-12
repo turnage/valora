@@ -1,65 +1,66 @@
 use color::{BlendMode, Colorer};
 use generators::spawner::{SpawnCfg, SpawnSrc, Spawner};
-use poly::{Point, Poly};
-use poly::transforms::*;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
-use properties::Centered;
+use poly::{Point, Poly};
 use rand::Rng;
+use transforms::warp::*;
 
 pub struct WaterColorCfg {
-    pub layers: usize,
-    pub spread: f32,
-    pub depth: usize,
-    pub color: Colora,
-    pub draw_mode: DrawMode,
-    pub blend_mode: BlendMode,
-    pub anchor_layer: bool,
+    pub layers:          usize,
+    pub spread:          f32,
+    pub depth:           usize,
+    pub color:           Colora,
+    pub draw_mode:       DrawMode,
+    pub blend_mode:      BlendMode,
+    pub anchor_layer:    bool,
     pub duplicate_depth: usize,
-    pub uniform_spread: bool,
-    pub subdivides_per: usize,
+    pub uniform_spread:  bool,
+    pub subdivides_per:  usize,
 }
 
 impl Default for WaterColorCfg {
     fn default() -> Self {
         Self {
-            layers: 100,
-            spread: 0.03,
-            depth: 5,
-            color: Colora::rgb(1.0, 1.0, 1.0, 0.04),
-            draw_mode: DrawMode::Fill,
-            blend_mode: BlendMode::Normal,
-            anchor_layer: false,
+            layers:          100,
+            spread:          0.03,
+            depth:           5,
+            color:           Colora::rgb(1.0, 1.0, 1.0, 0.04),
+            draw_mode:       DrawMode::Fill,
+            blend_mode:      BlendMode::Normal,
+            anchor_layer:    false,
             duplicate_depth: 5,
-            uniform_spread: false,
-            subdivides_per: 1,
+            uniform_spread:  false,
+            subdivides_per:  1,
         }
     }
 }
 
-enum WaterColorSrc<S> {
+enum WaterColorSrc {
     /// An unmodified polygon from which to build a distinct layer.
-    Base(S),
+    Base(Poly),
     /// An anchor layer already warped; just needs some distinction warps.
-    Anchor(S),
+    Anchor(Poly),
 }
 
-pub struct WaterColor<S> {
-    cfg: WaterColorCfg,
-    src: WaterColorSrc<S>,
+pub struct WaterColor {
+    cfg:            WaterColorCfg,
+    src:            WaterColorSrc,
     custom_factors: Option<Vec<f32>>,
-    spawn_point: Point,
+    spawn_point:    Point,
 }
 
-impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
-    pub fn new<R: Rng>(src: S, cfg: WaterColorCfg, rng: &mut R) -> Self {
+impl WaterColor {
+    pub fn new<R: Rng>(src: Poly, cfg: WaterColorCfg, rng: &mut R) -> Self {
         let custom_factors: Option<Vec<f32>> = if cfg.uniform_spread {
             None
         } else {
-            Some(src.vertices()
-                     .into_iter()
-                     .map(|_| rng.gen_range(0.5, 1.0))
-                     .collect())
+            Some(
+                src.vertices()
+                    .into_iter()
+                    .map(|_| rng.gen_range(0.5, 1.0))
+                    .collect(),
+            )
         };
         Self {
             spawn_point: src.center(),
@@ -76,55 +77,59 @@ impl<S: Poly + SubdivideEdges + Warp + Centered + Clone> WaterColor<S> {
         }
     }
 
-    fn warp<R: Rng>(src: S,
-                    cfg: &WaterColorCfg,
-                    custom_factors: &Option<Vec<f32>>,
-                    rng: &mut R)
-                    -> S {
+    fn warp<R: Rng>(
+        src: Poly,
+        cfg: &WaterColorCfg,
+        custom_factors: &Option<Vec<f32>>,
+        rng: &mut R,
+    ) -> Poly {
         use pipes::iterate;
 
         let mut src = src;
         for _ in 0..(cfg.depth) {
-            src = src.warp(WarpCfg {
-                               variance: cfg.spread,
-                               custom_factors: custom_factors.clone().unwrap_or(Vec::new()),
-                               expansion: WarpExpansion::Outward,
-                               ..WarpCfg::default()
-                           },
-                           rng);
+            src = warp(
+                src,
+                &WarpCfg {
+                    variance: cfg.spread,
+                    custom_factors: custom_factors.clone().unwrap_or(Vec::new()),
+                    expansion: WarpExpansion::Outward,
+                    ..WarpCfg::default()
+                },
+                rng,
+            );
             src = iterate(src, cfg.subdivides_per, |src| src.subdivide_edges());
         }
         src
     }
 }
 
-impl<S: SubdivideEdges + Warp + Poly + Place + Clone> Spawner<Mesh<S>> for WaterColor<S> {
-    fn spawn(&self, cfg: SpawnCfg) -> Mesh<S> {
+impl Spawner<Mesh> for WaterColor {
+    fn spawn(&self, cfg: SpawnCfg) -> Mesh {
         let src = match self.src {
             WaterColorSrc::Base(ref src) => {
                 WaterColor::warp(src.clone(), &self.cfg, &self.custom_factors, cfg.rng)
             }
-            WaterColorSrc::Anchor(ref src) => {
-                WaterColor::warp(src.clone(),
-                                 &WaterColorCfg {
-                                      subdivides_per: 0,
-                                      depth: self.cfg.duplicate_depth,
-                                      ..self.cfg
-                                  },
-                                 &self.custom_factors,
-                                 cfg.rng)
-            }
+            WaterColorSrc::Anchor(ref src) => WaterColor::warp(
+                src.clone(),
+                &WaterColorCfg {
+                    subdivides_per: 0,
+                    depth: self.cfg.duplicate_depth,
+                    ..self.cfg
+                },
+                &self.custom_factors,
+                cfg.rng,
+            ),
         };
         Mesh {
-            src: src.place(cfg.point),
-            colorer: Colorer::from(self.cfg.color),
-            draw_mode: self.cfg.draw_mode,
+            src:        src.place(cfg.point),
+            colorer:    Colorer::from(self.cfg.color),
+            draw_mode:  self.cfg.draw_mode,
             blend_mode: self.cfg.blend_mode,
         }
     }
 }
 
-impl<S> SpawnSrc for WaterColor<S> {
+impl SpawnSrc for WaterColor {
     fn spawn_points(&self) -> Vec<Point> {
         (0..self.cfg.layers)
             .into_iter()

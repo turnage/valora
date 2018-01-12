@@ -1,14 +1,21 @@
 //! Ellipse-estimating polygons.
 
 use point::Point;
-use properties::{Centered, Path};
-use transforms::{Scale, Translate};
 
-#[derive(Debug, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct EllipseResolution(pub usize);
+
+impl Default for EllipseResolution {
+    fn default() -> Self { EllipseResolution(1000) }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ellipse {
-    pub center: Point,
-    pub width: f32,
-    pub height: Option<f32>,
+    pub center:     Point,
+    pub width:      f32,
+    pub height:     Option<f32>,
+    pub resolution: EllipseResolution,
+    pub phase:      f32,
 }
 
 impl Ellipse {
@@ -17,6 +24,8 @@ impl Ellipse {
             center,
             width: radius,
             height: None,
+            resolution: EllipseResolution::default(),
+            phase: 0.0,
         }
     }
 
@@ -25,8 +34,19 @@ impl Ellipse {
             center,
             width,
             height: Some(height),
+            resolution: EllipseResolution::default(),
+            phase: 0.0,
         }
     }
+
+    pub fn with_resolution(self, resolution: usize) -> Self {
+        Self {
+            resolution: EllipseResolution(resolution),
+            ..self
+        }
+    }
+
+    pub fn with_phase(self, phase: f32) -> Self { Self { phase, ..self } }
 
     pub fn circumpoint(&self, angle: f32) -> Point {
         Point {
@@ -35,46 +55,15 @@ impl Ellipse {
         }
     }
 
-    /// Use this function to get a polygonal estimation of the ellipse at the given phase
-    /// and resolution.
-    pub fn circumpoints(&self, resolution: usize, phase: f32) -> Vec<Point> {
+    pub fn circumpoints(&self) -> Vec<Point> {
         use std::f32;
 
+        let resolution = self.resolution.0;
         let interval = (f32::consts::PI * 2.0) / (resolution as f32);
         (0..resolution)
             .into_iter()
-            .map(|i| (i as f32) * interval + phase)
+            .map(|i| (i as f32) * interval + self.phase)
             .map(|a| self.circumpoint(a))
             .collect()
     }
-
-    pub fn path(self, phase: f32) -> EllipsePath { EllipsePath { ellipse: self, phase } }
-}
-
-pub struct EllipsePath {
-    ellipse: Ellipse,
-    phase: f32,
-}
-
-impl Path for EllipsePath {
-    fn path(&self, completion: f32) -> Point {
-        use std::f32;
-
-        let angle = completion * (f32::consts::PI * 2.0);
-        self.ellipse.circumpoint(angle + self.phase)
-    }
-}
-
-impl Scale for Ellipse {
-    fn scale(self, scale: f32) -> Self {
-        Self { width: self.width * scale, height: self.height.map(|h| h * scale), ..self }
-    }
-}
-
-impl Centered for Ellipse {
-    fn center(&self) -> Point { self.center }
-}
-
-impl Translate for Ellipse {
-    fn translate(self, delta: Point) -> Self { Self { center: self.center + delta, ..self } }
 }

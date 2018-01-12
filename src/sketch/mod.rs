@@ -2,21 +2,21 @@ use composition::Composition;
 use errors::Result;
 use glium::glutin::WindowEvent;
 use gpu::{Factory, Gpu};
-use rand::{SeedableRng, StdRng, random};
+use rand::{random, SeedableRng, StdRng};
 use std::{fs, thread, time};
 use std::rc::Rc;
 
 pub struct SketchCfg {
-    pub size: u32,
+    pub size:                u32,
     pub root_frame_filename: Option<String>,
-    pub seed: Option<usize>,
-    pub still: bool,
+    pub seed:                Option<usize>,
+    pub still:               bool,
 }
 
 pub struct SketchContext {
-    pub cfg: SketchCfg,
-    pub gpu: Rc<Gpu>,
-    pub frame: usize,
+    pub cfg:          SketchCfg,
+    pub gpu:          Rc<Gpu>,
+    pub frame:        usize,
     pub current_seed: usize,
 }
 
@@ -33,23 +33,27 @@ pub trait Sketch {
 pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
     let (gpu, events_loop) = Gpu::new(cfg.size)?;
     let current_seed = cfg.seed.unwrap_or(random());
-    let mut context = SketchContext { cfg, gpu: Rc::new(gpu), frame: 0, current_seed };
-    let mut composition = sketch
-        .sketch(&context, StdRng::from_seed(&[current_seed]))?;
+    let mut context = SketchContext {
+        cfg,
+        gpu: Rc::new(gpu),
+        frame: 0,
+        current_seed,
+    };
+    let mut composition = sketch.sketch(&context, StdRng::from_seed(&[current_seed]))?;
 
     let mut cycle = Gpu::events(events_loop);
     while let Some((events_loop, events)) = cycle {
         if events
-               .iter()
-               .find(|event| match **event {
-                         WindowEvent::ReceivedCharacter('r') => true,
-                         _ => false,
-                     })
-               .is_some() {
+            .iter()
+            .find(|event| match **event {
+                WindowEvent::ReceivedCharacter('r') => true,
+                _ => false,
+            })
+            .is_some()
+        {
             context.current_seed = random();
             context.frame = 0;
-            composition = sketch
-                .sketch(&context, StdRng::from_seed(&[context.current_seed]))?;
+            composition = sketch.sketch(&context, StdRng::from_seed(&[context.current_seed]))?;
         }
         composition.render(&context)?;
         if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {

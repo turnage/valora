@@ -1,11 +1,10 @@
-use color::{BlendMode, Colorer};
+use color::{Colorer};
 use errors::Result;
-use poly::Rect;
-use gpu::{DefaultShader, Factory, GpuMesh, Shader, Tessellate};
-use mesh::{DrawMode, Mesh};
+use gpu::{DefaultShader, Factory, GpuMesh, Shader};
+use mesh::{Mesh};
+use poly::{Rect};
 use sketch::SketchContext;
 use std::rc::Rc;
-use tween::Tween;
 
 #[derive(Default)]
 pub struct Composition {
@@ -20,12 +19,7 @@ impl Composition {
     pub fn new() -> Self { Self::default() }
 
     pub fn solid_layer(self, colorer: Colorer) -> Self {
-        self.add(Mesh {
-                     src: Rect::frame(),
-                     colorer,
-                     blend_mode: BlendMode::Normal,
-                     draw_mode: DrawMode::Fill,
-                 })
+        self.add(Mesh::from(Rect::frame()).with_colorer(colorer))
     }
 
     pub fn add<L: 'static + Layer>(mut self, layer: L) -> Self {
@@ -55,7 +49,9 @@ pub trait Layer {
 
 impl<S: 'static + Shader + Clone> Layer for S {
     fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        Ok(vec![GpuMesh::produce(Mesh::from(Rect::frame()), ctx.gpu.clone())?])
+        Ok(vec![
+            GpuMesh::produce(Mesh::from(Rect::frame()), ctx.gpu.clone())?,
+        ])
     }
     fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> { Ok(Rc::new(self.clone())) }
 }
@@ -65,15 +61,9 @@ impl<S: 'static + Shader + Clone, L: Layer> Layer for (S, L) {
     fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> { Ok(Rc::new(self.0.clone())) }
 }
 
-impl<T: Tessellate + Clone> Layer for Mesh<T> {
+impl Layer for Mesh {
     fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
         Ok(vec![GpuMesh::produce(self.clone(), ctx.gpu.clone())?])
-    }
-}
-
-impl<L: 'static + Layer + Clone> Layer for Tween<L> {
-    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        self.tween(ctx.frame).render(ctx)
     }
 }
 
@@ -81,9 +71,9 @@ impl<L: Layer> Layer for Vec<L> {
     fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
         self.iter_mut()
             .flat_map(|l| match l.render(ctx) {
-                          Ok(meshes) => meshes.into_iter().map(|m| Ok(m)).collect(),
-                          Err(e) => vec![Err(e)],
-                      })
+                Ok(meshes) => meshes.into_iter().map(|m| Ok(m)).collect(),
+                Err(e) => vec![Err(e)],
+            })
             .collect()
     }
 }

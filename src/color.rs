@@ -1,5 +1,5 @@
-use poly::Point;
 use palette::Colora;
+use poly::Point;
 use std::rc::Rc;
 
 #[derive(Copy, Clone, Debug)]
@@ -11,21 +11,11 @@ pub enum BlendMode {
     MaskTransparent,
 }
 
-pub trait Opacity {
-    fn opacity(self, opacity: f32) -> Self;
-}
-
 #[derive(Clone)]
 pub struct Colorer(Option<Rc<Fn(Point) -> Colora>>);
 
 impl Default for Colorer {
     fn default() -> Self { Colorer(None) }
-}
-
-impl Opacity for Colorer {
-    fn opacity(self, opacity: f32) -> Self {
-        Colorer(Some(Rc::new(move |point| Colora { alpha: opacity, ..self.color(point) })))
-    }
 }
 
 impl From<Colora> for Colorer {
@@ -61,9 +51,11 @@ pub mod conversions {
 
     pub fn collapse(raw: palette::Rgb) -> image::Rgb<u8> {
         image::Rgb {
-            data: [collapse_component(raw.red),
-                   collapse_component(raw.green),
-                   collapse_component(raw.blue)],
+            data: [
+                collapse_component(raw.red),
+                collapse_component(raw.green),
+                collapse_component(raw.blue),
+            ],
         }
     }
 

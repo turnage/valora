@@ -1,38 +1,12 @@
 //! Rectangle definition and implementations.
 
 use point::Point;
-use poly::Poly;
-use transforms::Translate;
-use properties::{Bounded};
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub struct Rect {
     pub bottom_left: Point,
-    pub width: f32,
-    pub height: f32,
-}
-
-impl Poly for Rect {
-    fn vertices(&self) -> Vec<Point> {
-        vec![self.bottom_left,
-             Point { x: self.bottom_left.x, y: self.bottom_left.y + self.height },
-             Point { x: self.bottom_left.x + self.width, y: self.bottom_left.y + self.height },
-             Point { x: self.bottom_left.x + self.width, y: self.bottom_left.y }]
-    }
-}
-
-impl Translate for Rect {
-    fn translate(self, delta: Point) -> Self {
-        Rect::new(self.bottom_left + delta, self.height, self.width)
-    }
-}
-
-impl Bounded for Rect {
-    fn in_bounds(&self, point: Point) -> bool {
-        point.x >= self.bottom_left.x && point.x < self.bottom_left.x + self.width &&
-        point.y >= self.bottom_left.y && point.y < self.bottom_left.y + self.height
-    }
-    fn bounding_box(&self) -> Rect { self.clone() }
+    pub width:       f32,
+    pub height:      f32,
 }
 
 impl Rect {
@@ -41,6 +15,44 @@ impl Rect {
     pub fn frame() -> Self { Self::square(Point { x: 0.0, y: 0.0 }, 1.0) }
 
     pub fn new(bottom_left: Point, width: f32, height: f32) -> Self {
-        Self { height, width, bottom_left }
+        Self {
+            height,
+            width,
+            bottom_left,
+        }
+    }
+
+    pub fn center(&self) -> Point {
+        self.bottom_left + Point {
+            x: self.width / 2.0,
+            y: self.height / 2.0,
+        }
+    }
+
+    pub fn vertices(&self) -> Vec<Point> {
+        vec![
+            self.bottom_left,
+            Point {
+                x: self.bottom_left.x,
+                y: self.bottom_left.y + self.height,
+            },
+            Point {
+                x: self.bottom_left.x + self.width,
+                y: self.bottom_left.y + self.height,
+            },
+            Point {
+                x: self.bottom_left.x + self.width,
+                y: self.bottom_left.y,
+            },
+        ]
+    }
+
+    pub fn scale(&self, scale: f32) -> Self {
+        let center = self.center();
+        Self {
+            bottom_left: center + (self.bottom_left - center) * scale,
+            width:       scale * self.width,
+            height:      scale * self.height,
+        }
     }
 }

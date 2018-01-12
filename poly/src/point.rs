@@ -2,11 +2,9 @@
 
 use num::traits::{Num, NumOps, Signed};
 use num::traits::identities::{One, Zero};
-use properties::{Centered, Distance};
 use rand::{Rand, Rng};
 use rand::distributions::{IndependentSample, Normal, Sample};
 use std::ops::*;
-use transforms::{Scale, Translate, SubdivideEdges};
 
 /// 2 dimensional floating point.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -26,20 +24,31 @@ impl Default for Point {
 impl Sample<Point> for Normal {
     fn sample<R: Rng>(&mut self, rng: &mut R) -> Point {
         let (x, y): (f64, f64) = (self.sample(rng), self.sample(rng));
-        Point { x: x as f32, y: y as f32 }
+        Point {
+            x: x as f32,
+            y: y as f32,
+        }
     }
 }
 
 impl IndependentSample<Point> for Normal {
     fn ind_sample<R: Rng>(&self, rng: &mut R) -> Point {
         let (x, y): (f64, f64) = (self.ind_sample(rng), self.ind_sample(rng));
-        Point { x: x as f32, y: y as f32 }
+        Point {
+            x: x as f32,
+            y: y as f32,
+        }
     }
 }
 
 impl Add for Point {
     type Output = Self;
-    fn add(self, rhs: Self) -> Self { Self { x: self.x + rhs.x, y: self.y + rhs.y } }
+    fn add(self, rhs: Self) -> Self {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
 }
 
 impl AddAssign for Point {
@@ -51,7 +60,12 @@ impl AddAssign for Point {
 
 impl Sub for Point {
     type Output = Self;
-    fn sub(self, rhs: Self) -> Self { Self { x: self.x - rhs.x, y: self.y - rhs.y } }
+    fn sub(self, rhs: Self) -> Self {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
 }
 
 impl SubAssign for Point {
@@ -64,7 +78,12 @@ impl SubAssign for Point {
 impl Mul<Point> for Point {
     type Output = Self;
 
-    fn mul(self, rhs: Point) -> Self { Self { x: self.x * rhs.x, y: self.y * rhs.y } }
+    fn mul(self, rhs: Point) -> Self {
+        Self {
+            x: self.x * rhs.x,
+            y: self.y * rhs.y,
+        }
+    }
 }
 
 impl MulAssign<Point> for Point {
@@ -77,7 +96,12 @@ impl MulAssign<Point> for Point {
 impl Mul<f32> for Point {
     type Output = Self;
 
-    fn mul(self, rhs: f32) -> Self { Self { x: self.x * rhs, y: self.y * rhs } }
+    fn mul(self, rhs: f32) -> Self {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
 }
 
 impl MulAssign<f32> for Point {
@@ -89,7 +113,12 @@ impl MulAssign<f32> for Point {
 
 impl Div<Point> for Point {
     type Output = Self;
-    fn div(self, rhs: Self) -> Self { Self { x: self.x / rhs.y, y: self.y / rhs.y } }
+    fn div(self, rhs: Self) -> Self {
+        Self {
+            x: self.x / rhs.y,
+            y: self.y / rhs.y,
+        }
+    }
 }
 
 impl Div<f32> for Point {
@@ -99,12 +128,22 @@ impl Div<f32> for Point {
 
 impl Rem for Point {
     type Output = Self;
-    fn rem(self, rhs: Self) -> Self { Self { x: rhs.x % self.x, y: rhs.y % self.y } }
+    fn rem(self, rhs: Self) -> Self {
+        Self {
+            x: rhs.x % self.x,
+            y: rhs.y % self.y,
+        }
+    }
 }
 
 impl Neg for Point {
     type Output = Self;
-    fn neg(self) -> Self { Self { x: -self.x, y: -self.y } }
+    fn neg(self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
+    }
 }
 
 impl Zero for Point {
@@ -127,66 +166,48 @@ impl Num for Point {
 }
 
 impl Signed for Point {
-    fn abs(&self) -> Self { Self { x: self.x.abs(), y: self.y.abs() } }
+    fn abs(&self) -> Self {
+        Self {
+            x: self.x.abs(),
+            y: self.y.abs(),
+        }
+    }
     fn abs_sub(&self, other: &Self) -> Self { (*self - *other).abs() }
-    fn signum(&self) -> Self { Point { x: self.x.signum(), y: self.y.signum() } }
+    fn signum(&self) -> Self {
+        Point {
+            x: self.x.signum(),
+            y: self.y.signum(),
+        }
+    }
     fn is_positive(&self) -> bool { self.x.is_positive() && self.y.is_positive() }
     fn is_negative(&self) -> bool { self.x.is_negative() && self.y.is_negative() }
 }
 
-impl SubdivideEdges for Vec<Point> {
-    fn subdivide_edges(self) -> Self {
-        let p1s = self.iter();
-        let p2s = self.iter().skip(1);
-        let pairs = p1s.zip(p2s);
-        let mut pairs: Vec<Point> = pairs
-            .flat_map(|(p1, p2)| {
-                          let midpoint = *p1 + ((*p2 - *p1) / 2.0);
-                          vec![*p1, midpoint]
-                      })
-            .collect();
-        if let Some(last) = self.last() {
-            pairs.push(*last);
-        }
-        pairs
-    }
-}
-
-impl Scale for Vec<Point> {
-    fn scale(self, scale: f32) -> Self {
-        let center = self.center();
-        let deltas: Vec<Point> = self.iter().map(|p| *p - center).collect();
-        self.into_iter()
-            .zip(deltas.into_iter())
-            .map(|(p, d)| p + (d * scale))
-            .collect()
-    }
-}
-
-impl Translate for Point {
-    fn translate(self, delta: Point) -> Self { self + delta }
-}
-
-impl Distance<Self> for Point {
-    fn distance(&self, dest: &Self) -> f32 {
+impl Point {
+    pub fn distance(&self, dest: &Self) -> f32 {
         let delta = (*self - *dest).abs();
         (delta.x.powi(2) + delta.y.powi(2)).sqrt()
     }
 
-    fn delta(&self, dest: &Self) -> Self { (*self - *dest).abs() }
+    pub fn delta(&self, dest: &Self) -> Self { (*self - *dest).abs() }
 
-    fn midpoint(&self, dest: &Self) -> Self { *self + ((*dest - *self) / 2.0) }
+    pub fn midpoint(&self, dest: &Self) -> Self { *self + ((*dest - *self) / 2.0) }
 
-    fn manhattan_distance(&self, dest: &Self) -> f32 {
+    pub fn manhattan_distance(&self, dest: &Self) -> f32 {
         (self.x - dest.x).abs() + (self.y - dest.y).abs()
     }
 
-    fn sign_to(&self, dest: &Self) -> Point {
+    pub fn sign_to(&self, dest: &Self) -> Point {
         use num::Signed;
         (*dest - *self).signum()
     }
 }
 
 impl Rand for Point {
-    fn rand<R: Rng>(rng: &mut R) -> Point { Point { x: rng.next_f32(), y: rng.next_f32() } }
+    fn rand<R: Rng>(rng: &mut R) -> Point {
+        Point {
+            x: rng.next_f32(),
+            y: rng.next_f32(),
+        }
+    }
 }

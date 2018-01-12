@@ -1,5 +1,5 @@
-extern crate valora;
 extern crate rayon;
+extern crate valora;
 
 use rayon::prelude::*;
 use std::cmp::Ordering;
@@ -30,19 +30,18 @@ fn flower(size: usize, starts: Vec<Point>) -> Result<Vec<Vec<Rgb>>> {
     impl Pixel {
         fn neighbors(&self, frame: &Vec<Vec<Option<Rgb>>>) -> Vec<Pixel> {
             let Pixel { x, y } = *self;
-            vec![Pixel { x: x - 1, y: y - 1 },
-                 Pixel { x, y: y - 1 },
-                 Pixel { x: x + 1, y: y - 1 },
-
-                 Pixel { x: x - 1, y },
-                 Pixel { x: x + 1, y },
-
-                 Pixel { x: x - 1, y: y + 1 },
-                 Pixel { x, y: y + 1 },
-                 Pixel { x: x + 1, y: y + 1 }]
-                    .into_par_iter()
-                    .filter(|p| p.exists(frame))
-                    .collect()
+            vec![
+                Pixel { x: x - 1, y: y - 1 },
+                Pixel { x, y: y - 1 },
+                Pixel { x: x + 1, y: y - 1 },
+                Pixel { x: x - 1, y },
+                Pixel { x: x + 1, y },
+                Pixel { x: x - 1, y: y + 1 },
+                Pixel { x, y: y + 1 },
+                Pixel { x: x + 1, y: y + 1 },
+            ].into_par_iter()
+                .filter(|p| p.exists(frame))
+                .collect()
         }
 
         fn exists(&self, frame: &Vec<Vec<Option<Rgb>>>) -> bool {
@@ -60,7 +59,13 @@ fn flower(size: usize, starts: Vec<Point>) -> Result<Vec<Vec<Rgb>>> {
             self.neighbor_colors(frame)
                 .into_iter()
                 .map(|v| color_diff(v, c))
-                .min_by(|v1, v2| if v1 < v2 { Ordering::Less } else { Ordering::Greater })
+                .min_by(|v1, v2| {
+                    if v1 < v2 {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }
+                })
                 .unwrap_or(0.0)
         }
     }
@@ -68,15 +73,21 @@ fn flower(size: usize, starts: Vec<Point>) -> Result<Vec<Vec<Rgb>>> {
     let mut frame = vec![vec![None; size]; size];
     let mut available = HashSet::new();
 
-
     let mut rng = StdRng::new()?;
-    let mut sample =
-        move || Rgb::new(rng.gen_range(0.0, 1.0), rng.gen_range(0.0, 1.0), rng.gen_range(0.0, 1.0));
+    let mut sample = move || {
+        Rgb::new(
+            rng.gen_range(0.0, 1.0),
+            rng.gen_range(0.0, 1.0),
+            rng.gen_range(0.0, 1.0),
+        )
+    };
 
     let clamp = |v| if v >= size { size - 1 } else { v };
     for start in starts {
-        let (x, y) = (clamp((start.x * size as f32) as usize),
-                      clamp((start.y * size as f32) as usize));
+        let (x, y) = (
+            clamp((start.x * size as f32) as usize),
+            clamp((start.y * size as f32) as usize),
+        );
 
         frame[x][y] = Some(sample());
 
@@ -89,13 +100,16 @@ fn flower(size: usize, starts: Vec<Point>) -> Result<Vec<Vec<Rgb>>> {
     let mut added = 0;
     let mut checkpoint = 0.0;
     while let Some(best) = available
-              .par_iter()
-              .min_by(|p1, p2| if p1.diff(color, &frame) < p2.diff(color, &frame) {
-                          Ordering::Less
-                      } else {
-                          Ordering::Greater
-                      })
-              .map(|v| *v) {
+        .par_iter()
+        .min_by(|p1, p2| {
+            if p1.diff(color, &frame) < p2.diff(color, &frame) {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        })
+        .map(|v| *v)
+    {
         frame[best.x][best.y] = Some(color);
         available.remove(&best);
         for neighbor in best.neighbors(&frame) {
@@ -113,13 +127,13 @@ fn flower(size: usize, starts: Vec<Point>) -> Result<Vec<Vec<Rgb>>> {
     }
 
     Ok(frame
-           .into_iter()
-           .map(|v| {
-                    v.into_iter()
-                        .map(|v| v.unwrap_or(Rgb::new(0.0, 0.0, 0.0)))
-                        .collect()
-                })
-           .collect())
+        .into_iter()
+        .map(|v| {
+            v.into_iter()
+                .map(|v| v.unwrap_or(Rgb::new(0.0, 0.0, 0.0)))
+                .collect()
+        })
+        .collect())
 }
 
 impl Sketch for Pendulum {
@@ -127,21 +141,30 @@ impl Sketch for Pendulum {
         let image = image::ImageBuffer::from_fn(ctx.cfg.size, ctx.cfg.size, |x, y| {
             valora::color::conversions::collapse(self.frame[x as usize][y as usize])
         });
-        let texture: shaders::TextureShader =
-            ctx.produce(shaders::TextureShaderSpec { tex: Rc::new(image) })?;
+        let texture: shaders::TextureShader = ctx.produce(shaders::TextureShaderSpec {
+            tex: Rc::new(image),
+        })?;
         Ok(Composition::new()
-               .solid_layer(Colorer::from(Colora::hsv(RgbHue::from(49.0), 0.2, 1.0, 1.0)))
-               .add(texture))
+            .solid_layer(Colorer::from(Colora::hsv(
+                RgbHue::from(49.0),
+                0.2,
+                1.0,
+                1.0,
+            )))
+            .add(texture))
     }
 }
 
 fn main() {
-    sketch(SketchCfg {
-               size: 400,
-               root_frame_filename: Some(String::from("flower")),
-               seed: None,
-               still: true,
-           },
-           Pendulum { frame: flower(400, vec![Point::center()]).expect("") })
-            .expect("sketch");
+    sketch(
+        SketchCfg {
+            size:                400,
+            root_frame_filename: Some(String::from("flower")),
+            seed:                None,
+            still:               true,
+        },
+        Pendulum {
+            frame: flower(400, vec![Point::center()]).expect(""),
+        },
+    ).expect("sketch");
 }

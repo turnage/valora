@@ -1,10 +1,10 @@
-use poly::Point;
 use petgraph::prelude::*;
+use poly::Point;
 use rand::StdRng;
 
 pub struct Walker {
-    walk: Graph<Point, ()>,
-    leaves: Vec<NodeIndex<u32>>,
+    walk:      Graph<Point, ()>,
+    leaves:    Vec<NodeIndex<u32>>,
     heuristic: WalkHeuristic,
 }
 
@@ -19,7 +19,11 @@ impl Walker {
             let index = g.add_node(root);
             (g, vec![index])
         };
-        Self { walk, leaves, heuristic }
+        Self {
+            walk,
+            leaves,
+            heuristic,
+        }
     }
 
     pub fn edges(&self) -> Vec<(Point, Point)> {
@@ -30,12 +34,10 @@ impl Walker {
     }
 
     pub fn walk(self, depth: usize, rng: &mut StdRng) -> Self {
-        (0..depth)
-            .into_iter()
-            .fold(self, |mut acc, _| {
-                acc.step(rng);
-                acc
-            })
+        (0..depth).into_iter().fold(self, |mut acc, _| {
+            acc.step(rng);
+            acc
+        })
     }
 
     pub fn step(&mut self, rng: &mut StdRng) -> Vec<(Point, Point)> {
