@@ -1,18 +1,69 @@
 use color::Colorer;
-use errors::Result;
-use gpu::{DefaultShader, Factory, GpuMesh, Shader};
+use gpu::Shader;
 use mesh::Mesh;
 use poly::Rect;
-use sketch::SketchContext;
-use std::rc::Rc;
+use std::mem::swap;
+
+pub enum Layer {
+    Mesh(Mesh),
+    ShadedMesh { shader: Shader, mesh: Mesh },
+}
+
+impl From<Mesh> for Layer {
+    fn from(mesh: Mesh) -> Self {
+        Layer::Mesh(mesh)
+    }
+}
+
+impl<S: Into<Shader>> From<(S, Mesh)> for Layer {
+    fn from((shader, mesh): (S, Mesh)) -> Self {
+        Layer::ShadedMesh {
+            shader: shader.into(),
+            mesh,
+        }
+    }
+}
+
+enum LayerInput {
+    Single(Layer),
+    Many(Vec<Layer>),
+}
+
+impl<T: Into<Layer>> From<T> for LayerInput {
+    fn from(t: T) -> Self {
+        LayerInput::Single(t.into())
+    }
+}
+
+impl<T: Into<Layer>> From<Vec<T>> for LayerInput {
+    fn from(ts: Vec<T>) -> Self {
+        LayerInput::Many(ts.into_iter().map(Into::into).collect())
+    }
+}
+
+impl Iterator for LayerInput {
+    type Item = Layer;
+    fn next(&mut self) -> Option<Layer> {
+        let mut output = None;
+        let mut tmp = LayerInput::Many(Vec::new());
+        swap(self, &mut tmp);
+        *self = match tmp {
+            LayerInput::Single(il) => {
+                output = Some(il);
+                LayerInput::Many(Vec::new())
+            }
+            LayerInput::Many(mut ts) => {
+                output = ts.pop();
+                LayerInput::Many(ts)
+            }
+        };
+        output
+    }
+}
 
 #[derive(Default)]
 pub struct Composition {
-    layers: Vec<Box<Layer>>,
-}
-
-pub trait Compose<L: Layer> {
-    fn push(self, layer: L) -> Self;
+    layers: Vec<Layer>,
 }
 
 impl Composition {
@@ -24,64 +75,12 @@ impl Composition {
         self.add(Mesh::from(Rect::frame()).with_colorer(colorer))
     }
 
-    pub fn add<L: 'static + Layer>(mut self, layer: L) -> Self {
-        self.layers.push(Box::new(layer));
+    pub fn add<L: Into<LayerInput>>(mut self, layer: L) -> Self {
+        self.layers.extend(layer.into());
         self
     }
 
-    pub fn render(&mut self, ctx: &SketchContext) -> Result<()> {
-        let mut cmds = Vec::new();
-        for mut layer in self.layers.iter_mut() {
-            let shader = layer.shader(ctx)?;
-            for mesh in layer.render(ctx)? {
-                cmds.push((shader.clone(), mesh))
-            }
-        }
-        ctx.gpu.screen().draw_all(cmds)
-    }
-}
-
-pub trait Layer {
-    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>>;
-    fn shader(&mut self, ctx: &SketchContext) -> Result<Rc<Shader>> {
-        let shader: DefaultShader = DefaultShader::produce((), ctx.gpu.clone())?;
-        Ok(Rc::new(shader))
-    }
-}
-
-impl<S: 'static + Shader + Clone> Layer for S {
-    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        Ok(vec![
-            GpuMesh::produce(Mesh::from(Rect::frame()), ctx.gpu.clone())?,
-        ])
-    }
-    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> {
-        Ok(Rc::new(self.clone()))
-    }
-}
-
-impl<S: 'static + Shader + Clone, L: Layer> Layer for (S, L) {
-    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        self.1.render(ctx)
-    }
-    fn shader(&mut self, _ctx: &SketchContext) -> Result<Rc<Shader>> {
-        Ok(Rc::new(self.0.clone()))
-    }
-}
-
-impl Layer for Mesh {
-    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        Ok(vec![GpuMesh::produce(self.clone(), ctx.gpu.clone())?])
-    }
-}
-
-impl<L: Layer> Layer for Vec<L> {
-    fn render(&mut self, ctx: &SketchContext) -> Result<Vec<GpuMesh>> {
-        self.iter_mut()
-            .flat_map(|l| match l.render(ctx) {
-                Ok(meshes) => meshes.into_iter().map(|m| Ok(m)).collect(),
-                Err(e) => vec![Err(e)],
-            })
-            .collect()
+    pub fn layers(self) -> Vec<Layer> {
+        self.layers
     }
 }

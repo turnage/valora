@@ -1,7 +1,7 @@
 use composition::Composition;
 use errors::Result;
 use glium::glutin::WindowEvent;
-use gpu::{Factory, Gpu};
+use gpu::{Factory, Gpu, Render};
 use rand::{random, SeedableRng, StdRng};
 use std::{fs, thread, time};
 use std::rc::Rc;
@@ -27,7 +27,7 @@ impl SketchContext {
 }
 
 pub trait Sketch {
-    fn sketch(&self, ctx: &SketchContext, rng: StdRng) -> Result<Composition>;
+    fn sketch(&self, ctx: &SketchCfg, rng: StdRng) -> Result<Composition>;
 }
 
 pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
@@ -39,7 +39,10 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
         frame: 0,
         current_seed,
     };
-    let mut composition = sketch.sketch(&context, StdRng::from_seed(&[current_seed]))?;
+    let mut render = Render::produce(
+        sketch.sketch(&context.cfg, StdRng::from_seed(&[context.current_seed]))?,
+        context.gpu.clone(),
+    )?;
 
     let mut cycle = Gpu::events(events_loop);
     while let Some((events_loop, events)) = cycle {
@@ -53,11 +56,14 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
         {
             context.current_seed = random();
             context.frame = 0;
-            composition = sketch.sketch(&context, StdRng::from_seed(&[context.current_seed]))?;
+            render = Render::produce(
+                sketch.sketch(&context.cfg, StdRng::from_seed(&[context.current_seed]))?,
+                context.gpu.clone(),
+            )?;
         }
-        composition.render(&context)?;
-        if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
-            if !(context.cfg.still && context.frame > 0) {
+        if !(context.cfg.still && context.frame > 0) {
+            context.gpu.draw(render.render(context.frame));
+            if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
                 let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
                 fs::create_dir_all(&saves_dir)?;
                 context

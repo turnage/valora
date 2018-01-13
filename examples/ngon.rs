@@ -7,15 +7,15 @@ use valora::rand::{Rng, StdRng};
 struct Pendulum;
 
 impl Sketch for Pendulum {
-    fn sketch(&self, _ctx: &SketchContext, mut rng: StdRng) -> Result<Composition> {
-        let tengon = Ngon {
+    fn sketch(&self, _cfg: &SketchCfg, mut rng: StdRng) -> Result<Composition> {
+        let tengon = Poly::Ngon(Ngon {
             n: 10,
             center: Point::center(),
-            rotation: 0.0,
+            phase: 0.0,
             radius: 0.2,
-        };
+        });
         let splotcher = WaterColor::new(
-            tengon.as_irregular(),
+            tengon,
             WaterColorCfg {
                 spread: rng.gen_range(0.04, 0.8),
                 layers: rng.gen_range(50, 300),
