@@ -2,6 +2,7 @@
 pub enum Tween {
     Keyframes(Vec<Keyframe>),
     Oscillation(Oscillation),
+    Constant(f32),
 }
 
 impl Tween {
@@ -9,6 +10,7 @@ impl Tween {
         match *self {
             Tween::Keyframes(ref keyframes) => unimplemented!(),
             Tween::Oscillation(ref oscillation) => oscillation.oscillate(frame),
+            Tween::Constant(v) => v,
         }
     }
 }

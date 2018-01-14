@@ -15,41 +15,43 @@ pub struct Mesh {
     pub colorer: Colorer,
     pub blend_mode: BlendMode,
     pub draw_mode: DrawMode,
-    pub scale_tween: Option<Tween>,
+    pub scale: Tween,
+    pub origin_y: Tween,
+    pub origin_x: Tween,
 }
 
 impl<T: Into<Poly>> From<T> for Mesh {
     fn from(src: T) -> Self {
+        let src = src.into();
+        let origin = src.center();
         Self {
-            src: src.into(),
+            src,
             colorer: Colorer::empty(),
             blend_mode: BlendMode::Normal,
             draw_mode: DrawMode::Fill,
-            scale_tween: None,
+            scale: Tween::Constant(1.0),
+            origin_y: Tween::Constant(origin.y),
+            origin_x: Tween::Constant(origin.x),
         }
     }
 }
 
-impl Mesh {
-    pub fn with_colorer(self, colorer: Colorer) -> Self {
-        Self { colorer, ..self }
-    }
-
-    pub fn with_blend_mode(self, blend_mode: BlendMode) -> Self {
-        Self { blend_mode, ..self }
-    }
-
-    pub fn with_draw_mode(self, draw_mode: DrawMode) -> Self {
-        Self { draw_mode, ..self }
-    }
-
-    pub fn with_scale_tween(self, scale_tween: Tween) -> Self {
-        Self {
-            scale_tween: Some(scale_tween),
-            ..self
+macro_rules! with {
+    ($f:ident, $field:ident, $type:ty) => {
+        impl Mesh {
+            pub fn $f(self, $field: $type) -> Self {
+                Self { $field, ..self }
+            }
         }
     }
 }
+
+with!(with_colorer, colorer, Colorer);
+with!(with_blend_mode, blend_mode, BlendMode);
+with!(with_draw_mode, draw_mode, DrawMode);
+with!(with_scale, scale, Tween);
+with!(with_origin_y, origin_y, Tween);
+with!(with_origin_x, origin_x, Tween);
 
 impl Spawner<Mesh> for Mesh {
     fn spawn(&self, cfg: SpawnCfg) -> Self {

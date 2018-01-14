@@ -29,11 +29,7 @@ impl Factory<Layer> for GpuLayer {
 
 impl GpuLayer {
     pub fn step(mut self, frame: usize) -> Result<Self> {
-        self.cached_mesh.scale = match self.src.scale_tween {
-            Some(ref tween) => tween.tween(frame),
-            None => self.cached_mesh.scale,
-        };
-        println!("scale: {:?}", self.cached_mesh.scale);
+        self.cached_mesh.scale = self.src.scale.tween(frame);
         Ok(self)
     }
     pub fn render<'a>(&'a self) -> (&'a GpuShader, &'a GpuMesh) {
