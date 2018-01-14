@@ -4,7 +4,7 @@ use glium::{Display, Program};
 lazy_static! {
     static ref PROGRAM_SPEC_DEFAULT: ProgramSpec  = ProgramSpec {
         vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-                                          "/shaders/default.glslv")),
+                                          "/shaders/default.vert")),
         fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                             "/shaders/default.glslf")),
     };

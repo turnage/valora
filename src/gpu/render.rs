@@ -28,7 +28,15 @@ impl Factory<Layer> for GpuLayer {
 }
 
 impl GpuLayer {
-    pub fn render<'a>(&'a self, frame: usize) -> (&'a GpuShader, &'a GpuMesh) {
+    pub fn step(mut self, frame: usize) -> Result<Self> {
+        self.cached_mesh.scale = match self.src.scale_tween {
+            Some(ref tween) => tween.tween(frame),
+            None => self.cached_mesh.scale,
+        };
+        println!("scale: {:?}", self.cached_mesh.scale);
+        Ok(self)
+    }
+    pub fn render<'a>(&'a self) -> (&'a GpuShader, &'a GpuMesh) {
         (&self.shader, &self.cached_mesh)
     }
 }
@@ -49,7 +57,16 @@ impl Factory<Composition> for Render {
 }
 
 impl Render {
-    pub fn render<'a>(&'a self, frame: usize) -> Vec<(&'a GpuShader, &'a GpuMesh)> {
-        self.layers.iter().map(|l| l.render(frame)).collect()
+    pub fn step(self, frame: usize) -> Result<Self> {
+        Ok(Self {
+            layers: self.layers
+                .into_iter()
+                .map(|l| l.step(frame))
+                .collect::<Result<Vec<GpuLayer>>>()?,
+        })
+    }
+
+    pub fn render<'a>(&'a self) -> Vec<(&'a GpuShader, &'a GpuMesh)> {
+        self.layers.iter().map(|l| l.render()).collect()
     }
 }

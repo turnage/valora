@@ -1,6 +1,7 @@
 use color::{BlendMode, Colorer};
 use poly::Poly;
 use generators::{SpawnCfg, Spawner};
+use tween::Tween;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DrawMode {
@@ -14,6 +15,7 @@ pub struct Mesh {
     pub colorer: Colorer,
     pub blend_mode: BlendMode,
     pub draw_mode: DrawMode,
+    pub scale_tween: Option<Tween>,
 }
 
 impl<T: Into<Poly>> From<T> for Mesh {
@@ -23,6 +25,7 @@ impl<T: Into<Poly>> From<T> for Mesh {
             colorer: Colorer::empty(),
             blend_mode: BlendMode::Normal,
             draw_mode: DrawMode::Fill,
+            scale_tween: None,
         }
     }
 }
@@ -30,6 +33,21 @@ impl<T: Into<Poly>> From<T> for Mesh {
 impl Mesh {
     pub fn with_colorer(self, colorer: Colorer) -> Self {
         Self { colorer, ..self }
+    }
+
+    pub fn with_blend_mode(self, blend_mode: BlendMode) -> Self {
+        Self { blend_mode, ..self }
+    }
+
+    pub fn with_draw_mode(self, draw_mode: DrawMode) -> Self {
+        Self { draw_mode, ..self }
+    }
+
+    pub fn with_scale_tween(self, scale_tween: Tween) -> Self {
+        Self {
+            scale_tween: Some(scale_tween),
+            ..self
+        }
     }
 }
 

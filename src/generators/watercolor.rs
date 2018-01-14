@@ -120,12 +120,10 @@ impl Spawner<Mesh> for WaterColor {
                 cfg.rng,
             ),
         };
-        Mesh {
-            src: src.place(cfg.point),
-            colorer: Colorer::from(self.cfg.color),
-            draw_mode: self.cfg.draw_mode,
-            blend_mode: self.cfg.blend_mode,
-        }
+        Mesh::from(src.place(cfg.point))
+            .with_colorer(Colorer::from(self.cfg.color))
+            .with_draw_mode(self.cfg.draw_mode)
+            .with_blend_mode(self.cfg.blend_mode)
     }
 }
 

@@ -41,8 +41,9 @@ impl Gpu {
 
     pub fn draw(&self, cmds: Vec<(&GpuShader, &GpuMesh)>) -> Result<()> {
         let mut frame = self.display.draw();
+        frame.clear_color(0.0, 0.0, 0.0, 1.0);
         for &(ref shader, ref mesh) in cmds.iter() {
-            shader.draw(&self.library, &mut frame, mesh);
+            shader.draw(&self.library, &mut frame, mesh)?;
         }
         frame.finish()?;
         Ok(())
@@ -230,6 +231,10 @@ impl From<BlendMode> for Blend {
 
 #[derive(Clone)]
 pub struct GpuMesh {
+    pub root_center: [f32; 2],
+    pub center: [f32; 2],
+    pub scale: f32,
+    pub rotation: f32,
     pub vertices: Rc<VertexBuffer<GpuVertex>>,
     pub indices: Rc<IndexBuffer<u32>>,
     pub blend: Blend,
@@ -243,8 +248,12 @@ impl Factory<Mesh> for GpuMesh {
                 tessellate_stroke(&spec.src, thickness, spec.colorer)?
             }
         };
-
+        let center = GpuVertex::fix_point(spec.src.center());
         Ok(GpuMesh {
+            center: [center.x, center.y],
+            root_center: [center.x, center.y],
+            scale: 1.0,
+            rotation: 0.0,
             vertices: Rc::new(VertexBuffer::new(
                 gpu.as_ref(),
                 tessellation.vertices.as_slice(),

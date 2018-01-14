@@ -20,7 +20,11 @@ impl GpuShader {
                 mesh.vertices.as_ref(),
                 mesh.indices.as_ref(),
                 &lib.default_shader,
-                &EmptyUniforms,
+                &uniform!{
+                    scale: mesh.scale,
+                    root_center: mesh.root_center,
+                    center: mesh.center,
+                },
                 &DrawParameters {
                     smooth: Some(Smooth::Nicest),
                     blend: mesh.blend,
@@ -32,13 +36,16 @@ impl GpuShader {
                 mesh.indices.as_ref(),
                 &lib.texture_shader,
                 &uniform!{
-                   matrix: [
-                       [1.0, 0.0, 0.0, 0.0],
-                       [0.0, 1.0, 0.0, 0.0],
-                       [0.0, 0.0, 1.0, 0.0],
-                       [0.0 , 0.0, 0.0, 1.0f32],
-                   ],
-                   tex: texture
+                    scale: mesh.scale,
+                    root_center: mesh.root_center,
+                    center: mesh.center,
+                    matrix: [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0],
+                        [0.0 , 0.0, 0.0, 1.0f32],
+                    ],
+                    tex: texture
                       .sampled()
                       .minify_filter(MinifySamplerFilter::Linear)
                       .magnify_filter(MagnifySamplerFilter::Linear)

@@ -5,6 +5,7 @@ use ngon::Ngon;
 use point::Point;
 use rect::Rect;
 use std::f32;
+use std::f32::consts::PI;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Poly {
@@ -136,6 +137,50 @@ impl Poly {
                         .map(|v| center + (v - center) * scale)
                         .collect(),
                 )
+            }
+        }
+    }
+
+    pub fn perimeter(&self) -> f32 {
+        match *self {
+            Poly::Ellipse(ref ellipse) => match ellipse.height {
+                Some(height) => {
+                    let h = (ellipse.width - height).powi(2) / (ellipse.width + height).powi(2);
+                    PI * (ellipse.width + height) * (1.0 + 0.25 * h + 0.015625 * h)
+                }
+                None => 2.0 * ellipse.width * PI,
+            },
+            ref poly => {
+                let vertices = poly.vertices();
+                (0..(vertices.len() - 1))
+                    .into_iter()
+                    .map(|i| Point::distance(&vertices[i], &vertices[i + 1]))
+                    .sum()
+            }
+        }
+    }
+
+    pub fn perimeter_point(&self, completion: f32) -> Point {
+        match *self {
+            Poly::Ellipse(ref ellipse) => ellipse.circumpoint(completion * 2.0 * PI),
+            ref poly => {
+                let vertices = poly.vertices();
+                let perimeter = poly.perimeter();
+                let target = (completion % 1.0) * perimeter;
+                let mut traversed = 0.0;
+                let mut point = vertices[0];
+                for i in 0..(vertices.len() - 1) {
+                    let distance = Point::distance(&vertices[i], &vertices[i + 1]);
+                    let delta = vertices[i + 1] - vertices[i];
+                    let next = traversed + distance;
+                    if next >= target {
+                        let x = (target - traversed) / distance;
+                        point = vertices[i] + (delta * x);
+                        break;
+                    }
+                    traversed += distance;
+                }
+                point
             }
         }
     }

@@ -9,8 +9,21 @@ use std::rc::Rc;
 pub struct SketchCfg {
     pub size: u32,
     pub root_frame_filename: Option<String>,
+    pub frame_limit: usize,
     pub seed: Option<usize>,
     pub still: bool,
+}
+
+impl Default for SketchCfg {
+    fn default() -> Self {
+        Self {
+            size: 400,
+            root_frame_filename: None,
+            frame_limit: 400,
+            seed: None,
+            still: false,
+        }
+    }
 }
 
 pub struct SketchContext {
@@ -62,13 +75,16 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
             )?;
         }
         if !(context.cfg.still && context.frame > 0) {
-            context.gpu.draw(render.render(context.frame));
+            render = render.step(context.frame)?;
+            context.gpu.draw(render.render());
             if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
-                let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
-                fs::create_dir_all(&saves_dir)?;
-                context
-                    .gpu
-                    .save_frame(&format!("{}{:08}", saves_dir, context.frame))?;
+                if context.frame < context.cfg.frame_limit {
+                    let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
+                    fs::create_dir_all(&saves_dir)?;
+                    context
+                        .gpu
+                        .save_frame(&format!("{}{:08}", saves_dir, context.frame))?;
+                }
             }
         }
         cycle = Gpu::events(events_loop);

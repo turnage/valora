@@ -1,32 +1,45 @@
-#[derive(Debug, Clone)]
-pub enum Oscillation {
-    Sine,
-    Cosine,
+#[derive(Clone, Debug, PartialEq)]
+pub enum Tween {
+    Keyframes(Vec<Keyframe>),
+    Oscillation(Oscillation),
 }
 
-impl Oscillation {
-    pub fn oscillate(&self, x: f32, period: f32) -> f32 {
-        use std::f32::consts::PI;
-
-        let x = x * ((2.0 * PI) / period) - (PI / 2.0);
+impl Tween {
+    pub fn tween(&self, frame: usize) -> f32 {
         match *self {
-            Oscillation::Sine => f32::sin(x),
-            Oscillation::Cosine => f32::cos(x),
+            Tween::Keyframes(ref keyframes) => unimplemented!(),
+            Tween::Oscillation(ref oscillation) => oscillation.oscillate(frame),
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Keyframe {
+    offset: usize,
+    value: f32,
+    interpolation: Interpolation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Oscillation {
+    pub phase: usize,
+    pub period: usize,
+}
+
+impl Oscillation {
+    pub fn oscillate(&self, frame: usize) -> f32 {
+        use std::f32::consts::PI;
+
+        let x = frame as f32 - self.phase as f32;
+        let x = x * ((2.0 * PI) / (self.period as f32)) - (PI / 2.0);
+        f32::sin(x)
+    }
+}
+
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub enum Interpolation {
-    Linear {
-        start: usize,
-        len: usize,
-    },
-    Oscillation {
-        oscillation: Oscillation,
-        start: usize,
-        period: usize,
-    },
+    Linear { start: usize, len: usize },
+    Oscillation(Oscillation),
     Constant(f32),
 }
 
@@ -44,11 +57,7 @@ impl Interpolation {
                     (frame - start) as f32 / len as f32
                 }
             }
-            Interpolation::Oscillation {
-                ref oscillation,
-                start,
-                period,
-            } => oscillation.oscillate(frame as f32 - start as f32, period as f32),
+            Interpolation::Oscillation(oscillation) => oscillation.oscillate(frame),
             Interpolation::Constant(completion) => completion,
         }
     }
