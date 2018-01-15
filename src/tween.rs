@@ -1,8 +1,11 @@
-#[derive(Clone, Debug, PartialEq)]
+use std::rc::Rc;
+
+#[derive(Clone)]
 pub enum Tween {
     Keyframes(Vec<Keyframe>),
     Oscillation(Oscillation),
     Constant(f32),
+    Function(Rc<Fn(usize) -> f32>),
 }
 
 impl Tween {
@@ -11,7 +14,12 @@ impl Tween {
             Tween::Keyframes(ref keyframes) => unimplemented!(),
             Tween::Oscillation(ref oscillation) => oscillation.oscillate(frame),
             Tween::Constant(v) => v,
+            Tween::Function(ref f) => f(frame),
         }
+    }
+
+    pub fn chain<F: 'static + Fn(f32) -> f32>(self, f: F) -> Self {
+        Tween::Function(Rc::new(move |frame| f(self.tween(frame))))
     }
 }
 

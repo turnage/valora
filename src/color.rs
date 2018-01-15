@@ -1,4 +1,4 @@
-use palette::Colora;
+use palette::{Colora, RgbHue};
 use poly::Point;
 use std::rc::Rc;
 
@@ -13,6 +13,29 @@ pub enum BlendMode {
 
 #[derive(Clone)]
 pub struct Colorer(Option<Rc<Fn(Point) -> Colora>>);
+
+pub fn uniform_palette(
+    start: f32,
+    length: f32,
+    saturation: f32,
+    value: f32,
+    alpha: f32,
+    count: usize,
+) -> Vec<Colora> {
+    let interval = length / (count as f32);
+    (0..count)
+        .into_iter()
+        .enumerate()
+        .map(|(i, v)| {
+            Colora::hsv(
+                RgbHue::from(start + (i as f32) * interval),
+                saturation,
+                value,
+                alpha,
+            )
+        })
+        .collect()
+}
 
 impl Default for Colorer {
     fn default() -> Self {

@@ -14,6 +14,12 @@ lazy_static! {
         fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                             "/shaders/texture.glslf")),
     };
+    static ref PROGRAM_SPEC_VORONOI: ProgramSpec  = ProgramSpec {
+        vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                          "/shaders/default.vert")),
+        fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                            "/shaders/voronoi.frag")),
+    };
 }
 
 struct ProgramSpec {
@@ -24,6 +30,7 @@ struct ProgramSpec {
 pub struct Library {
     pub default_shader: Program,
     pub texture_shader: Program,
+    pub voronoi_shader: Program,
 }
 
 fn load_program(spec: &ProgramSpec, display: &Display) -> Result<Program> {
@@ -40,6 +47,7 @@ fn load_program(spec: &ProgramSpec, display: &Display) -> Result<Program> {
 pub fn load_library(display: &Display) -> Result<Library> {
     Ok(Library {
         default_shader: load_program(&PROGRAM_SPEC_DEFAULT, display)?,
-        texture_shader: load_program(&PROGRAM_SPEC_DEFAULT, display)?,
+        texture_shader: load_program(&PROGRAM_SPEC_TEXTURE, display)?,
+        voronoi_shader: load_program(&PROGRAM_SPEC_VORONOI, display)?,
     })
 }

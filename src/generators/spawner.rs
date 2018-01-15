@@ -11,6 +11,12 @@ impl SpawnSrc for Poly {
     }
 }
 
+impl<P: Clone + Into<Poly>> SpawnSrc for P {
+    default fn spawn_points(&self) -> Vec<Point> {
+        self.clone().into().vertices()
+    }
+}
+
 pub struct SpawnCfg<'a> {
     pub point: Point,
     pub index: usize,
@@ -21,6 +27,18 @@ pub struct SpawnCfg<'a> {
 
 pub trait Spawner<G> {
     fn spawn(&self, cfg: SpawnCfg) -> G;
+}
+
+impl Spawner<Poly> for Poly {
+    fn spawn(&self, cfg: SpawnCfg) -> Poly {
+        self.clone().place(cfg.point)
+    }
+}
+
+impl<P: Clone + Into<Poly>> Spawner<Poly> for P {
+    default fn spawn(&self, cfg: SpawnCfg) -> Poly {
+        self.clone().into().place(cfg.point)
+    }
 }
 
 pub fn spawn<G, Src, S>(s: &S, src: &Src, mut rng: StdRng) -> Vec<G>

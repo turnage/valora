@@ -12,7 +12,6 @@ use errors::Result;
 use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
-use glium::vertex::MultiVerticesSource;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use poly::Point;
@@ -39,11 +38,11 @@ impl Gpu {
         Ok((Self { display, library }, events_loop))
     }
 
-    pub fn draw(&self, cmds: Vec<(&GpuShader, &GpuMesh)>) -> Result<()> {
+    pub fn draw(&self, frame_i: usize, cmds: Vec<(&GpuShader, &GpuMesh)>) -> Result<()> {
         let mut frame = self.display.draw();
         frame.clear_color(0.0, 0.0, 0.0, 1.0);
         for &(ref shader, ref mesh) in cmds.iter() {
-            shader.draw(&self.library, &mut frame, mesh)?;
+            shader.draw(&self.library, frame_i, &mut frame, mesh)?;
         }
         frame.finish()?;
         Ok(())
