@@ -6,7 +6,7 @@ use std::rc::Rc;
 use glium::draw_parameters::{DrawParameters, Smooth};
 use gpu::programs::Library;
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter, UniformBuffer};
-use glium::{Frame, Surface};
+use glium::Surface;
 use palette::{Blend, Colora};
 use poly::Point;
 use tween::Tween;
@@ -20,11 +20,11 @@ pub enum GpuShader {
 }
 
 impl GpuShader {
-    pub fn draw(
+    pub fn draw<S: Surface>(
         &self,
         lib: &Library,
         frame: usize,
-        surface: &mut Frame,
+        surface: &mut S,
         mesh: &GpuMesh,
     ) -> Result<()> {
         match *self {

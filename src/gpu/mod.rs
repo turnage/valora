@@ -12,6 +12,8 @@ use errors::Result;
 use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
+use glium::framebuffer::SimpleFrameBuffer;
+use glium::texture::texture2d::Texture2d;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use poly::Point;
@@ -46,6 +48,21 @@ impl Gpu {
         }
         frame.finish()?;
         Ok(())
+    }
+
+    pub fn draw_to_texture(
+        &self,
+        frame_i: usize,
+        cmds: Vec<(&GpuShader, &GpuMesh)>,
+    ) -> Result<Texture2d> {
+        let (height, width) = self.display.get_framebuffer_dimensions();
+        let texture = Texture2d::empty(self, height * 4, width * 4)?;
+        let mut frame = texture.as_surface();
+        frame.clear_color(0.0, 0.0, 0.0, 0.0);
+        for &(ref shader, ref mesh) in cmds.iter() {
+            shader.draw(&self.library, frame_i, &mut frame, mesh)?;
+        }
+        Ok(texture)
     }
 
     pub fn save_frame(&self, filename: &str) -> Result<()> {
