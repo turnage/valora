@@ -12,7 +12,7 @@ lazy_static! {
         vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                           "/shaders/texture.vert")),
         fragment: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
-                                            "/shaders/texture.glslf")),
+                                            "/shaders/texture.frag")),
     };
     static ref PROGRAM_SPEC_VORONOI: ProgramSpec  = ProgramSpec {
         vertex: include_str!(concat!(env!("CARGO_MANIFEST_DIR"),

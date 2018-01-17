@@ -15,6 +15,15 @@ impl From<Mesh> for Layer {
     }
 }
 
+impl<S: Into<Shader>> From<S> for Layer {
+    fn from(shader_src: S) -> Self {
+        Layer::ShadedMesh {
+            shader: shader_src.into(),
+            mesh: Mesh::from(Rect::frame()),
+        }
+    }
+}
+
 impl<S: Into<Shader>> From<(S, Mesh)> for Layer {
     fn from((shader, mesh): (S, Mesh)) -> Self {
         Layer::ShadedMesh {

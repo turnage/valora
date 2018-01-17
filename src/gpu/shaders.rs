@@ -51,12 +51,6 @@ impl GpuShader {
                     scale: mesh.scale,
                     root_center: mesh.root_center,
                     center: mesh.center,
-                    matrix: [
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [0.0 , 0.0, 0.0, 1.0f32],
-                    ],
                     tex: texture
                       .sampled()
                       .minify_filter(MinifySamplerFilter::Linear)
@@ -114,6 +108,12 @@ pub enum Shader {
     Default,
     Texture(Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>),
     Voronoi(Vec<VoronoiSite>),
+}
+
+impl From<ImageBuffer<Rgb<u8>, Vec<u8>>> for Shader {
+    fn from(img: ImageBuffer<Rgb<u8>, Vec<u8>>) -> Self {
+        Shader::Texture(Rc::new(img))
+    }
 }
 
 impl Factory<Shader> for GpuShader {

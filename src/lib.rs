@@ -22,6 +22,7 @@ pub extern crate image;
 pub extern crate palette;
 pub extern crate poly;
 pub extern crate rand;
+pub extern crate noise;
 
 pub mod sketch;
 pub mod patterns;
