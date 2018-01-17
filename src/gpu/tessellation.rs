@@ -5,6 +5,7 @@ use lyon::path_iterator::math::TypedPoint2D;
 use lyon::tessellation::*;
 use lyon::tessellation::geometry_builder::{simple_builder, VertexBuffers};
 use poly::{Point, Poly};
+use tess2::*;
 
 #[derive(Debug, Default)]
 pub struct Tessellation {
@@ -29,8 +30,6 @@ impl Tessellation {
 }
 
 pub fn tessellate_fill(poly: &Poly, colorer: Colorer) -> Result<Tessellation> {
-    use tess2::safe::*;
-
     let tess2_verts: Vec<Vertex> = poly.vertices()
         .into_iter()
         .map(|v| Vertex { x: v.x, y: v.y })
