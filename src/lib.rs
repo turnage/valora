@@ -12,8 +12,6 @@ extern crate itertools;
 #[macro_use]
 extern crate lazy_static;
 extern crate lyon;
-#[macro_use]
-extern crate maplit;
 extern crate num;
 extern crate petgraph;
 extern crate rayon;

@@ -1,5 +1,4 @@
 use mesh::Mesh;
-use std::collections::HashMap;
 
 pub fn one_to_n<F>(src: &Mesh, n: Vec<Mesh>, f: F) -> Vec<Mesh>
 where

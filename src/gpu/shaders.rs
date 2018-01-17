@@ -1,6 +1,6 @@
 use errors::Result;
 use glium::texture::{RawImage2d, Texture2d};
-use gpu::{Factory, Gpu, GpuMesh, GpuVertex};
+use gpu::{Factory, Gpu, GpuMesh};
 use image::{ImageBuffer, Rgb};
 use std::rc::Rc;
 use glium::draw_parameters::{DrawParameters, Smooth};

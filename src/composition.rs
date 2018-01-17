@@ -24,7 +24,7 @@ impl<S: Into<Shader>> From<(S, Mesh)> for Layer {
     }
 }
 
-enum LayerInput {
+pub enum LayerInput {
     Single(Layer),
     Many(Vec<Layer>),
 }

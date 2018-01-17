@@ -12,7 +12,6 @@ use errors::Result;
 use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
-use glium::framebuffer::SimpleFrameBuffer;
 use glium::texture::texture2d::Texture2d;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;

@@ -76,7 +76,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
         }
         if !(context.cfg.still && context.frame > 0) {
             render = render.step(context.frame)?;
-            context.gpu.draw(context.frame, render.render());
+            context.gpu.draw(context.frame, render.render())?;
             if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
                 if context.frame < context.cfg.frame_limit {
                     let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);

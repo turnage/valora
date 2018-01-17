@@ -25,8 +25,7 @@ pub fn uniform_palette(
     let interval = length / (count as f32);
     (0..count)
         .into_iter()
-        .enumerate()
-        .map(|(i, v)| {
+        .map(|i| {
             Colora::hsv(
                 RgbHue::from(start + (i as f32) * interval),
                 saturation,
