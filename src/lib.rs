@@ -19,10 +19,10 @@ extern crate tess2;
 #[macro_use]
 pub extern crate glium;
 pub extern crate image;
+pub extern crate noise;
 pub extern crate palette;
 pub extern crate poly;
 pub extern crate rand;
-pub extern crate noise;
 
 pub mod sketch;
 pub mod patterns;
