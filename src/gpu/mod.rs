@@ -9,10 +9,12 @@ pub use self::render::Render;
 
 use color::BlendMode;
 use errors::Result;
-use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
+use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer, BlitTarget, Rect};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
 use glium::texture::texture2d::Texture2d;
+use glium::uniforms::MagnifySamplerFilter;
+use glium::framebuffer::SimpleFrameBuffer;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use poly::Point;
@@ -39,29 +41,26 @@ impl Gpu {
         Ok((Self { display, library }, events_loop))
     }
 
-    pub fn draw(&self, frame_i: usize, cmds: Vec<(&GpuShader, &GpuMesh)>) -> Result<()> {
-        let mut frame = self.display.draw();
-        frame.clear_color(0.0, 0.0, 0.0, 1.0);
+    pub fn draw(&self, frame: usize, cmds: Vec<(&GpuShader, &GpuMesh)>) -> Result<()> {
+        let mut surface = self.display.draw();
         for &(ref shader, ref mesh) in cmds.iter() {
-            shader.draw(&self.library, frame_i, &mut frame, mesh)?;
+            shader.draw(&self.library, frame, &mut surface, mesh, None)?;
         }
-        frame.finish()?;
+        surface.finish()?;
         Ok(())
     }
 
     pub fn draw_to_texture(
         &self,
-        frame_i: usize,
+        texture: &Texture2d,
+        frame: usize,
         cmds: Vec<(&GpuShader, &GpuMesh)>,
-    ) -> Result<Texture2d> {
-        let (height, width) = self.display.get_framebuffer_dimensions();
-        let texture = Texture2d::empty(self, height * 4, width * 4)?;
-        let mut frame = texture.as_surface();
-        frame.clear_color(0.0, 0.0, 0.0, 0.0);
+    ) -> Result<()> {
+        let mut surface = texture.as_surface(); 
         for &(ref shader, ref mesh) in cmds.iter() {
-            shader.draw(&self.library, frame_i, &mut frame, mesh)?;
+            shader.draw(&self.library, frame, &mut surface, mesh, Some(texture))?;
         }
-        Ok(texture)
+        Ok(())
     }
 
     pub fn save_frame(&self, filename: &str) -> Result<()> {
@@ -185,17 +184,7 @@ impl From<BlendMode> for Blend {
     fn from(src: BlendMode) -> Self {
         use glium::{BlendingFunction, LinearBlendingFactor};
         match src {
-            BlendMode::Normal => Blend {
-                color: BlendingFunction::Addition {
-                    source: LinearBlendingFactor::SourceAlpha,
-                    destination: LinearBlendingFactor::OneMinusSourceAlpha,
-                },
-                alpha: BlendingFunction::Addition {
-                    source: LinearBlendingFactor::One,
-                    destination: LinearBlendingFactor::OneMinusSourceAlpha,
-                },
-                constant_value: (0.0, 0.0, 0.0, 0.0),
-            },
+            BlendMode::Normal => Blend::alpha_blending(),
             BlendMode::Add => Blend {
                 color: BlendingFunction::Addition {
                     source: LinearBlendingFactor::One,

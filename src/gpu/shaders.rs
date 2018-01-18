@@ -26,6 +26,7 @@ impl GpuShader {
         frame: usize,
         surface: &mut S,
         mesh: &GpuMesh,
+        last: Option<&Texture2d>,
     ) -> Result<()> {
         match *self {
             GpuShader::Default => Ok(surface.draw(
@@ -38,7 +39,7 @@ impl GpuShader {
                     center: mesh.center,
                 },
                 &DrawParameters {
-                    smooth: Some(Smooth::Nicest),
+                    smooth: None,
                     blend: mesh.blend,
                     ..Default::default()
                 },

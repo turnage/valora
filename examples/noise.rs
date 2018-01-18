@@ -6,8 +6,6 @@ use valora::rand::{Rng, StdRng};
 use valora::palette::{Colora, RgbHue};
 use std::rc::Rc;
 
-const QUALITY: u32 = 1;
-
 struct Noise {
     quality: u32,
 }
@@ -34,10 +32,10 @@ impl Sketch for Noise {
             ],
         ], rng.gen_range(0.0, 1.0))).collect();
         let image =
-            image::ImageBuffer::from_fn(cfg.size * QUALITY, cfg.size * QUALITY, move |x, y| {
+            image::ImageBuffer::from_fn(cfg.size * self.quality, cfg.size * self.quality, move |x, y| {
                 let sample = |x, y, d| {
-                    let x = x as f32 / (cfg.size * QUALITY) as f32;
-                    let y = y as f32 / (cfg.size * QUALITY) as f32;
+                    let x = x as f32 / (cfg.size * self.quality) as f32;
+                    let y = y as f32 / (cfg.size * self.quality) as f32;
                     let mut p = [x, y, d];
                     for &(ref offset, q_weight) in &orders {
                         p = [
@@ -71,7 +69,8 @@ impl Sketch for Noise {
                 1.0,
                 1.0,
             )))
-            .add(image))
+            .add(image)
+            .add(Mesh::from(Ellipse::circle(Point::center(), 0.2)).with_colorer(Colorer::black()).with_blend_mode(BlendMode::Normal)))
     }
 }
 
@@ -79,8 +78,9 @@ fn main() {
     sketch(
         SketchCfg {
             size: 400,
+            quality: 4,
             ..SketchCfg::default()
         },
-        Noise { quality: 1 },
+        Noise { quality: 4 },
     ).expect("noise");
 }

@@ -59,6 +59,7 @@ impl Render {
                 .into_iter()
                 .map(|l| l.step(frame))
                 .collect::<Result<Vec<GpuLayer>>>()?,
+            ..self
         })
     }
 

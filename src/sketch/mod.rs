@@ -1,10 +1,14 @@
 use composition::Composition;
 use errors::Result;
 use glium::glutin::WindowEvent;
-use gpu::{Factory, Gpu, Render};
+use gpu::{Factory, Gpu, Render, GpuShader, GpuMesh};
 use rand::{random, SeedableRng, StdRng};
 use std::{fs, thread, time};
 use std::rc::Rc;
+use glium::Surface;
+use glium::texture::Texture2d;
+use poly::Rect;
+use mesh::Mesh;
 
 pub struct SketchCfg {
     pub size: u32,
@@ -12,6 +16,10 @@ pub struct SketchCfg {
     pub frame_limit: usize,
     pub seed: Option<usize>,
     pub still: bool,
+    /// quality sets the factor above the output resolution that textures and
+    /// polygons will render with and be super sampled at for output. Should
+    /// be a power of 2 but hey, you do you.
+    pub quality: u32,
 }
 
 impl Default for SketchCfg {
@@ -22,6 +30,7 @@ impl Default for SketchCfg {
             frame_limit: 400,
             seed: None,
             still: false,
+            quality: 1,
         }
     }
 }
@@ -57,6 +66,11 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
         context.gpu.clone(),
     )?;
 
+    let buffer = Rc::new(Texture2d::empty(context.gpu.as_ref(), context.cfg.size * context.cfg.quality, context.cfg.size * context.cfg.quality)?);
+    buffer.as_ref().as_surface().clear_color(0.0, 0.0, 0.0, 1.0);
+    let blitter_src = (GpuShader::Texture(buffer.clone()), GpuMesh::produce(Mesh::from(Rect::frame()), context.gpu.clone())?);
+    let blitter = vec![(&blitter_src.0, &blitter_src.1)];
+
     let mut cycle = Gpu::events(events_loop);
     while let Some((events_loop, events)) = cycle {
         if events
@@ -76,7 +90,8 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
         }
         if !(context.cfg.still && context.frame > 0) {
             render = render.step(context.frame)?;
-            context.gpu.draw(context.frame, render.render())?;
+            context.gpu.draw_to_texture(buffer.as_ref(), context.frame, render.render())?;
+            context.gpu.draw(context.frame, blitter.clone())?;
             if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
                 if context.frame < context.cfg.frame_limit {
                     let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);

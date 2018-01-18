@@ -23,6 +23,8 @@ pub extern crate noise;
 pub extern crate palette;
 pub extern crate poly;
 pub extern crate rand;
+#[macro_use]
+pub extern crate glossy;
 
 pub mod sketch;
 pub mod patterns;

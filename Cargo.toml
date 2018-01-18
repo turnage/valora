@@ -4,12 +4,14 @@ version = "0.1.0"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 description = "Declarative generative art toolkit."
 license = "MIT"
+build = "build.rs"
 
 [profile.release]
 debug = true
 
 [dependencies]
 glium = "0.19"
+glossy = "0.2.0"
 lyon =  "0.8"
 error-chain = "0.11"
 palette = "0.2"
@@ -23,5 +25,8 @@ tess2 = "0.3"
 rayon = "0.9"
 noise = "0.4.1"
 poly = { path = "poly" }
+
+[build-dependencies]
+glossy_codegen = "0.2.0"
 
 [workspace]
