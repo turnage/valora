@@ -9,17 +9,23 @@ pub struct Library {
 
 pub fn load_library(display: &Display) -> Result<Library> {
     Ok(Library {
-        default_shader: Program::from_source(display,
-                                             shader!("default.vert"),
-                                             shader!("default.frag"),
-                                             None)?,
-        texture_shader: Program::from_source(display,
-                                             shader!("texture.vert"),
-                                             shader!("texture.frag"),
-                                             None)?,
-        voronoi_shader: Program::from_source(display,
-                                             shader!("default.vert"),
-                                             shader!("voronoi.frag"),
-                                             None)?,
+        default_shader: Program::from_source(
+            display,
+            shader!("default.vert"),
+            shader!("default.frag"),
+            None,
+        )?,
+        texture_shader: Program::from_source(
+            display,
+            shader!("texture.vert"),
+            shader!("texture.frag"),
+            None,
+        )?,
+        voronoi_shader: Program::from_source(
+            display,
+            shader!("default.vert"),
+            shader!("voronoi.frag"),
+            None,
+        )?,
     })
 }

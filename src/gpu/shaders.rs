@@ -6,7 +6,7 @@ use std::rc::Rc;
 use glium::draw_parameters::{DrawParameters, Smooth};
 use gpu::programs::Library;
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter, UniformBuffer};
-use glium::Surface;
+use glium::{Program, Surface};
 use palette::{Blend, Colora};
 use poly::Point;
 use tween::Tween;
@@ -17,6 +17,7 @@ pub enum GpuShader {
     Default,
     Texture(Rc<Texture2d>),
     Voronoi(GpuVoronoi),
+    Custom(Rc<Program>),
 }
 
 impl GpuShader {
@@ -79,12 +80,31 @@ impl GpuShader {
                         site_count: gpu_voronoi.site_count,
                     },
                     &DrawParameters {
-                        smooth: Some(Smooth::Nicest),
+                        smooth: None,
                         blend: mesh.blend,
                         ..Default::default()
                     },
                 )?)
             }
+            GpuShader::Custom(ref program) => Ok(surface.draw(
+                mesh.vertices.as_ref(),
+                mesh.indices.as_ref(),
+                program,
+                &uniform!{
+                    center: mesh.center,
+                    root_center: mesh.root_center,
+                    scale: mesh.scale,
+                    frame: last.unwrap()
+                        .sampled()
+                        .minify_filter(MinifySamplerFilter::Linear)
+                        .magnify_filter(MagnifySamplerFilter::Linear),
+                },
+                &DrawParameters {
+                    smooth: None,
+                    blend: mesh.blend,
+                    ..Default::default()
+                },
+            )?),
         }
     }
 }
@@ -109,11 +129,18 @@ pub enum Shader {
     Default,
     Texture(Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>),
     Voronoi(Vec<VoronoiSite>),
+    Custom(Rc<Program>),
 }
 
 impl From<ImageBuffer<Rgb<u8>, Vec<u8>>> for Shader {
     fn from(img: ImageBuffer<Rgb<u8>, Vec<u8>>) -> Self {
         Shader::Texture(Rc::new(img))
+    }
+}
+
+impl From<Program> for Shader {
+    fn from(program: Program) -> Self {
+        Shader::Custom(Rc::new(program))
     }
 }
 
@@ -165,6 +192,7 @@ impl Factory<Shader> for GpuShader {
                     site_count,
                 }))
             }
+            Shader::Custom(program) => Ok(GpuShader::Custom(program)),
         }
     }
 }

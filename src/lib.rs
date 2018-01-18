@@ -4,6 +4,8 @@
 #![feature(fnbox)]
 #![feature(nll)]
 #![feature(crate_in_paths)]
+#![feature(macro_reexport)]
+#![feature(slice_rotate)]
 #![recursion_limit = "128"]
 
 #[macro_use]
@@ -18,13 +20,14 @@ extern crate rayon;
 extern crate tess2;
 #[macro_use]
 pub extern crate glium;
+#[macro_use]
+#[macro_reexport(shader)]
+pub extern crate glossy;
 pub extern crate image;
 pub extern crate noise;
 pub extern crate palette;
 pub extern crate poly;
 pub extern crate rand;
-#[macro_use]
-pub extern crate glossy;
 
 pub mod sketch;
 pub mod patterns;

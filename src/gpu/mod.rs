@@ -9,7 +9,7 @@ pub use self::render::Render;
 
 use color::BlendMode;
 use errors::Result;
-use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer, BlitTarget, Rect};
+use glium::{glutin, Blend, BlitTarget, Display, IndexBuffer, Rect, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
 use glium::texture::texture2d::Texture2d;
@@ -52,13 +52,28 @@ impl Gpu {
 
     pub fn draw_to_texture(
         &self,
-        texture: &Texture2d,
+        textures: [&Texture2d; 2],
         frame: usize,
         cmds: Vec<(&GpuShader, &GpuMesh)>,
     ) -> Result<()> {
-        let mut surface = texture.as_surface(); 
-        for &(ref shader, ref mesh) in cmds.iter() {
-            shader.draw(&self.library, frame, &mut surface, mesh, Some(texture))?;
+        let mut surfaces = [textures[0].as_surface(), textures[1].as_surface()];
+        for (i, &(ref shader, ref mesh)) in cmds.iter().enumerate() {
+            if let Some(&(&GpuShader::Custom(_), _)) = cmds.get(i + 1) {
+                shader.draw(
+                    &self.library,
+                    frame,
+                    &mut surfaces[1],
+                    mesh,
+                    Some(textures[0]),
+                )?;
+            }
+            shader.draw(
+                &self.library,
+                frame,
+                &mut surfaces[0],
+                mesh,
+                Some(textures[1]),
+            )?;
         }
         Ok(())
     }

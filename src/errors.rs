@@ -1,8 +1,8 @@
 // may the gods forgive me for this
-use glium::{index, vertex, DrawError, SwapBuffersError, backend::glutin::DisplayCreationError,
-            buffer::BufferCreationError, framebuffer::ValidationError,
-            glutin::{ContextError, CreationError}, program::ProgramChooserCreationError,
-            texture::TextureCreationError, ProgramCreationError};
+use glium::{index, vertex, DrawError, ProgramCreationError, SwapBuffersError,
+            backend::glutin::DisplayCreationError, buffer::BufferCreationError,
+            framebuffer::ValidationError, glutin::{ContextError, CreationError},
+            program::ProgramChooserCreationError, texture::TextureCreationError};
 use lyon::tessellation::FillError;
 use num::traits::ParseFloatError;
 use std::io;

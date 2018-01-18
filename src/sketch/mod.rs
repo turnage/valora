@@ -1,11 +1,11 @@
 use composition::Composition;
 use errors::Result;
 use glium::glutin::WindowEvent;
-use gpu::{Factory, Gpu, Render, GpuShader, GpuMesh};
+use gpu::{Factory, Gpu, GpuMesh, GpuShader, Render, Shader};
 use rand::{random, SeedableRng, StdRng};
 use std::{fs, thread, time};
 use std::rc::Rc;
-use glium::Surface;
+use glium::{Program, Surface};
 use glium::texture::Texture2d;
 use poly::Rect;
 use mesh::Mesh;
@@ -38,18 +38,27 @@ impl Default for SketchCfg {
 pub struct SketchContext {
     pub cfg: SketchCfg,
     pub gpu: Rc<Gpu>,
-    pub frame: usize,
     pub current_seed: usize,
 }
 
 impl SketchContext {
-    pub fn produce<Spec, F: Factory<Spec>>(&self, spec: Spec) -> Result<F> {
-        F::produce(spec, self.gpu.clone())
+    pub fn load_shader(
+        &self,
+        vert_src: Option<&'static str>,
+        frag_src: &'static str,
+    ) -> Result<Shader> {
+        Program::from_source(
+            self.gpu.as_ref(),
+            vert_src.unwrap_or(shader!("default.vert")),
+            frag_src,
+            None,
+        ).map(Into::into)
+            .map_err(Into::into)
     }
 }
 
 pub trait Sketch {
-    fn sketch(&self, ctx: &SketchCfg, rng: StdRng) -> Result<Composition>;
+    fn sketch(&self, ctx: &SketchContext, rng: StdRng) -> Result<Composition>;
 }
 
 pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
@@ -58,17 +67,33 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
     let mut context = SketchContext {
         cfg,
         gpu: Rc::new(gpu),
-        frame: 0,
         current_seed,
     };
+    let mut frame = 0;
     let mut render = Render::produce(
-        sketch.sketch(&context.cfg, StdRng::from_seed(&[context.current_seed]))?,
+        sketch.sketch(&context, StdRng::from_seed(&[context.current_seed]))?,
         context.gpu.clone(),
     )?;
 
-    let buffer = Rc::new(Texture2d::empty(context.gpu.as_ref(), context.cfg.size * context.cfg.quality, context.cfg.size * context.cfg.quality)?);
-    buffer.as_ref().as_surface().clear_color(0.0, 0.0, 0.0, 1.0);
-    let blitter_src = (GpuShader::Texture(buffer.clone()), GpuMesh::produce(Mesh::from(Rect::frame()), context.gpu.clone())?);
+    let mut buffers = [
+        Rc::new(Texture2d::empty(
+            context.gpu.as_ref(),
+            context.cfg.size * context.cfg.quality,
+            context.cfg.size * context.cfg.quality,
+        )?),
+        Rc::new(Texture2d::empty(
+            context.gpu.as_ref(),
+            context.cfg.size * context.cfg.quality,
+            context.cfg.size * context.cfg.quality,
+        )?),
+    ];
+    for buf in buffers.iter() {
+        buf.as_ref().as_surface().clear_color(0.0, 0.0, 0.0, 1.0)
+    }
+    let blitter_src = (
+        GpuShader::Texture(buffers[0].clone()),
+        GpuMesh::produce(Mesh::from(Rect::frame()), context.gpu.clone())?,
+    );
     let blitter = vec![(&blitter_src.0, &blitter_src.1)];
 
     let mut cycle = Gpu::events(events_loop);
@@ -82,29 +107,33 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
             .is_some()
         {
             context.current_seed = random();
-            context.frame = 0;
+            frame = 0;
             render = Render::produce(
-                sketch.sketch(&context.cfg, StdRng::from_seed(&[context.current_seed]))?,
+                sketch.sketch(&context, StdRng::from_seed(&[context.current_seed]))?,
                 context.gpu.clone(),
             )?;
         }
-        if !(context.cfg.still && context.frame > 0) {
-            render = render.step(context.frame)?;
-            context.gpu.draw_to_texture(buffer.as_ref(), context.frame, render.render())?;
-            context.gpu.draw(context.frame, blitter.clone())?;
+        if !(context.cfg.still && frame > 0) {
+            render = render.step(frame)?;
+            context.gpu.draw_to_texture(
+                [buffers[0].as_ref(), buffers[1].as_ref()],
+                frame,
+                render.render(),
+            )?;
+            context.gpu.draw(frame, blitter.clone())?;
             if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
-                if context.frame < context.cfg.frame_limit {
+                if frame < context.cfg.frame_limit {
                     let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
                     fs::create_dir_all(&saves_dir)?;
                     context
                         .gpu
-                        .save_frame(&format!("{}{:08}", saves_dir, context.frame))?;
+                        .save_frame(&format!("{}{:08}", saves_dir, frame))?;
                 }
             }
         }
         cycle = Gpu::events(events_loop);
         thread::sleep(time::Duration::from_millis(32));
-        context.frame += 1;
+        frame += 1;
     }
     Ok(())
 }
