@@ -3,10 +3,31 @@ use gpu::Shader;
 use mesh::Mesh;
 use poly::Rect;
 use std::mem::swap;
+use std::rc::Rc;
 
 pub enum Layer {
     Mesh(Mesh),
     ShadedMesh { shader: Shader, mesh: Mesh },
+}
+
+impl Layer {
+    pub fn once<L: Into<Layer>>(src: L, render_frame: usize) -> Layer {
+        let layer = src.into();
+        let wrap_shader = |shader| Shader::Intermittent {
+            src: Rc::new(shader),
+            predicate: Rc::new(move |current_frame| current_frame == render_frame),
+        };
+        match layer {
+            Layer::Mesh(mesh) => Layer::ShadedMesh {
+                shader: wrap_shader(Shader::Default),
+                mesh,
+            },
+            Layer::ShadedMesh { shader, mesh } => Layer::ShadedMesh {
+                shader: wrap_shader(shader),
+                mesh,
+            },
+        }
+    }
 }
 
 impl From<Mesh> for Layer {

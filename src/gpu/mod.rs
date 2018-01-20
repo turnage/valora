@@ -57,8 +57,12 @@ impl Gpu {
         cmds: Vec<(&GpuShader, &GpuMesh)>,
     ) -> Result<()> {
         let mut surfaces = [textures[0].as_surface(), textures[1].as_surface()];
+        let double_buffer = cmds.iter().any(|cmd| match cmd {
+            &(&GpuShader::Custom(_), _) => true,
+            _ => false,
+        });
         for (i, &(ref shader, ref mesh)) in cmds.iter().enumerate() {
-            if let Some(&(&GpuShader::Custom(_), _)) = cmds.get(i + 1) {
+            if double_buffer {
                 shader.draw(
                     &self.library,
                     frame,

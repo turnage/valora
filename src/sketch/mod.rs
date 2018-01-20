@@ -104,7 +104,7 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
                 WindowEvent::ReceivedCharacter('r') => true,
                 _ => false,
             })
-            .is_some()
+            .is_some() || (context.cfg.still && frame > 30)
         {
             context.current_seed = random();
             frame = 0;
@@ -123,11 +123,18 @@ pub fn sketch<S: Sketch>(cfg: SketchCfg, sketch: S) -> Result<()> {
             context.gpu.draw(frame, blitter.clone())?;
             if let Some(ref root_frame_filename) = context.cfg.root_frame_filename {
                 if frame < context.cfg.frame_limit {
-                    let saves_dir = format!("{}/{:14}/", root_frame_filename, context.current_seed);
-                    fs::create_dir_all(&saves_dir)?;
-                    context
-                        .gpu
-                        .save_frame(&format!("{}{:08}", saves_dir, frame))?;
+                    let save_path = match context.cfg.still {
+                        true => {
+                            fs::create_dir_all(&root_frame_filename)?;
+                            format!("{}/{}", root_frame_filename, context.current_seed)
+                        }
+                        false => {
+                            let dir = format!("{}/{}/", root_frame_filename, context.current_seed);
+                            fs::create_dir_all(&dir)?;
+                            format!("{}{:08}", dir, frame)
+                        }
+                    };
+                    context.gpu.save_frame(&save_path)?;
                 }
             }
         }

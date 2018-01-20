@@ -18,6 +18,10 @@ pub enum GpuShader {
     Texture(Rc<Texture2d>),
     Voronoi(GpuVoronoi),
     Custom(Rc<Program>),
+    Intermittent {
+        src: Rc<GpuShader>,
+        predicate: Rc<Fn(usize) -> bool>,
+    },
 }
 
 impl GpuShader {
@@ -105,6 +109,14 @@ impl GpuShader {
                     ..Default::default()
                 },
             )?),
+            GpuShader::Intermittent {
+                ref src,
+                ref predicate,
+            } => if predicate(frame) {
+                src.draw(lib, frame, surface, mesh, last)
+            } else {
+                Ok(())
+            },
         }
     }
 }
@@ -130,6 +142,10 @@ pub enum Shader {
     Texture(Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>),
     Voronoi(Vec<VoronoiSite>),
     Custom(Rc<Program>),
+    Intermittent {
+        src: Rc<Shader>,
+        predicate: Rc<Fn(usize) -> bool>,
+    },
 }
 
 impl From<ImageBuffer<Rgb<u8>, Vec<u8>>> for Shader {
@@ -193,6 +209,10 @@ impl Factory<Shader> for GpuShader {
                 }))
             }
             Shader::Custom(program) => Ok(GpuShader::Custom(program)),
+            Shader::Intermittent { src, predicate } => Ok(GpuShader::Intermittent {
+                src: Rc::new(GpuShader::produce(src.as_ref().clone(), gpu.clone())?),
+                predicate,
+            }),
         }
     }
 }
