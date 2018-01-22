@@ -5,6 +5,7 @@ pub struct Library {
     pub default_shader: Program,
     pub texture_shader: Program,
     pub voronoi_shader: Program,
+    pub near_filter: Program,
 }
 
 pub fn load_library(display: &Display) -> Result<Library> {
@@ -25,6 +26,12 @@ pub fn load_library(display: &Display) -> Result<Library> {
             display,
             shader!("default.vert"),
             shader!("voronoi.frag"),
+            None,
+        )?,
+        near_filter: Program::from_source(
+            display,
+            shader!("default.vert"),
+            shader!("near_filter.frag"),
             None,
         )?,
     })

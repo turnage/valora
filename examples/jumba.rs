@@ -68,7 +68,7 @@ impl Jumba {
 }
 
 impl Sketch for Jumba {
-    fn sketch(&self, _: &SketchCfg, mut rng: rand::StdRng) -> Result<Composition> {
+    fn sketch(&self, _: &SketchContext, mut rng: rand::StdRng) -> Result<Composition> {
         let n = rng.gen_range(5, 10) * 2;
         let palette = uniform_palette(
             rng.gen_range(0.0, 360.0),
@@ -118,7 +118,8 @@ fn main() {
     sketch(
         SketchCfg {
             size: 1080,
-            root_frame_filename: Some(String::from("xx")),
+            quality: 4,
+            root_frame_filename: None,//Some(String::from("xx")),
             frame_limit: jumba.period,
             ..SketchCfg::default()
         },

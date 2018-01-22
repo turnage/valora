@@ -6,5 +6,6 @@ out vec2 v_tex_coords;
 
 void main() {
     gl_Position = tweened_position(position);
+    // TODO: make coordinate transformations uniforms
     v_tex_coords = (vec2(gl_Position[0], gl_Position[1]) + 1) / 2;
 }

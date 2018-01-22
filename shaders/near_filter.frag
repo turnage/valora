@@ -2,13 +2,17 @@
 //#include "common.frag"
 
 uniform sampler2D frame;
+uniform uint frame_number;
 
 vec4 pixel(vec2 pos) {
-  return texture(frame, pos);
+	return texture(frame, pos);
+}
+
+ivec2 dimensions() {
+  return textureSize(frame, 0);
 }
 
 in vec2 pixel_position;
-
 out vec4 color;
 
 bool is_pixel(vec2 pos) {
@@ -81,5 +85,6 @@ vec4 closest_neighbor_n(vec2 pos, int start, int step, int n) {
 }
 
 void main() {
-	color = vec4(closest_neighbor_n(pixel_position, 40, 40, 2));
+    ivec2 dims = dimensions();
+	color = vec4(closest_neighbor_n(pixel_position, dims[0] / 1080 * 40, dims[0] / 1080 * 40, dims[0] / 1080 * 2));
 }

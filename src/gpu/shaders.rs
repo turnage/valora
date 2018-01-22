@@ -22,6 +22,7 @@ pub enum GpuShader {
         src: Rc<GpuShader>,
         predicate: Rc<Fn(usize) -> bool>,
     },
+    NearFilter(NearFilterCfg),
 }
 
 impl GpuShader {
@@ -42,6 +43,7 @@ impl GpuShader {
                     scale: mesh.scale,
                     root_center: mesh.root_center,
                     center: mesh.center,
+                    frame_number: frame as u32,
                 },
                 &DrawParameters {
                     smooth: None,
@@ -78,10 +80,15 @@ impl GpuShader {
                         center: mesh.center,
                         root_center: mesh.root_center,
                         scale: mesh.scale,
+                        frame_number: frame as u32,
                         Colors: &gpu_voronoi.colors,
                         Positions: &gpu_voronoi.positions,
                         Strengths: &gpu_voronoi.strengths_buffer,
                         site_count: gpu_voronoi.site_count,
+                        frame: last.unwrap()
+                            .sampled()
+                            .minify_filter(MinifySamplerFilter::Linear)
+                            .magnify_filter(MagnifySamplerFilter::Linear),
                     },
                     &DrawParameters {
                         smooth: None,
@@ -98,6 +105,30 @@ impl GpuShader {
                     center: mesh.center,
                     root_center: mesh.root_center,
                     scale: mesh.scale,
+                    frame_number: frame as u32,
+                    frame: last.unwrap()
+                        .sampled()
+                        .minify_filter(MinifySamplerFilter::Linear)
+                        .magnify_filter(MagnifySamplerFilter::Linear),
+                },
+                &DrawParameters {
+                    smooth: None,
+                    blend: mesh.blend,
+                    ..Default::default()
+                },
+            )?),
+            GpuShader::NearFilter(ref cfg) => Ok(surface.draw(
+                mesh.vertices.as_ref(),
+                mesh.indices.as_ref(),
+                &lib.near_filter,
+                &uniform!{
+                    center: mesh.center,
+                    root_center: mesh.root_center,
+                    scale: mesh.scale,
+                    frame_number: frame as u32,
+                    start: cfg.start.tween(frame) as u32,
+                    step: cfg.step.tween(frame) as u32,
+                    steps: cfg.steps.tween(frame) as u32,
                     frame: last.unwrap()
                         .sampled()
                         .minify_filter(MinifySamplerFilter::Linear)
@@ -137,6 +168,13 @@ pub struct VoronoiSite {
 }
 
 #[derive(Clone)]
+pub struct NearFilterCfg {
+    start: Tween,
+    step: Tween,
+    steps: Tween,
+}
+
+#[derive(Clone)]
 pub enum Shader {
     Default,
     Texture(Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>),
@@ -146,6 +184,7 @@ pub enum Shader {
         src: Rc<Shader>,
         predicate: Rc<Fn(usize) -> bool>,
     },
+    NearFilter(NearFilterCfg),    
 }
 
 impl From<ImageBuffer<Rgb<u8>, Vec<u8>>> for Shader {
@@ -196,7 +235,7 @@ impl Factory<Shader> for GpuShader {
                     }.into_premultiplied();
 
                     colors[i] = [cp.red, cp.green, cp.blue, color.alpha];
-                    positions[i] = [site.x * (width as f32), site.y * (height as f32)];
+                    positions[i] = [site.x, site.y];
                     strengths.push(strength)
                 }
 
@@ -213,6 +252,7 @@ impl Factory<Shader> for GpuShader {
                 src: Rc::new(GpuShader::produce(src.as_ref().clone(), gpu.clone())?),
                 predicate,
             }),
+            Shader::NearFilter(cfg) => Ok(GpuShader::NearFilter(cfg))
         }
     }
 }

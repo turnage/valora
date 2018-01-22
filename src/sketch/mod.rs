@@ -6,7 +6,8 @@ use rand::{random, SeedableRng, StdRng};
 use std::{fs, thread, time};
 use std::rc::Rc;
 use glium::{Program, Surface};
-use glium::texture::Texture2d;
+use glium::texture::Texture2d; 
+use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
 use poly::Rect;
 use mesh::Mesh;
 

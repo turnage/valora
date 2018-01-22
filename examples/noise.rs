@@ -156,7 +156,7 @@ fn main() {
             size: 1080,
             quality: 4,
             still: true,
-            root_frame_filename: Some(String::from("near_filter")),
+            root_frame_filename: None,//Some(String::from("near_filter")),
             ..SketchCfg::default()
         },
         Noise { quality: 4 },
