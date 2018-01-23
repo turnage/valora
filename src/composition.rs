@@ -12,7 +12,9 @@ pub enum Layer {
 
 impl Layer {
     pub fn once<L: Into<LayerInput>>(src: L, render_frame: usize) -> Vec<Layer> {
-        src.into().map(|layer| Layer::freeze_frame(layer, render_frame)).collect()
+        src.into()
+            .map(|layer| Layer::freeze_frame(layer, render_frame))
+            .collect()
     }
 
     fn freeze_frame(src: Layer, render_frame: usize) -> Layer {

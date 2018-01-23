@@ -72,7 +72,7 @@ impl GpuShader {
                     strengths[i] = gpu_voronoi.strengths[i].tween(frame);
                 }
 
-        use glium::{Blend, BlendingFunction, LinearBlendingFactor};
+                use glium::{Blend, BlendingFunction, LinearBlendingFactor};
                 gpu_voronoi.strengths_buffer.write(&strengths);
                 Ok(surface.draw(
                     mesh.vertices.as_ref(),
@@ -188,7 +188,7 @@ pub enum Shader {
         src: Rc<Shader>,
         predicate: Rc<Fn(usize) -> bool>,
     },
-    NearFilter(NearFilterCfg),    
+    NearFilter(NearFilterCfg),
 }
 
 impl From<ImageBuffer<Rgb<u8>, Vec<u8>>> for Shader {
@@ -256,7 +256,7 @@ impl Factory<Shader> for GpuShader {
                 src: Rc::new(GpuShader::produce(src.as_ref().clone(), gpu.clone())?),
                 predicate,
             }),
-            Shader::NearFilter(cfg) => Ok(GpuShader::NearFilter(cfg))
+            Shader::NearFilter(cfg) => Ok(GpuShader::NearFilter(cfg)),
         }
     }
 }

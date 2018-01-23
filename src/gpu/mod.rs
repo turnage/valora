@@ -1,20 +1,17 @@
 mod programs;
 pub mod shaders;
 mod tessellation;
-mod render;
+pub mod render;
 
 pub use self::shaders::*;
 pub use self::tessellation::*;
-pub use self::render::Render;
 
 use color::BlendMode;
 use errors::Result;
-use glium::{glutin, Blend, BlitTarget, Display, IndexBuffer, Rect, Surface, VertexBuffer};
+use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
 use glium::texture::texture2d::Texture2d;
-use glium::uniforms::MagnifySamplerFilter;
-use glium::framebuffer::SimpleFrameBuffer;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
 use poly::Point;
@@ -24,7 +21,7 @@ use self::programs::Library;
 
 pub struct Gpu {
     display: Display,
-    library: Library,
+    pub library: Library,
 }
 
 impl Gpu {
@@ -51,26 +48,6 @@ impl Gpu {
         Ok(())
     }
 
-    pub fn draw_to_texture(
-        &self,
-        textures: [&Texture2d; 2],
-        frame: usize,
-        cmds: Vec<(&GpuShader, &GpuMesh)>,
-    ) -> Result<()> {
-        let mut surfaces = [textures[0].as_surface(), textures[1].as_surface()];
-        for &(ref shader, ref mesh) in cmds.iter() {
-                shader.draw(
-                    &self.library,
-                    frame,
-                &mut surfaces[0],
-                mesh,
-                Some(textures[1]),
-            )?;
-            surfaces[0].fill(&surfaces[1], MagnifySamplerFilter::Linear);
-        }
-        Ok(())
-    }
-
     pub fn save_frame(&self, texture: &Texture2d, filename: &str) -> Result<()> {
         use glium::texture::RawImage2d;
         use image::{DynamicImage, ImageBuffer, ImageFormat};
@@ -78,8 +55,7 @@ impl Gpu {
 
         let image: RawImage2d<u8> = self.display.read_front_buffer();
         let image_data: Vec<u8> = image.data.into_owned();
-        let image =
-            ImageBuffer::from_raw(image.width, image.height, image_data).unwrap();
+        let image = ImageBuffer::from_raw(image.width, image.height, image_data).unwrap();
         let image = DynamicImage::ImageRgba8(image).flipv();
         let mut output = File::create(format!("{}.png", filename))?;
         image.save(&mut output, ImageFormat::PNG).unwrap();
