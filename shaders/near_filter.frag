@@ -1,31 +1,22 @@
 #version 150
-//#include "common.frag"
-
-uniform sampler2D frame;
-uniform uint frame_number;
-
-vec4 pixel(vec2 pos) {
-	return texture(frame, pos);
-}
-
-ivec2 dimensions() {
-  return textureSize(frame, 0);
-}
+#include "common.frag"
+#define NO_DISTANCE 100000
 
 in vec2 pixel_position;
 out vec4 color;
 
+uniform float start;
+uniform float step;
+uniform float sign;
+uniform int steps;
+
 bool is_pixel(vec2 pos) {
-return true;
-//	return pos[0] < 1.0 && pos[0] >= 0.0 && pos[1] < 1.0 && pos[0] >= 0.0;
+	return pos[0] < 1.0 && pos[0] >= 0.0 && pos[1] < 1.0 && pos[0] >= 0.0;
 }
 
 vec4 maybe_pixel(vec2 pos) {
-	if (is_pixel(pos)) {
-		return pixel(pos);
-	} else {
-		return vec4(-10, -10, -10, -10);
-	}
+	ivec2 dims = dimensions();
+	return pixel(ivec2(pos) % dims);
 }
 
 struct Candidate {
@@ -33,9 +24,17 @@ struct Candidate {
 	float distance;
 };
 
+bool candidate_passes(Candidate candidate, vec4 color, vec4 us) {
+	if (candidate.distance == NO_DISTANCE) {
+		return true;
+	}
+	float delta = candidate.distance - length(us - color);
+	return delta * sign > 0;
+}
+
 Candidate consider(vec2 pos, Candidate candidate, vec4 us) {
-	vec4 color = maybe_pixel(pos);
-	if (length(us - color) < candidate.distance) {
+	vec4 color = pixel(pos);
+	if (candidate_passes(candidate, color, us)) {
 		candidate.color = color;
 		candidate.distance = length(color - us);
 	}
@@ -49,7 +48,7 @@ vec4 closest_neighbor(vec2 pos, float distance) {
 
 	Candidate candidate;
 	candidate.color = us;
-	candidate.distance = 10000.0;
+	candidate.distance = NO_DISTANCE;
 
 	candidate = consider(pos - unit, candidate, us);
 	candidate = consider(pos + unit, candidate, us);
@@ -66,16 +65,16 @@ vec4 closest_neighbor(vec2 pos, float distance) {
 	return candidate.color;
 }
 
-vec4 closest_neighbor_n(vec2 pos, int start, int step, int n) {
+vec4 closest_neighbor_n(vec2 pos, float start, float step, int n) {
 	vec4 us = pixel(pos);
 	Candidate candidate;
 	candidate.color = us;
-	candidate.distance = 10000.0;
+	candidate.distance = NO_DISTANCE;
 
 	for (int i = 0; i < n; i++) {
-		float distance = float(i * step + 1 + start);
+		float distance = float(i + 1) * step + signof(step) * start;
 		vec4 color = closest_neighbor(pos, distance);
-		if (length(color - us) < candidate.distance) {
+		if (candidate_passes(candidate, color, us)) {
 			candidate.color = color;
 			candidate.distance = length(color - us);
 		}
@@ -86,5 +85,5 @@ vec4 closest_neighbor_n(vec2 pos, int start, int step, int n) {
 
 void main() {
     ivec2 dims = dimensions();
-	color = vec4(closest_neighbor_n(pixel_position, dims[0] / 1080 * 40, dims[0] / 1080 * 40, dims[0] / 1080 * 2));
+	color = vec4(closest_neighbor_n(pixel_position, float(dims[0]) / 1080.0 * start, float(dims[0]) / 1080.0 * step, steps));
 }

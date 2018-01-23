@@ -43,6 +43,7 @@ impl Gpu {
 
     pub fn draw(&self, frame: usize, cmds: Vec<(&GpuShader, &GpuMesh)>) -> Result<()> {
         let mut surface = self.display.draw();
+        surface.clear_color(0.0, 0.0, 0.0, 1.0);
         for &(ref shader, ref mesh) in cmds.iter() {
             shader.draw(&self.library, frame, &mut surface, mesh, None)?;
         }
@@ -57,39 +58,28 @@ impl Gpu {
         cmds: Vec<(&GpuShader, &GpuMesh)>,
     ) -> Result<()> {
         let mut surfaces = [textures[0].as_surface(), textures[1].as_surface()];
-        let double_buffer = cmds.iter().any(|cmd| match cmd {
-            &(&GpuShader::Custom(_), _) => true,
-            _ => false,
-        });
-        for (i, &(ref shader, ref mesh)) in cmds.iter().enumerate() {
-            if double_buffer {
+        for &(ref shader, ref mesh) in cmds.iter() {
                 shader.draw(
                     &self.library,
                     frame,
-                    &mut surfaces[1],
-                    mesh,
-                    Some(textures[0]),
-                )?;
-            }
-            shader.draw(
-                &self.library,
-                frame,
                 &mut surfaces[0],
                 mesh,
                 Some(textures[1]),
             )?;
+            surfaces[0].fill(&surfaces[1], MagnifySamplerFilter::Linear);
         }
         Ok(())
     }
 
-    pub fn save_frame(&self, filename: &str) -> Result<()> {
+    pub fn save_frame(&self, texture: &Texture2d, filename: &str) -> Result<()> {
         use glium::texture::RawImage2d;
         use image::{DynamicImage, ImageBuffer, ImageFormat};
         use std::fs::File;
 
         let image: RawImage2d<u8> = self.display.read_front_buffer();
+        let image_data: Vec<u8> = image.data.into_owned();
         let image =
-            ImageBuffer::from_raw(image.width, image.height, image.data.into_owned()).unwrap();
+            ImageBuffer::from_raw(image.width, image.height, image_data).unwrap();
         let image = DynamicImage::ImageRgba8(image).flipv();
         let mut output = File::create(format!("{}.png", filename))?;
         image.save(&mut output, ImageFormat::PNG).unwrap();
@@ -218,7 +208,7 @@ impl From<BlendMode> for Blend {
             BlendMode::Subtract => Blend {
                 color: BlendingFunction::Subtraction {
                     source: LinearBlendingFactor::One,
-                    destination: LinearBlendingFactor::One,
+                    destination: LinearBlendingFactor::SourceAlpha,
                 },
                 alpha: BlendingFunction::Addition {
                     source: LinearBlendingFactor::SourceAlpha,

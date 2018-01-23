@@ -71,6 +71,8 @@ impl GpuShader {
                 for i in 0..(gpu_voronoi.site_count as usize) {
                     strengths[i] = gpu_voronoi.strengths[i].tween(frame);
                 }
+
+        use glium::{Blend, BlendingFunction, LinearBlendingFactor};
                 gpu_voronoi.strengths_buffer.write(&strengths);
                 Ok(surface.draw(
                     mesh.vertices.as_ref(),
@@ -126,9 +128,10 @@ impl GpuShader {
                     root_center: mesh.root_center,
                     scale: mesh.scale,
                     frame_number: frame as u32,
-                    start: cfg.start.tween(frame) as u32,
-                    step: cfg.step.tween(frame) as u32,
-                    steps: cfg.steps.tween(frame) as u32,
+                    start: cfg.start.tween(frame),
+                    step: cfg.step.tween(frame),
+                    steps: cfg.steps.tween(frame) as i32,
+                    sign: cfg.sign.tween(frame),
                     frame: last.unwrap()
                         .sampled()
                         .minify_filter(MinifySamplerFilter::Linear)
@@ -169,9 +172,10 @@ pub struct VoronoiSite {
 
 #[derive(Clone)]
 pub struct NearFilterCfg {
-    start: Tween,
-    step: Tween,
-    steps: Tween,
+    pub start: Tween,
+    pub step: Tween,
+    pub steps: Tween,
+    pub sign: Tween,
 }
 
 #[derive(Clone)]

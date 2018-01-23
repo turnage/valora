@@ -16,7 +16,6 @@ struct Noise {
 
 impl Sketch for Noise {
     fn sketch(&self, ctx: &SketchContext, mut rng: StdRng) -> Result<Composition> {
-        let custom = ctx.load_shader(None, shader!("custom.frag"))?;
         let fbm: Fbm<f32> = Fbm::new().set_seed(rng.gen());
         let fbm2: Fbm<f32> = Fbm::new().set_seed(rng.gen());
         let orders: Vec<([[f32; 3]; 3], f32)> = (0..(rng.gen_range(1, 4)))
@@ -87,48 +86,9 @@ impl Sketch for Noise {
             })
             .collect();
         let image = image::ImageBuffer::from_vec(size, size, image_src).unwrap();
-        /*let image = image::ImageBuffer::from_fn(
-            ctx.cfg.size * self.quality,
-            ctx.cfg.size * self.quality,
-            move |x, y| {
-                let sample = |x, y, d| {
-                    let x = x as f32 / (ctx.cfg.size * self.quality) as f32;
-                    let y = y as f32 / (ctx.cfg.size * self.quality) as f32;
-                    let mut p = [x, y, d];
-                    for &(ref offset, q_weight) in &orders {
-                        p = [
-                            p[0] * (1.0 - q_weight)
-                                + q_weight
-                                    * fbm.get([
-                                        p[0] + offset[0][0],
-                                        p[1] + offset[0][1],
-                                        p[2] + offset[0][2],
-                                    ]),
-                            p[1] * (1.0 - q_weight)
-                                + q_weight
-                                    * fbm.get([
-                                        p[0] + offset[1][0],
-                                        p[1] + offset[1][1],
-                                        p[2] + offset[1][2],
-                                    ]),
-                            p[2] * (1.0 - q_weight)
-                                + q_weight
-                                    * fbm.get([
-                                        p[0] + offset[2][0],
-                                        p[1] + offset[2][1],
-                                        p[2] + offset[2][2],
-                                    ]),
-                        ];
-                    }
-                    fbm.get(p)
-                };
-                valora::color::conversions::collapse({
-                    palette::Rgb::new(sample(x, y, 1.0), sample(x, y, 2.0), sample(x, y, 3.0))
-                })
-            },
-        );*/
         Ok(Composition::new()
-            .add(Layer::once(image, 0))
+            .solid_layer(Colorer::white())
+            .add(image)
             .add(
                 sparkles(rng.gen_range(0, 4), &Rect::frame(), &mut rng)
                     .into_iter()
@@ -146,7 +106,16 @@ impl Sketch for Noise {
                     })
                     .collect::<Vec<Mesh>>(),
             )
-            .add(custom))
+            .add(Shader::NearFilter(NearFilterCfg{
+                start: Tween::Constant(40.0),
+                step: Tween::Oscillation(Oscillation {
+                    phase: 0,
+                    period: 100,
+                    amplitude: 50.0,
+                }),
+                steps: Tween::Constant(5.0),
+                sign: Tween::Constant(-1.0),
+            })))
     }
 }
 
@@ -155,8 +124,10 @@ fn main() {
         SketchCfg {
             size: 1080,
             quality: 4,
-            still: true,
-            root_frame_filename: None,//Some(String::from("near_filter")),
+            still: false,
+            frame_limit: 100,
+            seed: Some(8284898890572370643),
+            root_frame_filename: Some(String::from("near_filter_oscillator")),
             ..SketchCfg::default()
         },
         Noise { quality: 4 },

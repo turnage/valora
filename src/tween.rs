@@ -34,6 +34,7 @@ pub struct Keyframe {
 pub struct Oscillation {
     pub phase: usize,
     pub period: usize,
+    pub amplitude: f32,
 }
 
 impl Oscillation {
@@ -42,7 +43,7 @@ impl Oscillation {
 
         let x = frame as f32 - self.phase as f32;
         let x = x * ((2.0 * PI) / (self.period as f32)) - (PI / 2.0);
-        f32::sin(x)
+        f32::sin(x) * self.amplitude
     }
 }
 

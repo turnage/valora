@@ -8,3 +8,11 @@ vec4 pixel(vec2 pos) {
 ivec2 dimensions() {
   return textureSize(frame, 0);
 }
+
+float signof(float x) {
+  if (x < 0) {
+    return -1;
+  }
+
+  return 1;
+}

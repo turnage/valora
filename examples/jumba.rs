@@ -22,6 +22,7 @@ impl Jumba {
             .with_scale(Tween::Oscillation(Oscillation {
                 period: self.period,
                 phase: 0,
+                amplitude: 1.0,
             }));
 
         let ring_points = Ngon {
@@ -95,6 +96,7 @@ impl Sketch for Jumba {
                 strength: Tween::Oscillation(Oscillation {
                     period: self.period / 2,
                     phase: self.period / 2,
+                    amplitude: 1.0,
                 }).chain(|v| {
                     if v.abs() == 0.0 {
                         0.0001
@@ -118,8 +120,8 @@ fn main() {
     sketch(
         SketchCfg {
             size: 1080,
-            quality: 4,
-            root_frame_filename: None,//Some(String::from("xx")),
+            quality: 1,
+            root_frame_filename: Some(String::from("xx")),
             frame_limit: jumba.period,
             ..SketchCfg::default()
         },
