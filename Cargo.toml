@@ -24,6 +24,8 @@ num = "0.1"
 tess2 = "0.3"
 rayon = "0.9"
 noise = "0.4.1"
+structopt = "0.1"
+structopt-derive = "0.1"
 poly = { path = "poly" }
 
 [build-dependencies]

@@ -18,6 +18,9 @@ extern crate num;
 extern crate petgraph;
 extern crate rayon;
 extern crate tess2;
+extern crate structopt;
+#[macro_use]
+extern crate structopt_derive;
 #[macro_use]
 pub extern crate glium;
 #[macro_use]
@@ -59,3 +62,4 @@ pub use transforms::*;
 pub use tween::*;
 pub use pipes::*;
 pub use gpu::shaders::*;
+pub use structopt::StructOpt;

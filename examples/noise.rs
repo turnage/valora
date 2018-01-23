@@ -10,19 +10,11 @@ use valora::image::Pixel;
 use std::rc::Rc;
 use rayon::prelude::*;
 
-const QUALITY: u32 = 4;
+const QUALITY: u32 = 1;
 
 fn main() {
     sketch(
-        SketchCfg {
-            size: 1080,
-            quality: QUALITY,
-            still: false,
-            frame_limit: 100,
-            seed: Some(8284898890572370643),
-            root_frame_filename: Some(String::from("near_filter_oscillator")),
-            ..SketchCfg::default()
-        },
+        SketchCfg::from_args(),
         |ctx: &SketchContext, mut rng: StdRng| -> Result<Composition> {
             let fbm: Fbm<f32> = Fbm::new().set_seed(rng.gen());
             let fbm2: Fbm<f32> = Fbm::new().set_seed(rng.gen());
@@ -51,7 +43,7 @@ fn main() {
                     )
                 })
                 .collect();
-            let size = ctx.cfg.size * QUALITY;
+            let size = ctx.cfg.resolution * QUALITY;
             let sample = |x, y, d| {
                 let x = x as f32 / size as f32;
                 let y = y as f32 / size as f32;
