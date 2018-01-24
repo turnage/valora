@@ -14,10 +14,12 @@ use glium::index::PrimitiveType;
 use glium::texture::texture2d::Texture2d;
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
+use glium::uniforms::EmptyUniforms;
 use poly::Point;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use self::programs::Library;
+use self::render::DrawCmd;
 
 pub struct Gpu {
     display: Display,
@@ -38,12 +40,10 @@ impl Gpu {
         Ok((Self { display, library }, events_loop))
     }
 
-    pub fn draw(&self, frame: usize, cmds: Vec<(&GpuShader, &GpuMesh)>) -> Result<()> {
+    pub fn draw_simple(&self, cmd: DrawCmd) -> Result<()> {
         let mut surface = self.display.draw();
-        surface.clear_color(0.0, 0.0, 0.0, 1.0);
-        for &(ref shader, ref mesh) in cmds.iter() {
-            shader.draw(&self.library, frame, &mut surface, mesh, None)?;
-        }
+        surface.clear_color(1.0, 0.0, 0.0, 1.0);
+        surface.draw(cmd.mesh.vertices.as_ref(), cmd.mesh.indices.as_ref(), &cmd.shader.program, &cmd.shader.uniforms, &Default::default())?;
         surface.finish()?;
         Ok(())
     }

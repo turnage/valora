@@ -18,7 +18,7 @@ fn main() {
         |ctx: &SketchContext, mut rng: StdRng| -> Result<Composition> {
             let noise = Perlin::new().set_seed(rng.gen());
 
-            let grid_size = rng.gen_range(10, 30);
+            let grid_size = rng.gen_range(5, 100);
             let slot_size = 1.0 / grid_size as f32;
             let grid_spawn_points: Vec<Point> = (0..(grid_size*grid_size)).into_iter().map(|i| {
                 let x = i / grid_size;
@@ -35,7 +35,11 @@ fn main() {
 
             let particle = |center: Point, theta| {
                 //let circle = Mesh::from(Ellipse::circle(center, slot_size / 4.0)).with_colorer(Colorer::black());
-                let tail = Mesh::from(Poly::from(Rect::new(center.offset(-slot_size / 4.0), slot_size / 1.2, slot_size / 8.0))).with_colorer(Colorer::black()).with_rotation(Tween::Constant(theta));
+                let tail = Mesh::from(Poly::from(Rect::new(center.offset(-slot_size / 4.0), slot_size / 1.2, slot_size / 8.0))).with_colorer(Colorer::white()).with_rotation(Tween::Oscillation(Oscillation{
+                    phase: 0,
+                    period: 100, 
+                    amplitude: theta
+                }));
                 vec![tail]
             };
 
@@ -43,7 +47,7 @@ fn main() {
             let particles: Vec<Mesh> = grid_spawn_points.iter().zip(directions).flat_map(|(p, theta)| particle(*p, theta)).collect();
 
             Ok(Composition::new()
-                .solid_layer(Colorer::white())
+                .solid_layer(Colorer::blue())
                 .add(Instancer {
                     src: particles[0].clone(),
                     instances: particles

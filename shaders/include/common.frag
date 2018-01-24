@@ -1,12 +1,12 @@
-uniform sampler2D frame;
-uniform uint frame_number;
+uniform sampler2D last;
+uniform uint frame;
 
 vec4 pixel(vec2 pos) {
-	return texture(frame, pos);
+	return texture(last, pos);
 }
 
 ivec2 dimensions() {
-  return textureSize(frame, 0);
+  return textureSize(last, 0);
 }
 
 float signof(float x) {

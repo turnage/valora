@@ -17,7 +17,7 @@ pub struct SketchCfg {
     #[structopt(short = "o", long = "output", help = "Filename for sketch output; directories for animations.")]
     pub output: Option<String>,
 
-    #[structopt(short = "l", long = "limit", help = "Max frames to write to disk for animation.", default_value = "100")]
+    #[structopt(short = "l", long = "limit", help = "Max frames to write to disk for animation.", default_value = "0")]
     pub frame_limit: usize,
 
     #[structopt(short = "s", long = "seed", help = "Seed for the sketch rng.")]
@@ -37,22 +37,6 @@ pub struct SketchContext {
     pub cfg: SketchCfg,
     pub gpu: Rc<Gpu>,
     pub current_seed: usize,
-}
-
-impl SketchContext {
-    pub fn load_shader(
-        &self,
-        vert_src: Option<&'static str>,
-        frag_src: &'static str,
-    ) -> Result<Shader> {
-        Program::from_source(
-            self.gpu.as_ref(),
-            vert_src.unwrap_or(shader!("default.vert")),
-            frag_src,
-            None,
-        ).map(Into::into)
-            .map_err(Into::into)
-    }
 }
 
 pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
@@ -104,7 +88,7 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
             render = render.step(frame)?;
             context
                 .gpu
-                .draw(frame, render.render(&context.gpu.library, frame)?)?;
+                .draw_simple(render.render(frame)?)?;
             if let Some(ref root_frame_filename) = context.cfg.output {
                 if frame < context.cfg.frame_limit {
                     let save_path = match context.cfg.still || context.cfg.frame_limit == 1 {

@@ -42,7 +42,7 @@ Candidate consider(vec2 pos, Candidate candidate, vec4 us) {
 }
 
 vec4 closest_neighbor(vec2 pos, float distance) {
-	ivec2 dims = textureSize(frame, 0);
+	ivec2 dims = textureSize(last, 0);
 	vec2 unit = vec2(1.0 / float(dims[0]), 1.0 / float(dims[1])) * distance;
 	vec4 us = pixel(pos);
 

@@ -1,9 +1,14 @@
 #version 150
 
+in float scale;
+in vec2 center;
+in vec2 root_center;
+in float rotation;
+/*
 uniform float scale;
 uniform vec2 center;
 uniform vec2 root_center;
-uniform float rotation;
+uniform float rotation;*/
 
 vec4 tweened_position(vec2 position) {
     vec2 offset = (position - root_center) * scale;
