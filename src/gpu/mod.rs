@@ -12,10 +12,9 @@ use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
 use glium::texture::texture2d::Texture2d;
-use mesh::{DrawMode, Mesh};
+use mesh::{Mesh};
 use palette::Colora;
-use glium::uniforms::EmptyUniforms;
-use poly::Point;
+use poly::{Point, Poly};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use self::programs::Library;
@@ -146,6 +145,10 @@ impl GpuVertex {
     fn fix_coord(coord: f32) -> f32 {
         (coord * Self::WORLD_FACTOR) - Self::WORLD_OFFSET
     }
+
+    pub fn unfix_point(point: Point) -> Point {
+        point.offset(Self::WORLD_OFFSET) / Self::WORLD_FACTOR
+    }
 }
 
 impl From<(Point, Colora)> for GpuVertex {
@@ -220,10 +223,6 @@ impl From<BlendMode> for Blend {
 
 #[derive(Clone)]
 pub struct GpuMesh {
-    pub root_center: [f32; 2],
-    pub center: [f32; 2],
-    pub scale: f32,
-    pub rotation: f32,
     pub vertices: Rc<VertexBuffer<GpuVertex>>,
     pub indices: Rc<IndexBuffer<u32>>,
     pub blend: Blend,
@@ -231,18 +230,8 @@ pub struct GpuMesh {
 
 impl Factory<Mesh> for GpuMesh {
     fn produce(spec: Mesh, gpu: Rc<Gpu>) -> Result<Self> {
-        let tessellation = match spec.draw_mode {
-            DrawMode::Fill => tessellate_fill(&spec.src, spec.colorer)?,
-            DrawMode::Stroke { thickness } => {
-                tessellate_stroke(&spec.src, thickness, spec.colorer)?
-            }
-        };
-        let center = GpuVertex::fix_point(spec.src.center());
+        let tessellation = tessellate(&spec)?;
         Ok(GpuMesh {
-            center: [center.x, center.y],
-            root_center: [center.x, center.y],
-            scale: 1.0,
-            rotation: 0.0,
             vertices: Rc::new(VertexBuffer::new(
                 gpu.as_ref(),
                 tessellation.vertices.as_slice(),
@@ -253,6 +242,24 @@ impl Factory<Mesh> for GpuMesh {
                 tessellation.indices.as_slice(),
             )?),
             blend: Blend::from(spec.blend_mode),
+        })
+    }
+}
+
+impl<'a> Factory<&'a [Mesh]> for GpuMesh {
+    fn produce(specs: &[Mesh], gpu: Rc<Gpu>) -> Result<Self> {
+        let tessellation = specs.iter().map(|spec| tessellate(spec)).collect::<Result<Tessellation>>()?;
+        Ok(GpuMesh {
+            vertices: Rc::new(VertexBuffer::new(
+                gpu.as_ref(),
+                tessellation.vertices.as_slice(),
+            )?),
+            indices: Rc::new(IndexBuffer::new(
+                gpu.as_ref(),
+                PrimitiveType::TrianglesList,
+                tessellation.indices.as_slice(),
+            )?),
+            blend: Blend::from(specs[0].blend_mode)
         })
     }
 }

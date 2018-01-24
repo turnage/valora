@@ -146,16 +146,20 @@ impl Poly {
             Poly::Ellipse(ellipse) => Poly::Ellipse(ellipse),
             Poly::Rect(rect) => Poly::Irregular(Poly::Rect(rect).vertices()).rotate(phase),
             Poly::Ngon(ngon) => Poly::Ngon(Ngon {
-                phase: ngon.phase + phase,
+                phase: phase,
                 ..ngon
             }),
             Poly::Irregular(vertices) => {
                 let center = Poly::Irregular(vertices.clone()).center();
+                let theta = |v: Point| {
+                    let delta = v - center;
+                    delta.y.atan2(delta.x)
+                };
+                let phase_offset = theta(vertices[0]);
                 Poly::Irregular(
                     vertices.into_iter()
                             .map(|v| {
-                                let delta = v - center;
-                                let theta = delta.y.atan2(delta.x);
+                                let theta = theta(v) - phase_offset;
                                 let theta = theta + phase;
                                 Ellipse::circle(center, v.distance(&center)).circumpoint(theta)
                             })

@@ -1,7 +1,8 @@
-use color::{BlendMode, Colorer};
+use color::{BlendMode};
 use poly::Poly;
 use generators::{SpawnCfg, Spawner};
 use tween::Tween;
+use palette::Colora;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DrawMode {
@@ -9,10 +10,10 @@ pub enum DrawMode {
     Stroke { thickness: f32 },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Mesh {
     pub src: Poly,
-    pub colorer: Colorer,
+    pub color: Colora,
     pub blend_mode: BlendMode,
     pub draw_mode: DrawMode,
     pub scale: Tween,
@@ -32,7 +33,7 @@ impl<T: Into<Poly>> From<T> for Mesh {
         let origin = src.center();
         Self {
             src,
-            colorer: Colorer::empty(),
+            color: Colora::rgb(1.0, 0.0, 0.0, 1.0),
             blend_mode: BlendMode::Normal,
             draw_mode: DrawMode::Fill,
             scale: Tween::Constant(1.0),
@@ -53,7 +54,7 @@ macro_rules! with {
     }
 }
 
-with!(with_colorer, colorer, Colorer);
+with!(with_color, color, Colora);
 with!(with_blend_mode, blend_mode, BlendMode);
 with!(with_draw_mode, draw_mode, DrawMode);
 with!(with_scale, scale, Tween);

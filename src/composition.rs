@@ -1,12 +1,14 @@
-use color::Colorer;
 use gpu::Shader;
 use mesh::{Mesh, Instancer};
 use poly::Rect;
+use palette::Colora;
 use std::mem::swap;
 
+#[derive(Debug)]
 pub enum Layer {
     Mesh { shader: Shader, mesh: Mesh },
-    MeshGroup { shader: Shader, src: Mesh, meshes: Vec<Mesh> },
+    MeshGroup { shader: Shader, meshes: Vec<Mesh> },
+    MeshInstances { shader: Shader, src: Mesh, meshes: Vec<Mesh> },
 }
 
 impl From<Mesh> for Layer {
@@ -17,7 +19,7 @@ impl From<Mesh> for Layer {
 
 impl From<Instancer> for Layer {
     fn from(instancer: Instancer) -> Self {
-        Layer::MeshGroup {shader: Shader::Default, src: instancer.src, meshes: instancer.instances }
+        Layer::MeshInstances {shader: Shader::Default, src: instancer.src, meshes: instancer.instances }
     }
 }
 
@@ -44,15 +46,28 @@ pub enum LayerInput {
     Many(Vec<Layer>),
 }
 
-impl<T: Into<Layer>> From<T> for LayerInput {
-    fn from(t: T) -> Self {
-        LayerInput::Single(t.into())
+impl From<Vec<Mesh>> for LayerInput {
+    fn from(meshes: Vec<Mesh>) -> Self {
+         let mut layers = Vec::new();
+         let mut meshes_in_layer: Vec<Mesh> = Vec::new();
+         for mesh in meshes {
+            if meshes_in_layer.is_empty() || meshes_in_layer[0].blend_mode == mesh.blend_mode {
+                meshes_in_layer.push(mesh);
+            } else {
+                layers.push(Layer::MeshGroup { shader: Shader::Default, meshes: meshes_in_layer });
+                meshes_in_layer = Vec::new();
+            }
+         }
+         if !meshes_in_layer.is_empty() {
+            layers.push(Layer::MeshGroup { shader: Shader::Default, meshes: meshes_in_layer });
+         }
+         LayerInput::Many(layers)
     }
 }
 
-impl<T: Into<Layer>> From<Vec<T>> for LayerInput {
-    fn from(ts: Vec<T>) -> Self {
-        LayerInput::Many(ts.into_iter().map(Into::into).collect())
+impl<T: Into<Layer>> From<T> for LayerInput {
+    fn from(t: T) -> Self {
+        LayerInput::Single(t.into())
     }
 }
 
@@ -86,12 +101,12 @@ impl Composition {
         Self::default()
     }
 
-    pub fn solid_layer(self, colorer: Colorer) -> Self {
-        self.add(Mesh::from(Rect::frame()).with_colorer(colorer))
+    pub fn solid_layer(self, color: Colora) -> Self {
+        self.add(Mesh::from(Rect::frame()).with_color(color))
     }
 
-    pub fn add<L: Into<Layer>>(mut self, layer: L) -> Self {
-        self.layers.push(layer.into());
+    pub fn add<L: Into<LayerInput>>(mut self, layer: L) -> Self {
+        self.layers.extend(layer.into());
         self
     }
 

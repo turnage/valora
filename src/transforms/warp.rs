@@ -20,6 +20,13 @@ pub enum WarpExpansion {
     Neutral,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum WarpAxis {
+    X,
+    Y,
+    Both
+}
+
 #[derive(Clone)]
 pub struct WarpCfg {
     /// Whether the warp of a given vertex should have a strength proportional
@@ -39,6 +46,7 @@ pub struct WarpCfg {
     pub spatial_adapter: Option<Rc<Fn(Point) -> f32>>,
     /// Which direction the warped vertices may move relative to centroid.
     pub expansion: WarpExpansion,
+    pub axis: WarpAxis,
     /// Strength factors to use on vertices; expanded to the whole vertex list
     /// so if there are two elements, the first applies to the first half of
     /// warped vertices, the next to the second half, and so on. When there are
@@ -55,6 +63,7 @@ impl Default for WarpCfg {
             share_sample: false,
             spatial_adapter: None,
             expansion: WarpExpansion::Outward,
+            axis: WarpAxis::Both,
             custom_factors: Vec::new(),
         }
     }
@@ -105,7 +114,17 @@ pub fn warp<R: Rng>(poly: Poly, cfg: &WarpCfg, rng: &mut R) -> Poly {
                         WarpExpansion::Outward => delta.abs() * out_sign,
                         WarpExpansion::Neutral => delta,
                     };
-                    v + delta
+                    match cfg.axis {
+                        WarpAxis::Both => v + delta,
+                        WarpAxis::X => v + Point {
+                            x: delta.x,
+                            y: 0.0
+                        },
+                        WarpAxis::Y => v + Point {
+                            x: 0.0,
+                            y: delta.y
+                        }
+                    }
                 }
                 _ => v,
             })

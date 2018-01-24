@@ -1,4 +1,4 @@
-use color::{BlendMode, Colorer};
+use color::{BlendMode};
 use generators::spawner::{SpawnCfg, SpawnSrc, Spawner};
 use mesh::{DrawMode, Mesh};
 use palette::Colora;
@@ -121,7 +121,7 @@ impl Spawner<Mesh> for WaterColor {
             ),
         };
         Mesh::from(src.place(cfg.point))
-            .with_colorer(Colorer::from(self.cfg.color))
+            .with_color(self.cfg.color)
             .with_draw_mode(self.cfg.draw_mode)
             .with_blend_mode(self.cfg.blend_mode)
     }

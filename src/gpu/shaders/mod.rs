@@ -58,7 +58,7 @@ impl Uniforms for GpuUniforms {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NearFilterCfg {
     pub start: Tween,
     pub step: Tween,
@@ -66,7 +66,7 @@ pub struct NearFilterCfg {
     pub sign: Tween,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Shader {
     Default,
     Texture(Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>),

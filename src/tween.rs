@@ -1,11 +1,21 @@
-use std::rc::Rc;
+use std::sync::{Mutex,Arc};
+use std::fmt;
 
 #[derive(Clone)]
 pub enum Tween {
     Keyframes(Vec<Keyframe>),
     Oscillation(Oscillation),
     Constant(f32),
-    Function(Rc<Fn(usize) -> f32>),
+}
+
+impl fmt::Debug for Tween {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Tween::Keyframes(ref keyframes) => unimplemented!(),
+            Tween::Oscillation(ref oscillation) => oscillation.fmt(f),
+            Tween::Constant(v) => v.fmt(f),
+        }
+    }
 }
 
 impl Tween {
@@ -14,12 +24,7 @@ impl Tween {
             Tween::Keyframes(ref keyframes) => unimplemented!(),
             Tween::Oscillation(ref oscillation) => oscillation.oscillate(frame),
             Tween::Constant(v) => v,
-            Tween::Function(ref f) => f(frame),
         }
-    }
-
-    pub fn chain<F: 'static + Fn(f32) -> f32>(self, f: F) -> Self {
-        Tween::Function(Rc::new(move |frame| f(self.tween(frame))))
     }
 }
 
