@@ -1,7 +1,7 @@
-use gpu::{Factory, Gpu, GpuMesh};
+use gpu::{Factory, Gpu, GpuMesh, GpuVertex};
 use std::rc::Rc;
 use composition::{Composition, Layer};
-use gpu::shaders::{GpuShader, Shader};
+use gpu::shaders::{GpuShader};
 use mesh::Mesh;
 use glium::Surface;
 use glium::texture::{MipmapsOption, Texture2d, UncompressedFloatFormat};
@@ -9,6 +9,7 @@ use glium::uniforms::MagnifySamplerFilter;
 use errors::Result;
 use poly::Rect;
 use gpu::programs::Library;
+use itertools::Itertools;
 
 pub struct GpuLayer {
     src: Mesh,
@@ -16,23 +17,39 @@ pub struct GpuLayer {
     cached_mesh: GpuMesh,
 }
 
-impl Factory<Layer> for GpuLayer {
-    fn produce(spec: Layer, gpu: Rc<Gpu>) -> Result<GpuLayer> {
-        let (shader, mesh) = match spec {
-            Layer::Mesh(mesh) => (Shader::Default, mesh),
-            Layer::ShadedMesh { shader, mesh } => (shader, mesh),
+impl Factory<Layer> for Vec<GpuLayer> {
+    fn produce(spec: Layer, gpu: Rc<Gpu>) -> Result<Vec<GpuLayer>> {
+        let (shader, mesh, instances) = match spec {
+            Layer::Mesh { shader, mesh } => (shader, mesh, None),
+            Layer::MeshGroup { shader, src, meshes } => (shader, src, Some(meshes))
         };
-        Ok(GpuLayer {
+        let layer = GpuLayer {
             shader: GpuShader::produce(shader, gpu.clone())?,
             cached_mesh: GpuMesh::produce(mesh.clone(), gpu.clone())?,
             src: mesh,
-        })
+        };
+        if let Some(instances) = instances {
+            Ok(instances.into_iter().map(|instance| {
+                GpuLayer {
+                    src: instance,
+                    shader: layer.shader.clone(),
+                    cached_mesh: layer.cached_mesh.clone(),
+                }
+            }).collect::<Vec<GpuLayer>>())
+        } else {
+            Ok(vec![layer])
+        }
     }
 }
 
 impl GpuLayer {
     pub fn step(mut self, frame: usize) -> Result<Self> {
         self.cached_mesh.scale = self.src.scale.tween(frame);
+        self.cached_mesh.center = [
+            GpuVertex::fix_coord(self.src.origin_x.tween(frame)),
+            GpuVertex::fix_coord(self.src.origin_y.tween(frame)),
+        ];
+        self.cached_mesh.rotation = self.src.rotation.tween(frame);
         Ok(self)
     }
     pub fn render<'a>(&'a self) -> (&'a GpuShader, &'a GpuMesh) {
@@ -124,8 +141,11 @@ impl Factory<RenderSpec> for Render {
             layers: spec.composition
                 .layers()
                 .into_iter()
-                .map(|l| GpuLayer::produce(l, gpu.clone()))
-                .collect::<Result<Vec<GpuLayer>>>()?,
+                .map(|l| -> Result<Vec<GpuLayer>> {Factory::produce(l, gpu.clone())})
+                .fold_results(Vec::new(), |mut acc, mut r| {
+                    acc.append(&mut r);
+                    acc
+                })?,
             buffer: Buffer::produce(
                 BufferSpec {
                     width: spec.width,

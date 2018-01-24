@@ -1,49 +1,29 @@
 use color::Colorer;
 use gpu::Shader;
-use mesh::Mesh;
+use mesh::{Mesh, Instancer};
 use poly::Rect;
 use std::mem::swap;
-use std::rc::Rc;
 
 pub enum Layer {
-    Mesh(Mesh),
-    ShadedMesh { shader: Shader, mesh: Mesh },
-}
-
-impl Layer {
-    pub fn once<L: Into<LayerInput>>(src: L, render_frame: usize) -> Vec<Layer> {
-        src.into()
-            .map(|layer| Layer::freeze_frame(layer, render_frame))
-            .collect()
-    }
-
-    fn freeze_frame(src: Layer, render_frame: usize) -> Layer {
-        let wrap_shader = |shader| Shader::Intermittent {
-            src: Rc::new(shader),
-            predicate: Rc::new(move |current_frame| current_frame == render_frame),
-        };
-        match src {
-            Layer::Mesh(mesh) => Layer::ShadedMesh {
-                shader: wrap_shader(Shader::Default),
-                mesh,
-            },
-            Layer::ShadedMesh { shader, mesh } => Layer::ShadedMesh {
-                shader: wrap_shader(shader),
-                mesh,
-            },
-        }
-    }
+    Mesh { shader: Shader, mesh: Mesh },
+    MeshGroup { shader: Shader, src: Mesh, meshes: Vec<Mesh> },
 }
 
 impl From<Mesh> for Layer {
     fn from(mesh: Mesh) -> Self {
-        Layer::Mesh(mesh)
+        Layer::Mesh {shader: Shader::Default, mesh }
+    }
+}
+
+impl From<Instancer> for Layer {
+    fn from(instancer: Instancer) -> Self {
+        Layer::MeshGroup {shader: Shader::Default, src: instancer.src, meshes: instancer.instances }
     }
 }
 
 impl<S: Into<Shader>> From<S> for Layer {
     fn from(shader_src: S) -> Self {
-        Layer::ShadedMesh {
+        Layer::Mesh {
             shader: shader_src.into(),
             mesh: Mesh::from(Rect::frame()),
         }
@@ -52,7 +32,7 @@ impl<S: Into<Shader>> From<S> for Layer {
 
 impl<S: Into<Shader>> From<(S, Mesh)> for Layer {
     fn from((shader, mesh): (S, Mesh)) -> Self {
-        Layer::ShadedMesh {
+        Layer::Mesh {
             shader: shader.into(),
             mesh,
         }
@@ -110,8 +90,8 @@ impl Composition {
         self.add(Mesh::from(Rect::frame()).with_colorer(colorer))
     }
 
-    pub fn add<L: Into<LayerInput>>(mut self, layer: L) -> Self {
-        self.layers.extend(layer.into());
+    pub fn add<L: Into<Layer>>(mut self, layer: L) -> Self {
+        self.layers.push(layer.into());
         self
     }
 

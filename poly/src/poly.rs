@@ -141,6 +141,30 @@ impl Poly {
         }
     }
 
+    pub fn rotate(self, phase: f32) -> Self {
+        match self {
+            Poly::Ellipse(ellipse) => Poly::Ellipse(ellipse),
+            Poly::Rect(rect) => Poly::Irregular(Poly::Rect(rect).vertices()).rotate(phase),
+            Poly::Ngon(ngon) => Poly::Ngon(Ngon {
+                phase: ngon.phase + phase,
+                ..ngon
+            }),
+            Poly::Irregular(vertices) => {
+                let center = Poly::Irregular(vertices.clone()).center();
+                Poly::Irregular(
+                    vertices.into_iter()
+                            .map(|v| {
+                                let delta = v - center;
+                                let theta = delta.y.atan2(delta.x);
+                                let theta = theta + phase;
+                                Ellipse::circle(center, v.distance(&center)).circumpoint(theta)
+                            })
+                            .collect()
+                )
+            }
+        }
+    }
+
     pub fn perimeter(&self) -> f32 {
         match *self {
             Poly::Ellipse(ref ellipse) => match ellipse.height {

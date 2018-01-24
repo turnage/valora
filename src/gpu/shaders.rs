@@ -13,10 +13,11 @@ use tween::Tween;
 
 pub const MAX_VORONOI_SITES: usize = 1024;
 
+#[derive(Clone)]
 pub enum GpuShader {
     Default,
     Texture(Rc<Texture2d>),
-    Voronoi(GpuVoronoi),
+    Voronoi(Rc<GpuVoronoi>),
     Custom(Rc<Program>),
     Intermittent {
         src: Rc<GpuShader>,
@@ -43,6 +44,7 @@ impl GpuShader {
                     scale: mesh.scale,
                     root_center: mesh.root_center,
                     center: mesh.center,
+                    rotation: mesh.rotation,
                     frame_number: frame as u32,
                 },
                 &DrawParameters {
@@ -59,6 +61,7 @@ impl GpuShader {
                     scale: mesh.scale,
                     root_center: mesh.root_center,
                     center: mesh.center,
+                    rotation: mesh.rotation,
                     tex: texture
                       .sampled()
                       .minify_filter(MinifySamplerFilter::Linear)
@@ -72,7 +75,6 @@ impl GpuShader {
                     strengths[i] = gpu_voronoi.strengths[i].tween(frame);
                 }
 
-                use glium::{Blend, BlendingFunction, LinearBlendingFactor};
                 gpu_voronoi.strengths_buffer.write(&strengths);
                 Ok(surface.draw(
                     mesh.vertices.as_ref(),
@@ -82,6 +84,7 @@ impl GpuShader {
                         center: mesh.center,
                         root_center: mesh.root_center,
                         scale: mesh.scale,
+                        rotation: mesh.rotation,
                         frame_number: frame as u32,
                         Colors: &gpu_voronoi.colors,
                         Positions: &gpu_voronoi.positions,
@@ -107,6 +110,7 @@ impl GpuShader {
                     center: mesh.center,
                     root_center: mesh.root_center,
                     scale: mesh.scale,
+                    rotation: mesh.rotation,
                     frame_number: frame as u32,
                     frame: last.unwrap()
                         .sampled()
@@ -127,6 +131,7 @@ impl GpuShader {
                     center: mesh.center,
                     root_center: mesh.root_center,
                     scale: mesh.scale,
+                    rotation: mesh.rotation,
                     frame_number: frame as u32,
                     start: cfg.start.tween(frame),
                     step: cfg.step.tween(frame),
@@ -223,7 +228,6 @@ impl Factory<Shader> for GpuShader {
                 let mut positions = [[0f32, 0.0]; MAX_VORONOI_SITES];
                 let mut strengths = Vec::new();
                 let site_count = sites.len() as u32;
-                let (height, width) = gpu.display.get_framebuffer_dimensions();
                 for (
                     i,
                     VoronoiSite {
@@ -243,13 +247,13 @@ impl Factory<Shader> for GpuShader {
                     strengths.push(strength)
                 }
 
-                Ok(GpuShader::Voronoi(GpuVoronoi {
+                Ok(GpuShader::Voronoi(Rc::new(GpuVoronoi {
                     positions: UniformBuffer::new(gpu.as_ref(), positions)?,
                     colors: UniformBuffer::new(gpu.as_ref(), colors)?,
                     strengths_buffer: UniformBuffer::new(gpu.as_ref(), [0.0; MAX_VORONOI_SITES])?,
                     strengths,
                     site_count,
-                }))
+                })))
             }
             Shader::Custom(program) => Ok(GpuShader::Custom(program)),
             Shader::Intermittent { src, predicate } => Ok(GpuShader::Intermittent {

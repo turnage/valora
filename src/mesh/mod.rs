@@ -18,6 +18,12 @@ pub struct Mesh {
     pub scale: Tween,
     pub origin_y: Tween,
     pub origin_x: Tween,
+    pub rotation: Tween,
+}
+
+pub struct Instancer {
+    pub src: Mesh,
+    pub instances: Vec<Mesh>
 }
 
 impl<T: Into<Poly>> From<T> for Mesh {
@@ -32,6 +38,7 @@ impl<T: Into<Poly>> From<T> for Mesh {
             scale: Tween::Constant(1.0),
             origin_y: Tween::Constant(origin.y),
             origin_x: Tween::Constant(origin.x),
+            rotation: Tween::Constant(0.0),
         }
     }
 }
@@ -52,6 +59,7 @@ with!(with_draw_mode, draw_mode, DrawMode);
 with!(with_scale, scale, Tween);
 with!(with_origin_y, origin_y, Tween);
 with!(with_origin_x, origin_x, Tween);
+with!(with_rotation, rotation, Tween);
 
 impl Spawner<Mesh> for Mesh {
     fn spawn(&self, cfg: SpawnCfg) -> Self {

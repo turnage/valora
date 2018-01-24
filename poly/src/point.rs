@@ -17,6 +17,13 @@ impl Point {
     pub fn center() -> Point {
         Point { x: 0.5, y: 0.5 }
     }
+
+    pub fn offset(self, offset: f32) -> Point {
+        Point {
+            x: self.x + offset,
+            y: self.y + offset,
+        }
+    }
 }
 
 impl Default for Point {

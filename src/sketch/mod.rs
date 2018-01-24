@@ -83,13 +83,12 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
 
     let mut cycle = Gpu::events(events_loop);
     while let Some((events_loop, events)) = cycle {
-        if events
+        if let Some(_) = events
             .iter()
             .find(|event| match **event {
                 WindowEvent::ReceivedCharacter('r') => true,
                 _ => false,
             })
-            .is_some() || (context.cfg.still && frame > 30)
         {
             context.current_seed = random();
             frame = 0;
