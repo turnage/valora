@@ -20,20 +20,19 @@ fn main() {
         |ctx: &SketchContext, mut rng: StdRng| -> Result<Composition> {
             let noise = Perlin::new().set_seed(rng.gen());
 
-            let palette = uniform_palette(rng.gen_range(0.0, 360.0), rng.gen_range(0.0, 60.0), rng.gen_range(0.2, 1.0), rng.gen_range(0.7, 1.0), 1.0, rng.gen_range(3, 5));
+            let palette = uniform_palette(rng.gen_range(0.0, 360.0), rng.gen_range(30.0, 90.0), rng.gen_range(0.2, 1.0), rng.gen_range(0.7, 1.0), 1.0, rng.gen_range(1, 5));
 
-            let grid_size = rng.gen_range(20, 60);
-            let slot_size = 1.0 / grid_size as f32;
-            let grid_spawn_points: Vec<Point> = (0..(grid_size*grid_size)).into_iter().map(|i| {
-                let x = i / grid_size;
-                let y = i % grid_size;
-                let bottom_left = Point {
-                    x: x as f32 * slot_size,
-                    y: y as f32 * slot_size,
-                };
-                Rect::square(bottom_left, slot_size).center()
-            }).collect();
-            let gridfree_points = sparkles(rng.gen_range(0, grid_size * grid_size), &Rect::frame(), &mut rng);
+            let grid_size = rng.gen_range(5, 30);
+            let grid_border = rng.gen_range(0.02, 0.3);
+            let slot_size = (1.0 - grid_border) / grid_size as f32;
+            let grid_spawn_points = grid(&GridCfg{
+                points: GridPoints::Centers,
+                width: 1.0 - grid_border,
+                height: 1.0 - grid_border,
+                tiles_wide: grid_size,
+                tiles_high: grid_size,
+                center: Point::center() 
+            });
 
             let noise_samples = grid_spawn_points.iter().map(|p| noise.get([p.x, p.y]));
             let directions = noise_samples.map(|s| s * 2.0 * PI);
@@ -45,11 +44,13 @@ fn main() {
                 };
             let warper = |poly: Poly, rng: &mut StdRng| -> Poly { warp(poly, &warp_cfg, rng).subdivide_edges() };
             let mut stroke = |center: Point, theta| {
+                let rect_width = slot_size / 1.2;
+                let rect_height = slot_size / 1.8;
                 let rect =  Poly::from(Rect::new(
-                        center.offset(-slot_size / 4.0),
-                        slot_size / 1.2,
-                        slot_size / 8.0));
-                let stroke = iterate_rand(rect, 4, &mut rng, &warper);
+                        center,
+                        rect_width,
+                        rect_height)).place(center);
+                let stroke = iterate_rand(rect, rng.gen_range(0, 5), &mut rng, &warper).place(center);
                 let tail = Mesh::from(stroke).with_color(*rng.choose(palette.as_ref()).unwrap()).with_rotation(Tween::Oscillation(
                     Oscillation {
                         phase: 0, 
@@ -59,11 +60,11 @@ fn main() {
                 vec![
                     tail.clone(),
                     tail.with_color(Colora::rgb(0.0, 0.0, 0.0, 1.0))
-                        .with_draw_mode(DrawMode::Stroke { thickness: slot_size / 16.0 })
+                        .with_draw_mode(DrawMode::Stroke { thickness: (rect_width * rect_height).sqrt() / rng.gen_range(4.0, 15.0) })
                 ]
             };
 
-            let (strokes, stroke_borders): (Vec<Mesh>, Vec<Mesh>) = grid_spawn_points.iter().map(|p| *p).chain(gridfree_points).zip(directions).flat_map(|(p, theta)| stroke(p, theta)).map(|s| s.with_scale(
+            let (strokes, stroke_borders): (Vec<Mesh>, Vec<Mesh>) = grid_spawn_points.iter().zip(directions).flat_map(|(p, theta)| stroke(*p, theta)).map(|s| s.with_scale(
                 Tween::Oscillation(Oscillation{
                     amplitude: slot_size * 6.0,
                     phase: 0,
@@ -75,7 +76,7 @@ fn main() {
             });
 
             Ok(Composition::new()
-                .solid_layer(Colora::hsv(RgbHue::from(0.0), 0.05, 0.8, 1.0))
+                .solid_layer(Colora::hsv(RgbHue::from(184.0), 0.2, 0.8, 1.0))
                 .add(Instancer {
                     src: strokes[0].clone(),
                     instances: strokes

@@ -45,6 +45,7 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
 ) -> Result<()> {
     let (gpu, events_loop) = Gpu::new(cfg.resolution)?;
     let current_seed = cfg.seed.unwrap_or(random());
+    println!("Using seed: {}", current_seed);
     let mut context = SketchContext {
         cfg,
         gpu: Rc::new(gpu),
@@ -75,6 +76,7 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
             })
         {
             context.current_seed = random();
+            println!("Using seed: {}", context.current_seed);            
             frame = 0;
             render = Render::produce(
                 RenderSpec {

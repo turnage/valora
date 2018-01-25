@@ -34,7 +34,7 @@ impl<'a, 'b> Uniforms for UniformFacade<'a, 'b> {
         f("last", UniformValue::Texture2d(self.last, Some(SamplerBehavior{
                     wrap_function: (SamplerWrapFunction::Mirror, SamplerWrapFunction::Mirror, SamplerWrapFunction::Mirror),
                     magnify_filter: MagnifySamplerFilter::Linear,
-                    minify_filter: MinifySamplerFilter::Linear,
+                    minify_filter: MinifySamplerFilter::LinearMipmapLinear,
                     max_anisotropy: 4,
                 })));
         f("frame", self.frame.as_uniform_value());

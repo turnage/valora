@@ -11,7 +11,8 @@ use errors::Result;
 use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
-use glium::texture::texture2d::Texture2d;
+use glium::texture::texture2d::{Texture2d};
+use glium::texture::srgb_texture2d::{SrgbTexture2d};
 use mesh::{Mesh};
 use palette::Colora;
 use poly::{Point, Poly};
@@ -32,7 +33,7 @@ impl Gpu {
             .with_title("Valora".to_string())
             .with_dimensions(size, size);
         let context = glutin::ContextBuilder::new()
-            .with_multisampling(16)
+            .with_srgb(true)
             .with_vsync(true);
         let display = Display::new(window, context, &events_loop)?;
         let library = programs::load_library(&display)?;
@@ -52,12 +53,20 @@ impl Gpu {
         use image::{DynamicImage, ImageBuffer, ImageFormat};
         use std::fs::File;
 
+        let (width, height) = self.display.get_framebuffer_dimensions();
         let image: RawImage2d<u8> = self.display.read_front_buffer();
         let image_data: Vec<u8> = image.data.into_owned();
-        let image = ImageBuffer::from_raw(image.width, image.height, image_data).unwrap();
+        let image = ImageBuffer::from_raw(width, height, image_data).unwrap();
         let image = DynamicImage::ImageRgba8(image).flipv();
         let mut output = File::create(format!("{}.png", filename))?;
         image.save(&mut output, ImageFormat::PNG).unwrap();
+
+        /*let tex_img: RawImage2d<u8> = texture.read();
+        let tex_data: Vec<u8> = tex_img.data.into_owned();
+        let tex_img = ImageBuffer::from_raw(tex_img.width, tex_img.height, tex_data).unwrap();
+        let tex_img = DynamicImage::ImageRgba8(tex_img).flipv();
+        let mut tex_out = File::create(format!("{}_tex.png", filename))?;
+        tex_img.save(&mut tex_out, ImageFormat::PNG).unwrap();*/
         Ok(())
     }
 
