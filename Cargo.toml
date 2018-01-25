@@ -29,6 +29,6 @@ structopt-derive = "0.1"
 poly = { path = "poly" }
 
 [build-dependencies]
-glossy_codegen = "0.2.0"
+glossy_codegen = { git = "https://github.com/turnage/rust-glossy", default-features = false }
 
 [workspace]
