@@ -8,7 +8,7 @@ use glium::uniforms::{AsUniformValue, MagnifySamplerFilter, MinifySamplerFilter,
 use glium::Program;
 use tween::Tween;
 
-pub const MAX_VORONOI_SITES: usize = 1024;
+pub const MAX_VORONOI_SITES: usize = 512;
 
 #[derive(Clone)]
 pub struct GpuShader {

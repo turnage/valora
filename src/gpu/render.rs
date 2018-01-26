@@ -12,7 +12,7 @@ use palette::{Blend, Colora};
 use color::BlendMode;
 use glium::uniforms::{AsUniformValue, EmptyUniforms, UniformBuffer, UniformValue, Uniforms};
 
-const MAX_MESHES: usize = 1024;
+pub const MAX_MESHES: usize = 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 #[repr(C)]
@@ -109,7 +109,7 @@ pub enum DrawCmdSource<'a> {
 }
 
 impl<'a> DrawCmd<'a> {
-    pub fn exec<S: Surface>(&self, frame: usize, surface: &mut S) -> Result<()> {
+    pub fn exec<S: Surface>(&self, surface: &mut S) -> Result<()> {
         let parameters = DrawParameters {
             smooth: None,
             blend: self.blend,
@@ -242,7 +242,21 @@ impl GpuLayer {
                     ..self
                 }
             }
-            _ => self,
+            GpuLayerSource::Batch { mesh, mut cache } => Self {
+                src: GpuLayerSource::Batch {
+                    mesh,
+                    cache: {
+                        let sources = cache.sources;
+                        for (i, mut cached) in
+                            cache.data.map().iter_mut().enumerate().take(sources.len())
+                        {
+                            *cached = cached.update(frame, &sources[i]);
+                        }
+                        BatchCache { sources, ..cache }
+                    },
+                },
+                ..self
+            },
         }
     }
 

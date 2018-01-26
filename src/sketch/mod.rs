@@ -93,7 +93,7 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
             render = render.step(frame);
             let mut screen = context.gpu.display.draw();
             for cmd in render.cmds() {
-                cmd.exec(frame, &mut screen)?;
+                cmd.exec(&mut screen)?;
             }
             screen.finish()?;
             if let Some(ref root_frame_filename) = context.cfg.output {

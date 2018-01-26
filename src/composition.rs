@@ -3,6 +3,7 @@ use mesh::{Instancer, Mesh, MeshTransforms};
 use poly::Rect;
 use palette::Colora;
 use std::mem::swap;
+use gpu::render::MAX_MESHES;
 
 #[derive(Debug)]
 pub enum Layer {
@@ -66,14 +67,16 @@ impl From<Vec<Mesh>> for LayerInput {
         let mut layers = Vec::new();
         let mut meshes_in_layer: Vec<Mesh> = Vec::new();
         for mesh in meshes {
-            if meshes_in_layer.is_empty() || meshes_in_layer[0].blend_mode == mesh.blend_mode {
+            if meshes_in_layer.len() + 1 < MAX_MESHES
+                && (meshes_in_layer.is_empty() || meshes_in_layer[0].blend_mode == mesh.blend_mode)
+            {
                 meshes_in_layer.push(mesh);
             } else {
                 layers.push(Layer::MeshGroup {
                     shader: Shader::Default,
                     meshes: meshes_in_layer,
                 });
-                meshes_in_layer = Vec::new();
+                meshes_in_layer = vec![mesh];
             }
         }
         if !meshes_in_layer.is_empty() {

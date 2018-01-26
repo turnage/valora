@@ -107,6 +107,21 @@ fn main() {
                         })
                         .collect::<Vec<Mesh>>(),
                 )
+                .add({
+                    let (slot_size, points) = frame_grid(46, GridPoints::Centers);
+                    points
+                        .into_iter()
+                        .map(|p| {
+                            Mesh::from(Ellipse::circle(p, slot_size / 3.0))
+                                .with_color(Colora::rgb(0.8, 1.0, 0.0, 1.0))
+                                .with_scale(Tween::Oscillation(Oscillation {
+                                    amplitude: 1.0,
+                                    phase: 0,
+                                    period: 100,
+                                }))
+                        })
+                        .collect::<Vec<Mesh>>()
+                })
                 .add(Instancer {
                     src: strokes[0].clone(),
                     instances: strokes.into_iter().map(|m| m.transforms).collect(),
