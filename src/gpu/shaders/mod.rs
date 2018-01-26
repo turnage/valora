@@ -81,10 +81,10 @@ impl Uniforms for GpuUniforms {
 
 #[derive(Clone, Debug)]
 pub struct NearFilterCfg {
-    pub start: Tween,
-    pub step: Tween,
-    pub steps: Tween,
-    pub sign: Tween,
+    pub start: Tween<f32>,
+    pub step: Tween<f32>,
+    pub steps: Tween<f32>,
+    pub sign: Tween<f32>,
 }
 
 #[derive(Clone, Debug)]

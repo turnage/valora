@@ -1,30 +1,46 @@
 use std::sync::{Arc, Mutex};
 use std::fmt;
+use mesh::MeshSnapshot;
 
 #[derive(Clone)]
-pub enum Tween {
+pub enum Tween<V: Clone> {
     Keyframes(Vec<Keyframe>),
-    Oscillation(Oscillation),
-    Constant(f32),
+    Oscillation((Oscillation, Arc<Fn(f32) -> V>)),
+    Constant(V),
+    Function(Arc<Fn(&MeshSnapshot, usize) -> V>),
 }
 
-impl fmt::Debug for Tween {
+impl<V: Clone + fmt::Debug> fmt::Debug for Tween<V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Tween::Keyframes(ref keyframes) => unimplemented!(),
-            Tween::Oscillation(ref oscillation) => oscillation.fmt(f),
-            Tween::Constant(v) => v.fmt(f),
+            Tween::Oscillation((ref oscillation, _)) => oscillation.fmt(f),
+            Tween::Constant(ref v) => v.fmt(f),
+            Tween::Function(_) => write!(f, "Function tween."),
         }
     }
 }
 
-impl Tween {
-    pub fn tween(&self, frame: usize) -> f32 {
+impl<V: Clone> Tween<V> {
+    pub fn tween(&self, last: &MeshSnapshot, frame: usize) -> V {
         match *self {
             Tween::Keyframes(ref keyframes) => unimplemented!(),
-            Tween::Oscillation(ref oscillation) => oscillation.oscillate(frame),
-            Tween::Constant(v) => v,
+            Tween::Oscillation((ref oscillation, ref adapter)) => {
+                adapter(oscillation.oscillate(frame))
+            }
+            Tween::Constant(ref v) => v.clone(),
+            Tween::Function(ref f) => f(last, frame),
         }
+    }
+
+    pub fn function<F: Fn(&MeshSnapshot, usize) -> V + 'static>(f: F) -> Self {
+        Tween::Function(Arc::new(f))
+    }
+}
+
+impl Tween<f32> {
+    pub fn oscillation(osc: Oscillation) -> Self {
+        Tween::Oscillation((osc, Arc::new(|f| f)))
     }
 }
 

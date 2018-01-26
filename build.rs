@@ -2,11 +2,8 @@ extern crate glob;
 extern crate glossy_codegen as glsl;
 
 fn main() {
-    for entry in glob::glob(&format!(
-        "{}/{}",
-        env!("CARGO_MANIFEST_DIR"),
-        "shaders/**/*}"
-    )).expect("compiled glob")
+    for entry in glob::glob(&format!("{}/{}", env!("CARGO_MANIFEST_DIR"), "shaders/*"))
+        .expect("compiled glob")
     {
         match entry {
             Ok(path) => println!("cargo:rerun-if-changed={}", path.display()),

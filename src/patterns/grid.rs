@@ -1,4 +1,5 @@
 use poly::{Point, Poly};
+use rayon::prelude::*;
 
 /// The points in the grid tiles to return.
 #[derive(Clone, Copy, Debug)]
@@ -36,7 +37,7 @@ pub fn grid(cfg: &GridCfg) -> Vec<Point> {
     let tile_width = cfg.width / cfg.tiles_wide as f32;
     let tile_height = cfg.height / cfg.tiles_high as f32;
     let points = (0..(cfg.tiles_wide * cfg.tiles_high))
-        .into_iter()
+        .into_par_iter()
         .map(|i| {
             let x = i % cfg.tiles_wide;
             let y = i / cfg.tiles_wide;

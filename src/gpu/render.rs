@@ -2,7 +2,7 @@ use gpu::{self, Factory, Gpu, GpuBareVertex, GpuMesh};
 use std::rc::Rc;
 use composition::{Composition, Layer};
 use gpu::shaders::{GpuShader, GpuUniforms, Shader, UniformFacade};
-use mesh::{Mesh, MeshTransforms};
+use mesh::{Mesh, MeshSnapshot, MeshTransforms};
 use glium::draw_parameters::DrawParameters;
 use glium::{Surface, VertexBuffer};
 use glium::texture::{MipmapsOption, Texture2d, UncompressedFloatFormat};
@@ -11,6 +11,7 @@ use rayon::prelude::*;
 use palette::{Blend, Colora};
 use color::BlendMode;
 use glium::uniforms::{AsUniformValue, EmptyUniforms, UniformBuffer, UniformValue, Uniforms};
+use poly::Point;
 
 pub const MAX_MESHES: usize = 1024;
 
@@ -23,6 +24,37 @@ pub struct GpuMeshTransforms {
     root_center: (f32, f32),
     _pad1: [u32; 2],
     color: (f32, f32, f32, f32),
+}
+
+impl<'a> From<&'a MeshSnapshot> for GpuMeshTransforms {
+    fn from(snap: &MeshSnapshot) -> GpuMeshTransforms {
+        GpuMeshTransforms {
+            scale: snap.scale,
+            rotation: snap.rotation,
+            center: (snap.pos.x, snap.pos.y),
+            root_center: (snap.origin.x, snap.origin.y),
+            _pad1: [0; 2],
+            color: format_color(snap.color),
+        }
+    }
+}
+
+impl Into<MeshSnapshot> for GpuMeshTransforms {
+    fn into(self) -> MeshSnapshot {
+        MeshSnapshot {
+            scale: self.scale,
+            rotation: self.rotation,
+            pos: Point {
+                x: self.center.0,
+                y: self.center.1,
+            },
+            origin: Point {
+                x: self.root_center.0,
+                y: self.root_center.1,
+            },
+            color: Colora::rgb(self.color.0, self.color.1, self.color.2, self.color.3),
+        }
+    }
 }
 
 impl GpuMeshTransforms {
@@ -62,10 +94,14 @@ implement_vertex!(GpuBatchVertex, vertex_position, mesh_index);
 
 impl GpuMeshTransforms {
     pub fn update(self, frame: usize, tx: &MeshTransforms) -> Self {
+        let snapshot: MeshSnapshot = self.into();
         Self {
-            scale: tx.scale.tween(frame),
-            rotation: tx.rotation.tween(frame),
-            center: (tx.origin_x.tween(frame), tx.origin_y.tween(frame)),
+            scale: tx.scale.tween(&snapshot, frame),
+            rotation: tx.rotation.tween(&snapshot, frame),
+            center: {
+                let point = tx.pos.tween(&snapshot, frame);
+                (point.x, point.y)
+            },
             color: format_color(tx.color),
             ..self
         }
@@ -77,14 +113,14 @@ fn format_color(color: Colora) -> (f32, f32, f32, f32) {
     (cp.red, cp.green, cp.blue, color.alpha)
 }
 
-impl<'a> From<&'a Mesh> for GpuMeshTransforms {
-    fn from(src: &Mesh) -> GpuMeshTransforms {
-        let center = src.src.center();
+impl<'a> From<(Point, &'a Mesh)> for GpuMeshTransforms {
+    fn from((center, src): (Point, &Mesh)) -> GpuMeshTransforms {
+        let root_center = src.src.center();
         GpuMeshTransforms {
             scale: 1.0,
             rotation: 0.0,
             center: (center.x, center.y),
-            root_center: (center.x, center.y),
+            root_center: (root_center.x, root_center.y),
             _pad1: [0; 2],
             color: format_color(src.transforms.color),
         }
@@ -185,7 +221,9 @@ impl Factory<Layer> for GpuLayer {
                         sources: vec![mesh.transforms.clone()],
                         data: UniformBuffer::dynamic(
                             gpu.as_ref(),
-                            GpuMeshTransforms::batch(vec![GpuMeshTransforms::from(&mesh)]),
+                            GpuMeshTransforms::batch(vec![
+                                GpuMeshTransforms::from((mesh.src.center(), &mesh)),
+                            ]),
                         )?,
                     },
                     mesh: GpuMesh::produce(vec![mesh].as_ref(), gpu.clone())?,
@@ -200,7 +238,7 @@ impl Factory<Layer> for GpuLayer {
                             gpu.as_ref(),
                             &meshes
                                 .iter()
-                                .map(|_| GpuMeshTransforms::from(&src))
+                                .map(|instance| GpuMeshTransforms::from((instance.origin, &src)))
                                 .collect::<Vec<GpuMeshTransforms>>(),
                         )?,
                         sources: meshes,
@@ -217,7 +255,10 @@ impl Factory<Layer> for GpuLayer {
                         data: UniformBuffer::dynamic(
                             gpu.as_ref(),
                             GpuMeshTransforms::batch(
-                                meshes.iter().map(|m| GpuMeshTransforms::from(m)).collect(),
+                                meshes
+                                    .iter()
+                                    .map(|m| GpuMeshTransforms::from((m.src.center(), m)))
+                                    .collect(),
                             ),
                         )?,
                         sources: meshes.into_iter().map(|m| m.transforms).collect(),

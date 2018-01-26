@@ -13,6 +13,7 @@ use rayon::prelude::*;
 use itertools::{Either, Itertools};
 
 use std::f32::consts::PI;
+use std::cmp;
 
 fn main() {
     sketch(
@@ -29,21 +30,6 @@ fn main() {
                 rng.gen_range(1, 5),
             );
 
-            let grid_size = rng.gen_range(5, 30);
-            let grid_border = rng.gen_range(0.02, 0.3);
-            let slot_size = (1.0 - grid_border) / grid_size as f32;
-            let grid_spawn_points = grid(&GridCfg {
-                points: GridPoints::Centers,
-                width: 1.0 - grid_border,
-                height: 1.0 - grid_border,
-                tiles_wide: grid_size,
-                tiles_high: grid_size,
-                center: Point::center(),
-            });
-
-            let noise_samples = grid_spawn_points.iter().map(|p| noise.get([p.x, p.y]));
-            let directions = noise_samples.map(|s| s * 2.0 * PI);
-
             let warp_cfg = WarpCfg {
                 variance: rng.gen_range(0.0, 1.0),
                 axis: WarpAxis::Y,
@@ -53,83 +39,63 @@ fn main() {
                 warp(poly, &warp_cfg, rng).subdivide_edges()
             };
 
-            let (strokes, stroke_borders): (Vec<Mesh>, Vec<Mesh>) = {
-                let mut stroke = |center: Point, theta| {
-                    let rect_width = slot_size / 1.2;
-                    let rect_height = slot_size / 1.8;
+            let stroke_count = rng.gen_range(20, 10000);
+            let min_size = 0.04;
+            let stroke_size = if min_size > (1.0 / (stroke_count as f32).sqrt()) {
+                min_size
+            } else {
+                (1.0 / (stroke_count as f32).sqrt())
+            };
+            let speed = rng.gen_range(0.001, 0.007);
+            let mut warper_rng = rng.clone();
+            let strokes: Vec<Mesh> = {
+                let mut stroke = |center: Point| {
+                    let rect_width = stroke_size / 1.2;
+                    let rect_height = stroke_size / 1.8;
                     let rect = Poly::from(Rect::new(center, rect_width, rect_height)).place(center);
                     let stroke =
-                        iterate_rand(rect, rng.gen_range(0, 5), &mut rng, &warper).place(center);
+                        iterate_rand(rect, warper_rng.gen_range(0, 5), &mut warper_rng, &warper)
+                            .place(center);
+                    let offset = warper_rng.gen_range(0.0, PI / 3.0);
                     let tail = Mesh::from(stroke)
-                        .with_color(*rng.choose(palette.as_ref()).unwrap())
-                        .with_rotation(Tween::Oscillation(Oscillation {
-                            phase: 0,
-                            period: 100,
-                            amplitude: theta,
+                        .with_color(*warper_rng.choose(palette.as_ref()).unwrap())
+                        .with_pos(Tween::function(move |last: &MeshSnapshot, _| {
+                            let sample = noise.get([last.pos.x, last.pos.y]);
+                            let theta = sample * 2.0 * PI;
+                            let mut next =
+                                Ellipse::circle(last.pos, speed).circumpoint(theta + offset);
+                            if next.x > 1.0 + rect_width * 3.0 || next.x < 0.0 - rect_width * 3.0 {
+                                next.x = 1.0 - next.x;
+                            }
+                            if next.y > 1.0 + rect_height * 3.0 || next.y < 0.0 - rect_height * 3.0
+                            {
+                                next.y = 1.0 - next.y;
+                            }
+                            next
+                        }))
+                        .with_rotation(Tween::function(move |last: &MeshSnapshot, _| {
+                            noise.get([last.pos.x, last.pos.y]) * 2.0 * PI + (PI / 2.0) + offset
                         }));
                     vec![
                         tail.clone(),
                         tail.with_color(Colora::rgb(0.0, 0.0, 0.0, 1.0))
+                            .with_scale(Tween::Constant(1.1))
                             .with_draw_mode(DrawMode::Stroke {
-                                thickness: (rect_width * rect_height).sqrt()
-                                    / rng.gen_range(4.0, 15.0),
+                                thickness: stroke_size / warper_rng.gen_range(10.0, 100.0),
                             }),
                     ]
                 };
-                grid_spawn_points
-                    .iter()
-                    .zip(directions)
-                    .flat_map(|(p, theta)| stroke(*p, theta))
-                    .map(|s| {
-                        s.with_scale(Tween::Oscillation(Oscillation {
-                            amplitude: slot_size * 6.0,
-                            phase: 0,
-                            period: 100,
-                        }))
-                    })
-                    .partition_map(|m| match m.draw_mode {
-                        DrawMode::Fill => Either::Left(m),
-                        DrawMode::Stroke { .. } => Either::Right(m),
-                    })
+                let sparkles: Vec<Point> = sparkles(
+                    rng.gen_range(20, 400),
+                    &Rect::frame().scale(rng.gen_range(0.7, 1.0)),
+                    &mut rng,
+                );
+                sparkles.into_iter().flat_map(stroke).collect()
             };
 
-            let borders = rng.gen_range(3, 100);
             Ok(Composition::new()
                 .solid_layer(Colora::hsv(RgbHue::from(184.0), 0.2, 0.8, 1.0))
-                .add(
-                    (0..borders)
-                        .into_iter()
-                        .map(|i| {
-                            Mesh::from(Rect::frame().scale((i + 1) as f32 / borders as f32))
-                                .with_draw_mode(DrawMode::Stroke {
-                                    thickness: 1.0 / (borders * 4) as f32,
-                                })
-                        })
-                        .collect::<Vec<Mesh>>(),
-                )
-                .add({
-                    let (slot_size, points) = frame_grid(46, GridPoints::Centers);
-                    points
-                        .into_iter()
-                        .map(|p| {
-                            Mesh::from(Ellipse::circle(p, slot_size / 3.0))
-                                .with_color(Colora::rgb(0.8, 1.0, 0.0, 1.0))
-                                .with_scale(Tween::Oscillation(Oscillation {
-                                    amplitude: 1.0,
-                                    phase: 0,
-                                    period: 100,
-                                }))
-                        })
-                        .collect::<Vec<Mesh>>()
-                })
-                .add(Instancer {
-                    src: strokes[0].clone(),
-                    instances: strokes.into_iter().map(|m| m.transforms).collect(),
-                })
-                .add(Instancer {
-                    src: stroke_borders[0].clone(),
-                    instances: stroke_borders.into_iter().map(|m| m.transforms).collect(),
-                }))
+                .add(strokes))
         },
     ).expect("noise");
 }

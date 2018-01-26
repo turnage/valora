@@ -1,5 +1,5 @@
 use color::BlendMode;
-use poly::Poly;
+use poly::{Point, Poly};
 use generators::{SpawnCfg, Spawner};
 use tween::Tween;
 use palette::Colora;
@@ -21,10 +21,30 @@ pub struct Mesh {
 #[derive(Clone, Debug)]
 pub struct MeshTransforms {
     pub color: Colora,
-    pub scale: Tween,
-    pub origin_y: Tween,
-    pub origin_x: Tween,
-    pub rotation: Tween,
+    pub scale: Tween<f32>,
+    pub pos: Tween<Point>,
+    pub rotation: Tween<f32>,
+    pub origin: Point,
+}
+
+impl MeshTransforms {
+    pub fn snapshot(&self, last: &MeshSnapshot, frame: usize) -> MeshSnapshot {
+        MeshSnapshot {
+            color: last.color,
+            scale: self.scale.tween(last, frame),
+            pos: self.pos.tween(last, frame),
+            rotation: self.rotation.tween(last, frame),
+            origin: last.origin,
+        }
+    }
+}
+
+pub struct MeshSnapshot {
+    pub color: Colora,
+    pub scale: f32,
+    pub pos: Point,
+    pub rotation: f32,
+    pub origin: Point,
 }
 
 #[derive(Clone, Debug)]
@@ -36,7 +56,7 @@ pub struct Instancer {
 impl<T: Into<Poly>> From<T> for Mesh {
     fn from(src: T) -> Self {
         let src = src.into();
-        let origin = src.center();
+        let pos = src.center();
         Self {
             src,
             blend_mode: BlendMode::Normal,
@@ -44,9 +64,9 @@ impl<T: Into<Poly>> From<T> for Mesh {
             transforms: MeshTransforms {
                 color: Colora::rgb(1.0, 0.0, 0.0, 1.0),
                 scale: Tween::Constant(1.0),
-                origin_y: Tween::Constant(origin.y),
-                origin_x: Tween::Constant(origin.x),
+                pos: Tween::Constant(pos),
                 rotation: Tween::Constant(0.0),
+                origin: pos,
             },
         }
     }
@@ -77,10 +97,9 @@ with!(with_blend_mode, blend_mode, BlendMode);
 with!(with_draw_mode, draw_mode, DrawMode);
 
 with_transform!(with_color, color, Colora);
-with_transform!(with_scale, scale, Tween);
-with_transform!(with_origin_y, origin_y, Tween);
-with_transform!(with_origin_x, origin_x, Tween);
-with_transform!(with_rotation, rotation, Tween);
+with_transform!(with_scale, scale, Tween<f32>);
+with_transform!(with_pos, pos, Tween<Point>);
+with_transform!(with_rotation, rotation, Tween<f32>);
 
 impl Spawner<Mesh> for Mesh {
     fn spawn(&self, cfg: SpawnCfg) -> Self {

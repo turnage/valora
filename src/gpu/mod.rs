@@ -32,7 +32,7 @@ impl Gpu {
             .with_title("Valora".to_string())
             .with_dimensions(size, size);
         let context = glutin::ContextBuilder::new()
-            .with_multisampling(2)
+            .with_multisampling(16)
             .with_vsync(true);
         let display = Display::new(window, context, &events_loop)?;
 
