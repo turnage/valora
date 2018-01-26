@@ -7,6 +7,8 @@
 #![feature(macro_reexport)]
 #![feature(slice_rotate)]
 #![recursion_limit = "128"]
+#![feature(repr_align)]
+#![feature(attr_literals)]
 
 #[macro_use]
 extern crate error_chain;
@@ -17,10 +19,10 @@ extern crate lyon;
 extern crate num;
 extern crate petgraph;
 extern crate rayon;
-extern crate tess2;
 extern crate structopt;
 #[macro_use]
 extern crate structopt_derive;
+extern crate tess2;
 #[macro_use]
 pub extern crate glium;
 #[macro_use]

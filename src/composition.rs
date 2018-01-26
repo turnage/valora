@@ -1,25 +1,40 @@
 use gpu::Shader;
-use mesh::{Mesh, Instancer};
+use mesh::{Instancer, Mesh, MeshTransforms};
 use poly::Rect;
 use palette::Colora;
 use std::mem::swap;
 
 #[derive(Debug)]
 pub enum Layer {
-    Mesh { shader: Shader, mesh: Mesh },
-    MeshGroup { shader: Shader, meshes: Vec<Mesh> },
-    MeshInstances { shader: Shader, src: Mesh, meshes: Vec<Mesh> },
+    Mesh {
+        shader: Shader,
+        mesh: Mesh,
+    },
+    MeshGroup {
+        shader: Shader,
+        meshes: Vec<Mesh>,
+    },
+    MeshInstances {
+        src: Mesh,
+        meshes: Vec<MeshTransforms>,
+    },
 }
 
 impl From<Mesh> for Layer {
     fn from(mesh: Mesh) -> Self {
-        Layer::Mesh {shader: Shader::Default, mesh }
+        Layer::Mesh {
+            shader: Shader::Default,
+            mesh,
+        }
     }
 }
 
 impl From<Instancer> for Layer {
     fn from(instancer: Instancer) -> Self {
-        Layer::MeshInstances {shader: Shader::Default, src: instancer.src, meshes: instancer.instances }
+        Layer::MeshInstances {
+            src: instancer.src,
+            meshes: instancer.instances,
+        }
     }
 }
 
@@ -48,20 +63,26 @@ pub enum LayerInput {
 
 impl From<Vec<Mesh>> for LayerInput {
     fn from(meshes: Vec<Mesh>) -> Self {
-         let mut layers = Vec::new();
-         let mut meshes_in_layer: Vec<Mesh> = Vec::new();
-         for mesh in meshes {
+        let mut layers = Vec::new();
+        let mut meshes_in_layer: Vec<Mesh> = Vec::new();
+        for mesh in meshes {
             if meshes_in_layer.is_empty() || meshes_in_layer[0].blend_mode == mesh.blend_mode {
                 meshes_in_layer.push(mesh);
             } else {
-                layers.push(Layer::MeshGroup { shader: Shader::Default, meshes: meshes_in_layer });
+                layers.push(Layer::MeshGroup {
+                    shader: Shader::Default,
+                    meshes: meshes_in_layer,
+                });
                 meshes_in_layer = Vec::new();
             }
-         }
-         if !meshes_in_layer.is_empty() {
-            layers.push(Layer::MeshGroup { shader: Shader::Default, meshes: meshes_in_layer });
-         }
-         LayerInput::Many(layers)
+        }
+        if !meshes_in_layer.is_empty() {
+            layers.push(Layer::MeshGroup {
+                shader: Shader::Default,
+                meshes: meshes_in_layer,
+            });
+        }
+        LayerInput::Many(layers)
     }
 }
 

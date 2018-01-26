@@ -30,5 +30,6 @@ poly = { path = "poly" }
 
 [build-dependencies]
 glossy_codegen = { git = "https://github.com/turnage/rust-glossy", default-features = false }
+glob = "0.2.11"
 
 [workspace]

@@ -24,7 +24,7 @@ pub enum WarpExpansion {
 pub enum WarpAxis {
     X,
     Y,
-    Both
+    Both,
 }
 
 #[derive(Clone)]
@@ -116,14 +116,8 @@ pub fn warp<R: Rng>(poly: Poly, cfg: &WarpCfg, rng: &mut R) -> Poly {
                     };
                     match cfg.axis {
                         WarpAxis::Both => v + delta,
-                        WarpAxis::X => v + Point {
-                            x: delta.x,
-                            y: 0.0
-                        },
-                        WarpAxis::Y => v + Point {
-                            x: 0.0,
-                            y: delta.y
-                        }
+                        WarpAxis::X => v + Point { x: delta.x, y: 0.0 },
+                        WarpAxis::Y => v + Point { x: 0.0, y: delta.y },
                     }
                 }
                 _ => v,

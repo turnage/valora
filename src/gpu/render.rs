@@ -1,175 +1,268 @@
-use gpu::{Factory, Gpu, GpuMesh, GpuVertex};
+use gpu::{self, Factory, Gpu, GpuBareVertex, GpuMesh};
 use std::rc::Rc;
 use composition::{Composition, Layer};
-use gpu::shaders::{GpuShader, GpuUniforms, UniformFacade};
-use mesh::Mesh;
-use glium::draw_parameters::{DrawParameters};
+use gpu::shaders::{GpuShader, GpuUniforms, Shader, UniformFacade};
+use mesh::{Mesh, MeshTransforms};
+use glium::draw_parameters::DrawParameters;
 use glium::{Surface, VertexBuffer};
 use glium::texture::{MipmapsOption, Texture2d, UncompressedFloatFormat};
-use glium::uniforms::MagnifySamplerFilter;
 use errors::Result;
-use poly::{Point, Rect, Poly};
 use rayon::prelude::*;
-use palette::Blend;
+use palette::{Blend, Colora};
+use color::BlendMode;
+use glium::uniforms::{AsUniformValue, EmptyUniforms, UniformBuffer, UniformValue, Uniforms};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct MeshTransforms {
+const MAX_MESHES: usize = 1024;
+
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+#[repr(C)]
+pub struct GpuMeshTransforms {
     scale: f32,
     rotation: f32,
     center: (f32, f32),
     root_center: (f32, f32),
+    _pad1: [u32; 2],
     color: (f32, f32, f32, f32),
-    applied: u32,
 }
 
-implement_vertex!(MeshTransforms, scale, rotation, center, root_center, color, applied);
+impl GpuMeshTransforms {
+    pub fn batch(src: Vec<Self>) -> [Self; MAX_MESHES] {
+        let mut dest = [GpuMeshTransforms::default(); MAX_MESHES];
+        for (i, tx) in src.into_iter().enumerate() {
+            dest[i] = tx;
+        }
+        dest
+    }
+}
 
-impl MeshTransforms {
-    pub fn apply(&self, target: Mesh) -> Mesh {
-        let src = target.src.scale(self.scale).rotate(self.rotation).place(GpuVertex::unfix_point(Point{ x: self.center.0, y: self.center.1 }));
-        Mesh {
-            src,
-            ..target
+implement_vertex!(
+    GpuMeshTransforms,
+    scale,
+    rotation,
+    center,
+    root_center,
+    color
+);
+implement_uniform_block!(
+    GpuMeshTransforms,
+    scale,
+    rotation,
+    center,
+    root_center,
+    color
+);
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GpuBatchVertex {
+    pub vertex_position: (f32, f32),
+    pub mesh_index: u32,
+}
+
+implement_vertex!(GpuBatchVertex, vertex_position, mesh_index);
+
+impl GpuMeshTransforms {
+    pub fn update(self, frame: usize, tx: &MeshTransforms) -> Self {
+        Self {
+            scale: tx.scale.tween(frame),
+            rotation: tx.rotation.tween(frame),
+            center: (tx.origin_x.tween(frame), tx.origin_y.tween(frame)),
+            color: format_color(tx.color),
+            ..self
         }
     }
 }
 
-impl<'a> From<&'a Mesh> for MeshTransforms {
-    fn from(src: &Mesh) -> MeshTransforms {
-        let fixed_root_center = GpuVertex::fix_point(src.src.center());
-        MeshTransforms {
-            root_center: (fixed_root_center.x, fixed_root_center.y),
+fn format_color(color: Colora) -> (f32, f32, f32, f32) {
+    let cp = color.into_premultiplied();
+    (cp.red, cp.green, cp.blue, color.alpha)
+}
+
+impl<'a> From<&'a Mesh> for GpuMeshTransforms {
+    fn from(src: &Mesh) -> GpuMeshTransforms {
+        let center = src.src.center();
+        GpuMeshTransforms {
             scale: 1.0,
             rotation: 0.0,
-            center: (fixed_root_center.x, fixed_root_center.y),
-            color: {
-                let cp = src.color.into_premultiplied();
-                (cp.red, cp.green, cp.blue, src.color.alpha)
-            },
-            applied: 0,
+            center: (center.x, center.y),
+            root_center: (center.x, center.y),
+            _pad1: [0; 2],
+            color: format_color(src.transforms.color),
         }
     }
 }
 
-pub struct DrawCmd<'a, 'b, 'c> {
-    pub shader: &'a GpuShader,
-    pub mesh: &'b GpuMesh,
-    pub instance_data: &'c VertexBuffer<MeshTransforms>,
+pub struct DrawCmd<'a> {
+    blend: gpu::Blend,
+    shader: &'a GpuShader,
+    src: DrawCmdSource<'a>,
 }
 
-pub struct InstanceCache {
-    gpu: Rc<Gpu>,
-    sources: Vec<Mesh>,
-    cache: VertexBuffer<MeshTransforms>,
-    cached_mesh: GpuMesh,
-    regen: bool,
+pub enum DrawCmdSource<'a> {
+    Instances {
+        mesh: &'a GpuMesh<GpuBareVertex>,
+        instance_data: &'a VertexBuffer<GpuMeshTransforms>,
+    },
+    Batch {
+        mesh: &'a GpuMesh<GpuBatchVertex>,
+        batch_data: &'a BatchCache,
+    },
 }
 
-impl InstanceCache {
-    pub fn step(mut self, frame: usize) -> Result<Self> {
-        let sources = self.sources;
-        let mut updates = Vec::new();
-        for (i, mut cached) in self.cache.map().iter_mut().enumerate() {
-            if self.regen {
-                cached.applied = 1;
+impl<'a> DrawCmd<'a> {
+    pub fn exec<S: Surface>(&self, frame: usize, surface: &mut S) -> Result<()> {
+        let parameters = DrawParameters {
+            smooth: None,
+            blend: self.blend,
+            ..Default::default()
+        };
+        match self.src {
+            DrawCmdSource::Instances {
+                mesh,
+                instance_data,
+            } => {
+                surface.draw(
+                    (
+                        mesh.vertices.as_ref(),
+                        instance_data.per_instance().unwrap(),
+                    ),
+                    mesh.indices.as_ref(),
+                    &self.shader.program,
+                    &EmptyUniforms,
+                    &parameters,
+                )?;
             }
-            let update = MeshTransforms {
-                scale: sources[i].scale.tween(frame),
-                rotation: sources[i].rotation.tween(frame),
-                center: (
-                    GpuVertex::fix_coord(sources[i].origin_x.tween(frame)),
-                    GpuVertex::fix_coord(sources[i].origin_y.tween(frame))
-                ),
-                ..*cached
-            };
-            updates.push(update);
-            *cached = update;
+            DrawCmdSource::Batch { mesh, batch_data } => {
+                surface.draw(
+                    mesh.vertices.as_ref(),
+                    mesh.indices.as_ref(),
+                    &self.shader.program,
+                    &uniform! {
+                        Transforms: &batch_data.data
+                    },
+                    &parameters,
+                )?;
+            }
         };
-        let sources = if self.regen && !updates.is_empty() {
-            let sources: Vec<Mesh> = sources.into_par_iter().enumerate().map(|(i,s)| updates[i].apply(s)).collect();
-            self.cached_mesh = GpuMesh::produce(sources.as_ref(), self.gpu.clone())?;
-            sources
-        } else {
-            sources
-        };
-        Ok(Self {
-            sources,
-            ..self
-        })
+        Ok(())
     }
 }
 
-pub struct GpuLayer {
+struct InstanceCache {
+    sources: Vec<MeshTransforms>,
+    data: VertexBuffer<GpuMeshTransforms>,
+}
+
+struct BatchCache {
+    sources: Vec<MeshTransforms>,
+    data: UniformBuffer<[GpuMeshTransforms; MAX_MESHES]>,
+}
+
+struct GpuLayer {
     shader: GpuShader,
-    instances: InstanceCache,
+    blend: gpu::Blend,
+    src: GpuLayerSource,
+}
+
+enum GpuLayerSource {
+    Instances {
+        src: GpuMesh<GpuBareVertex>,
+        cache: InstanceCache,
+    },
+    Batch {
+        mesh: GpuMesh<GpuBatchVertex>,
+        cache: BatchCache,
+    },
 }
 
 impl Factory<Layer> for GpuLayer {
     fn produce(spec: Layer, gpu: Rc<Gpu>) -> Result<GpuLayer> {
         match spec {
-            Layer::Mesh { shader, mesh } => {
-                Ok(GpuLayer {
-                    shader: GpuShader::produce(shader, gpu.clone())?,
-                    instances: InstanceCache {
-                        cache: VertexBuffer::dynamic(
-                                gpu.as_ref(), 
-                                &vec![MeshTransforms::from(&mesh)])?,
-                        sources: vec![mesh.clone()],
-                        cached_mesh: GpuMesh::produce(mesh.clone(), gpu.clone())?,
-                        regen: false,
-                        gpu,
+            Layer::Mesh { shader, mesh } => Ok(GpuLayer {
+                shader: GpuShader::produce(shader, gpu.clone())?,
+                blend: gpu::Blend::from(BlendMode::Normal),
+                src: GpuLayerSource::Batch {
+                    cache: BatchCache {
+                        sources: vec![mesh.transforms.clone()],
+                        data: UniformBuffer::dynamic(
+                            gpu.as_ref(),
+                            GpuMeshTransforms::batch(vec![GpuMeshTransforms::from(&mesh)]),
+                        )?,
                     },
-                })
-            },
-            Layer::MeshInstances { shader, src, meshes } => {
-                Ok(GpuLayer {
-                    shader: GpuShader::produce(shader, gpu.clone())?,
-                    instances: InstanceCache {
-                        cache: VertexBuffer::dynamic(
-                                gpu.as_ref(), 
-                                &meshes.iter()
-                                        .map(|mesh| {
-                                            MeshTransforms::from(&src)
-                                        })
-                                        .collect::<Vec<MeshTransforms>>())?,
-                    cached_mesh: GpuMesh::produce(src.clone(), gpu.clone())?,
+                    mesh: GpuMesh::produce(vec![mesh].as_ref(), gpu.clone())?,
+                },
+            }),
+            Layer::MeshInstances { src, meshes } => Ok(GpuLayer {
+                shader: GpuShader::produce(Shader::Instance, gpu.clone())?,
+                blend: gpu::Blend::from(BlendMode::Normal),
+                src: GpuLayerSource::Instances {
+                    cache: InstanceCache {
+                        data: VertexBuffer::dynamic(
+                            gpu.as_ref(),
+                            &meshes
+                                .iter()
+                                .map(|_| GpuMeshTransforms::from(&src))
+                                .collect::<Vec<GpuMeshTransforms>>(),
+                        )?,
                         sources: meshes,
-                        regen: false,
-                        gpu,
                     },
-                })
-            },
-            Layer::MeshGroup { shader, meshes } => {
-                Ok(GpuLayer {
-                    shader: GpuShader::produce(shader, gpu.clone())?,
-                    instances: InstanceCache {
-                        cache: VertexBuffer::dynamic(
-                                gpu.as_ref(), 
-                                &meshes.iter()
-                                        .map(|mesh|  MeshTransforms::from(mesh))
-                                        .collect::<Vec<MeshTransforms>>())?,
-                    cached_mesh: GpuMesh::produce(meshes.as_ref(), gpu.clone())?,
-                        sources: meshes,
-                        regen: true,
-                        gpu,
+                    src: GpuMesh::produce(src, gpu.clone())?,
+                },
+            }),
+            Layer::MeshGroup { shader, meshes } => Ok(GpuLayer {
+                shader: GpuShader::produce(shader, gpu.clone())?,
+                blend: gpu::Blend::from(BlendMode::Normal),
+                src: GpuLayerSource::Batch {
+                    mesh: GpuMesh::produce(meshes.as_ref(), gpu.clone())?,
+                    cache: BatchCache {
+                        data: UniformBuffer::dynamic(
+                            gpu.as_ref(),
+                            GpuMeshTransforms::batch(
+                                meshes.iter().map(|m| GpuMeshTransforms::from(m)).collect(),
+                            ),
+                        )?,
+                        sources: meshes.into_iter().map(|m| m.transforms).collect(),
                     },
-                })
-            }
+                },
+            }),
         }
     }
 }
 
 impl GpuLayer {
-    pub fn step(mut self, frame: usize) -> Result<Self> {
-        self.instances = self.instances.step(frame)?;
-        Ok(self)
+    pub fn step(self, frame: usize) -> Self {
+        match self.src {
+            GpuLayerSource::Instances { src, mut cache } => {
+                let sources = cache.sources;
+                for (i, mut cached) in cache.data.map().iter_mut().enumerate() {
+                    *cached = cached.update(frame, &sources[i]);
+                }
+                cache.sources = sources;
+                Self {
+                    src: GpuLayerSource::Instances { src, cache },
+                    ..self
+                }
+            }
+            _ => self,
+        }
     }
 
-    pub fn render<'a>(&'a self) -> DrawCmd<'a, 'a, 'a> {
+    pub fn render<'a>(&'a self) -> DrawCmd<'a> {
         DrawCmd {
             shader: &self.shader,
-            mesh: &self.instances.cached_mesh,
-            instance_data: &self.instances.cache,
+            blend: self.blend,
+            src: match self.src {
+                GpuLayerSource::Instances { ref src, ref cache } => DrawCmdSource::Instances {
+                    mesh: src,
+                    instance_data: &cache.data,
+                },
+                GpuLayerSource::Batch {
+                    ref mesh,
+                    ref cache,
+                } => DrawCmdSource::Batch {
+                    mesh,
+                    batch_data: cache,
+                },
+            },
         }
     }
 }
@@ -177,86 +270,6 @@ impl GpuLayer {
 struct BufferSpec {
     pub width: u32,
     pub height: u32,
-}
-
-struct Buffer {
-    targets: [Rc<Texture2d>; 2],
-    blitter: (GpuShader, InstanceCache),
-}
-
-impl Buffer {
-    pub fn blitter<'a>(&'a self) -> DrawCmd<'a, 'a, 'a> {
-        DrawCmd {
-            shader: &self.blitter.0,
-            mesh: &self.blitter.1.cached_mesh,
-            instance_data: &self.blitter.1.cache
-        }
-    }
-
-    /// Draws commands to the buffer.
-    pub fn draw(&self, frame: usize, cmds: Vec<DrawCmd>) -> Result<()> {
-        let mut surfaces = [self.targets[0].as_surface(), self.targets[1].as_surface()];
-        for cmd in cmds.into_iter() {
-            let facade = UniformFacade {
-                shader_uniforms: &cmd.shader.uniforms,
-                last: &self.targets[1],
-                frame: frame as u32,
-            };
-            surfaces[0].draw(
-                    (cmd.mesh.vertices.as_ref(), cmd.instance_data.per_instance().unwrap()),
-                    cmd.mesh.indices.as_ref(),
-                    &cmd.shader.program,
-                    &facade,
-                    &DrawParameters {
-                        smooth: None,
-                        blend: cmd.mesh.blend,
-                        ..Default::default()
-                })?;
-
-            surfaces[0].fill(&surfaces[1], MagnifySamplerFilter::Linear);
-        }
-        Ok(())
-    }
-
-    pub fn front(&self) -> Rc<Texture2d> {
-        self.targets[0].clone()
-    }
-}
-
-impl Factory<BufferSpec> for Buffer {
-    fn produce(spec: BufferSpec, gpu: Rc<Gpu>) -> Result<Self> {
-        let target = || -> Result<Texture2d> {
-            Texture2d::empty_with_format(
-                gpu.as_ref(),
-                UncompressedFloatFormat::F32F32F32F32,
-                MipmapsOption::AutoGeneratedMipmaps,
-                spec.width,
-                spec.height,
-            ).map_err(Into::into)
-        };
-
-        let targets = [Rc::new(target()?), Rc::new(target()?)];
-        for target in targets.iter() {
-            target.as_ref().as_surface().clear_color(0.0, 0.0, 0.0, 1.0)
-        }
-        let mesh = Mesh::from(Rect::frame());
-        let blitter = (
-            GpuShader {
-                program: gpu.library.blit_shader.clone(),
-                uniforms: GpuUniforms::Texture(targets[0].clone())
-            },
-            InstanceCache {
-                sources: vec![mesh.clone()],
-                cache: VertexBuffer::dynamic(
-                        gpu.as_ref(), 
-                        &vec![MeshTransforms::from(&mesh)])?,
-                regen: false,
-                cached_mesh: GpuMesh::produce(Mesh::from(Rect::frame()), gpu.clone())?,
-                gpu,
-            }
-        );
-        Ok(Self { targets, blitter })
-    }
 }
 
 pub struct RenderSpec {
@@ -267,7 +280,6 @@ pub struct RenderSpec {
 
 pub struct Render {
     layers: Vec<GpuLayer>,
-    buffer: Buffer,
 }
 
 impl Factory<RenderSpec> for Render {
@@ -276,43 +288,21 @@ impl Factory<RenderSpec> for Render {
             layers: spec.composition
                 .layers()
                 .into_iter()
-                .map(|l| -> Result<GpuLayer> {Factory::produce(l, gpu.clone())})
+                .map(|l| -> Result<GpuLayer> { Factory::produce(l, gpu.clone()) })
                 .collect::<Result<Vec<GpuLayer>>>()?,
-            buffer: Buffer::produce(
-                BufferSpec {
-                    width: spec.width,
-                    height: spec.height,
-                },
-                gpu,
-            )?,
         })
     }
 }
 
 impl Render {
-    pub fn step(self, frame: usize) -> Result<Self> {
-        Ok(Self {
-            layers: self.layers
-                .into_iter()
-                .map(|l| l.step(frame))
-                .collect::<Result<Vec<GpuLayer>>>()?,
+    pub fn step(self, frame: usize) -> Self {
+        Self {
+            layers: self.layers.into_iter().map(|l| l.step(frame)).collect(),
             ..self
-        })
+        }
     }
 
-    pub fn render<'a>(
-        &'a self,
-        frame: usize,
-    ) -> Result<DrawCmd<'a, 'a, 'a>> {
-        self.buffer.draw(frame, self.cmds())?;
-        Ok(self.buffer.blitter())
-    }
-
-    pub fn buffer(&self) -> Rc<Texture2d> {
-        self.buffer.front()
-    }
-
-    fn cmds<'a>(&'a self) -> Vec<DrawCmd<'a, 'a, 'a>> {
+    pub fn cmds<'a>(&'a self) -> Vec<DrawCmd<'a>> {
         self.layers.iter().map(|l| l.render()).collect()
     }
 }

@@ -1,4 +1,4 @@
-use color::{BlendMode};
+use color::BlendMode;
 use poly::Poly;
 use generators::{SpawnCfg, Spawner};
 use tween::Tween;
@@ -13,18 +13,24 @@ pub enum DrawMode {
 #[derive(Clone, Debug)]
 pub struct Mesh {
     pub src: Poly,
-    pub color: Colora,
     pub blend_mode: BlendMode,
     pub draw_mode: DrawMode,
+    pub transforms: MeshTransforms,
+}
+
+#[derive(Clone, Debug)]
+pub struct MeshTransforms {
+    pub color: Colora,
     pub scale: Tween,
     pub origin_y: Tween,
     pub origin_x: Tween,
     pub rotation: Tween,
 }
 
+#[derive(Clone, Debug)]
 pub struct Instancer {
     pub src: Mesh,
-    pub instances: Vec<Mesh>
+    pub instances: Vec<MeshTransforms>,
 }
 
 impl<T: Into<Poly>> From<T> for Mesh {
@@ -33,13 +39,15 @@ impl<T: Into<Poly>> From<T> for Mesh {
         let origin = src.center();
         Self {
             src,
-            color: Colora::rgb(1.0, 0.0, 0.0, 1.0),
             blend_mode: BlendMode::Normal,
             draw_mode: DrawMode::Fill,
-            scale: Tween::Constant(1.0),
-            origin_y: Tween::Constant(origin.y),
-            origin_x: Tween::Constant(origin.x),
-            rotation: Tween::Constant(0.0),
+            transforms: MeshTransforms {
+                color: Colora::rgb(1.0, 0.0, 0.0, 1.0),
+                scale: Tween::Constant(1.0),
+                origin_y: Tween::Constant(origin.y),
+                origin_x: Tween::Constant(origin.x),
+                rotation: Tween::Constant(0.0),
+            },
         }
     }
 }
@@ -54,13 +62,25 @@ macro_rules! with {
     }
 }
 
-with!(with_color, color, Colora);
+macro_rules! with_transform {
+    ($f:ident, $field:ident, $type:ty) => {
+        impl Mesh {
+            pub fn $f(mut self, $field: $type) -> Self {
+                self.transforms.$field = $field;
+                self
+            }
+        }
+    }
+}
+
 with!(with_blend_mode, blend_mode, BlendMode);
 with!(with_draw_mode, draw_mode, DrawMode);
-with!(with_scale, scale, Tween);
-with!(with_origin_y, origin_y, Tween);
-with!(with_origin_x, origin_x, Tween);
-with!(with_rotation, rotation, Tween);
+
+with_transform!(with_color, color, Colora);
+with_transform!(with_scale, scale, Tween);
+with_transform!(with_origin_y, origin_y, Tween);
+with_transform!(with_origin_x, origin_x, Tween);
+with_transform!(with_rotation, rotation, Tween);
 
 impl Spawner<Mesh> for Mesh {
     fn spawn(&self, cfg: SpawnCfg) -> Self {

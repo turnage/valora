@@ -157,13 +157,14 @@ impl Poly {
                 };
                 let phase_offset = theta(vertices[0]);
                 Poly::Irregular(
-                    vertices.into_iter()
-                            .map(|v| {
-                                let theta = theta(v) - phase_offset;
-                                let theta = theta + phase;
-                                Ellipse::circle(center, v.distance(&center)).circumpoint(theta)
-                            })
-                            .collect()
+                    vertices
+                        .into_iter()
+                        .map(|v| {
+                            let theta = theta(v) - phase_offset;
+                            let theta = theta + phase;
+                            Ellipse::circle(center, v.distance(&center)).circumpoint(theta)
+                        })
+                        .collect(),
                 )
             }
         }

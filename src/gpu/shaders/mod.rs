@@ -3,12 +3,12 @@ use glium::texture::{RawImage2d, Texture2d};
 use gpu::{Factory, Gpu};
 use image::{ImageBuffer, Rgb};
 use std::rc::Rc;
-use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter, UniformBuffer, Uniforms, UniformValue, AsUniformValue, SamplerBehavior, SamplerWrapFunction};
-use glium::{Program};
+use glium::uniforms::{AsUniformValue, MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior,
+                      SamplerWrapFunction, UniformBuffer, UniformValue, Uniforms};
+use glium::Program;
 use tween::Tween;
 
 pub const MAX_VORONOI_SITES: usize = 1024;
-
 
 #[derive(Clone)]
 pub struct GpuShader {
@@ -19,6 +19,7 @@ pub struct GpuShader {
 #[derive(Clone)]
 pub enum GpuUniforms {
     Default,
+    Instance,
     Texture(Rc<Texture2d>),
     NearFilter(NearFilterCfg),
 }
@@ -31,12 +32,22 @@ pub struct UniformFacade<'a, 'b> {
 
 impl<'a, 'b> Uniforms for UniformFacade<'a, 'b> {
     fn visit_values<'c, F: FnMut(&str, UniformValue<'c>)>(&'c self, mut f: F) {
-        f("last", UniformValue::Texture2d(self.last, Some(SamplerBehavior{
-                    wrap_function: (SamplerWrapFunction::Mirror, SamplerWrapFunction::Mirror, SamplerWrapFunction::Mirror),
+        f(
+            "last",
+            UniformValue::Texture2d(
+                self.last,
+                Some(SamplerBehavior {
+                    wrap_function: (
+                        SamplerWrapFunction::Mirror,
+                        SamplerWrapFunction::Mirror,
+                        SamplerWrapFunction::Mirror,
+                    ),
                     magnify_filter: MagnifySamplerFilter::Linear,
                     minify_filter: MinifySamplerFilter::LinearMipmapLinear,
                     max_anisotropy: 4,
-                })));
+                }),
+            ),
+        );
         f("frame", self.frame.as_uniform_value());
         self.shader_uniforms.visit_values(f);
     }
@@ -46,12 +57,22 @@ impl Uniforms for GpuUniforms {
     fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut f: F) {
         match *self {
             GpuUniforms::Texture(ref tex) => {
-                f("tex", UniformValue::Texture2d(tex.as_ref(), Some(SamplerBehavior{
-                    wrap_function: (SamplerWrapFunction::Mirror, SamplerWrapFunction::Mirror, SamplerWrapFunction::Mirror),
-                    magnify_filter: MagnifySamplerFilter::Linear,
-                    minify_filter: MinifySamplerFilter::Linear,
-                    max_anisotropy: 4,
-                })));
+                f(
+                    "tex",
+                    UniformValue::Texture2d(
+                        tex.as_ref(),
+                        Some(SamplerBehavior {
+                            wrap_function: (
+                                SamplerWrapFunction::Mirror,
+                                SamplerWrapFunction::Mirror,
+                                SamplerWrapFunction::Mirror,
+                            ),
+                            magnify_filter: MagnifySamplerFilter::Linear,
+                            minify_filter: MinifySamplerFilter::Linear,
+                            max_anisotropy: 4,
+                        }),
+                    ),
+                );
             }
             _ => {}
         }
@@ -69,6 +90,7 @@ pub struct NearFilterCfg {
 #[derive(Clone, Debug)]
 pub enum Shader {
     Default,
+    Instance,
     Texture(Rc<ImageBuffer<Rgb<u8>, Vec<u8>>>),
     NearFilter(NearFilterCfg),
 }
@@ -83,7 +105,11 @@ impl Factory<Shader> for GpuShader {
     fn produce(spec: Shader, gpu: Rc<Gpu>) -> Result<Self> {
         match spec {
             Shader::Default => Ok(GpuShader {
-                program: gpu.library.default_shader.clone(),
+                program: gpu.library.batch_shader.clone(),
+                uniforms: GpuUniforms::Default,
+            }),
+            Shader::Instance => Ok(GpuShader {
+                program: gpu.library.instance_shader.clone(),
                 uniforms: GpuUniforms::Default,
             }),
             Shader::Texture(ref spec_tex) => {
@@ -93,12 +119,12 @@ impl Factory<Shader> for GpuShader {
                 let tex = Rc::new(Texture2d::new(gpu.as_ref(), raw)?);
                 Ok(GpuShader {
                     program: gpu.library.texture_shader.clone(),
-                    uniforms: GpuUniforms::Texture(tex)
+                    uniforms: GpuUniforms::Texture(tex),
                 })
             }
-            Shader::NearFilter(cfg) => Ok(GpuShader{
+            Shader::NearFilter(cfg) => Ok(GpuShader {
                 program: gpu.library.near_filter.clone(),
-                uniforms: GpuUniforms::NearFilter(cfg)
+                uniforms: GpuUniforms::NearFilter(cfg),
             }),
         }
     }

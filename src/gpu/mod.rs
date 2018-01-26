@@ -11,18 +11,17 @@ use errors::Result;
 use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
-use glium::texture::texture2d::{Texture2d};
-use glium::texture::srgb_texture2d::{SrgbTexture2d};
-use mesh::{Mesh};
-use palette::Colora;
-use poly::{Point, Poly};
+use glium::texture::texture2d::Texture2d;
+use mesh::Mesh;
+use poly::Point;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use self::programs::Library;
-use self::render::DrawCmd;
+use self::render::*;
+use itertools::Itertools;
 
 pub struct Gpu {
-    display: Display,
+    pub display: Display,
     pub library: Library,
 }
 
@@ -33,40 +32,25 @@ impl Gpu {
             .with_title("Valora".to_string())
             .with_dimensions(size, size);
         let context = glutin::ContextBuilder::new()
-            .with_srgb(true)
+            .with_multisampling(2)
             .with_vsync(true);
         let display = Display::new(window, context, &events_loop)?;
+
         let library = programs::load_library(&display)?;
         Ok((Self { display, library }, events_loop))
     }
 
-    pub fn draw_simple(&self, cmd: DrawCmd) -> Result<()> {
-        let mut surface = self.display.draw();
-        surface.clear_color(1.0, 0.0, 0.0, 1.0);
-        surface.draw(cmd.mesh.vertices.as_ref(), cmd.mesh.indices.as_ref(), &cmd.shader.program, &cmd.shader.uniforms, &Default::default())?;
-        surface.finish()?;
-        Ok(())
-    }
-
-    pub fn save_frame(&self, texture: &Texture2d, filename: &str) -> Result<()> {
+    pub fn save_frame(&self, filename: &str) -> Result<()> {
         use glium::texture::RawImage2d;
         use image::{DynamicImage, ImageBuffer, ImageFormat};
         use std::fs::File;
 
-        let (width, height) = self.display.get_framebuffer_dimensions();
         let image: RawImage2d<u8> = self.display.read_front_buffer();
         let image_data: Vec<u8> = image.data.into_owned();
-        let image = ImageBuffer::from_raw(width, height, image_data).unwrap();
+        let image = ImageBuffer::from_raw(image.width, image.height, image_data).unwrap();
         let image = DynamicImage::ImageRgba8(image).flipv();
         let mut output = File::create(format!("{}.png", filename))?;
         image.save(&mut output, ImageFormat::PNG).unwrap();
-
-        /*let tex_img: RawImage2d<u8> = texture.read();
-        let tex_data: Vec<u8> = tex_img.data.into_owned();
-        let tex_img = ImageBuffer::from_raw(tex_img.width, tex_img.height, tex_data).unwrap();
-        let tex_img = DynamicImage::ImageRgba8(tex_img).flipv();
-        let mut tex_out = File::create(format!("{}_tex.png", filename))?;
-        tex_img.save(&mut tex_out, ImageFormat::PNG).unwrap();*/
         Ok(())
     }
 
@@ -129,50 +113,16 @@ pub trait Factory<Spec>: Sized {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct GpuVertex {
-    pub position: [f32; 2],
-    pub color: [f32; 4],
+pub struct GpuBareVertex {
+    pub vertex_position: [f32; 2],
 }
 
-implement_vertex!(GpuVertex, position, color);
+implement_vertex!(GpuBareVertex, vertex_position);
 
-impl GpuVertex {
-    const WORLD_OFFSET: f32 = 1.0;
-    const WORLD_FACTOR: f32 = 2.0;
-
-    pub fn fix_point(point: Point) -> Point {
-        Point {
-            x: Self::fix_coord(point.x),
-            y: Self::fix_coord(point.y),
-        }
-    }
-
-    // OpenGL places the origin in the center of the screen. We rescale
-    // and offset vertices one world unit so the origin is in the bottom
-    // left, and y and x point up and right respectively. If you think
-    // it should be done differently, you are wrong.
-    fn fix_coord(coord: f32) -> f32 {
-        (coord * Self::WORLD_FACTOR) - Self::WORLD_OFFSET
-    }
-
-    pub fn unfix_point(point: Point) -> Point {
-        point.offset(Self::WORLD_OFFSET) / Self::WORLD_FACTOR
-    }
-}
-
-impl From<(Point, Colora)> for GpuVertex {
-    fn from((point, color): (Point, Colora)) -> Self {
-        use palette::Blend;
-
-        let point = Self::fix_point(point);
-        let ca = Colora {
-            alpha: 1.0,
-            ..color
-        };
-        let cp = ca.into_premultiplied();
-        GpuVertex {
-            position: [point.x, point.y],
-            color: [cp.red, cp.green, cp.blue, color.alpha],
+impl From<Point> for GpuBareVertex {
+    fn from(point: Point) -> Self {
+        GpuBareVertex {
+            vertex_position: [point.x, point.y],
         }
     }
 }
@@ -230,45 +180,66 @@ impl From<BlendMode> for Blend {
     }
 }
 
-#[derive(Clone)]
-pub struct GpuMesh {
-    pub vertices: Rc<VertexBuffer<GpuVertex>>,
+pub struct GpuMesh<V: Copy> {
+    pub vertices: Rc<VertexBuffer<V>>,
     pub indices: Rc<IndexBuffer<u32>>,
-    pub blend: Blend,
 }
 
-impl Factory<Mesh> for GpuMesh {
+impl Factory<Mesh> for GpuMesh<GpuBareVertex> {
     fn produce(spec: Mesh, gpu: Rc<Gpu>) -> Result<Self> {
         let tessellation = tessellate(&spec)?;
         Ok(GpuMesh {
             vertices: Rc::new(VertexBuffer::new(
                 gpu.as_ref(),
-                tessellation.vertices.as_slice(),
+                &tessellation
+                    .vertices
+                    .into_iter()
+                    .map(Into::into)
+                    .collect::<Vec<GpuBareVertex>>(),
             )?),
             indices: Rc::new(IndexBuffer::new(
                 gpu.as_ref(),
                 PrimitiveType::TrianglesList,
                 tessellation.indices.as_slice(),
             )?),
-            blend: Blend::from(spec.blend_mode),
         })
     }
 }
 
-impl<'a> Factory<&'a [Mesh]> for GpuMesh {
+impl<'a> Factory<&'a [Mesh]> for GpuMesh<GpuBatchVertex> {
     fn produce(specs: &[Mesh], gpu: Rc<Gpu>) -> Result<Self> {
-        let tessellation = specs.iter().map(|spec| tessellate(spec)).collect::<Result<Tessellation>>()?;
+        let maybe_tessellation: Result<(Vec<GpuBatchVertex>, Vec<u32>)> = specs
+            .iter()
+            .enumerate()
+            .map(|(i, spec)| {
+                let tessellation = tessellate(spec)?;
+                let batch_vertices = tessellation
+                    .vertices
+                    .into_iter()
+                    .map(|v| GpuBatchVertex {
+                        vertex_position: (v.x, v.y),
+                        mesh_index: i as u32,
+                    })
+                    .collect::<Vec<GpuBatchVertex>>();
+                Ok((batch_vertices, tessellation.indices))
+            })
+            .fold_results(
+                (Vec::new(), Vec::new()),
+                |(mut vertices, mut indices), (mut new_vertices, new_indices)| {
+                    let index_offset = vertices.len() as u32;
+                    vertices.append(&mut new_vertices);
+                    indices.extend(new_indices.into_iter().map(|i| i + index_offset));
+                    (vertices, indices)
+                },
+            );
+        let (vertices, indices): (Vec<GpuBatchVertex>, Vec<u32>) = maybe_tessellation?;
         Ok(GpuMesh {
-            vertices: Rc::new(VertexBuffer::new(
-                gpu.as_ref(),
-                tessellation.vertices.as_slice(),
-            )?),
+            vertices: Rc::new(VertexBuffer::new(gpu.as_ref(), vertices.as_slice())?),
             indices: Rc::new(IndexBuffer::new(
                 gpu.as_ref(),
                 PrimitiveType::TrianglesList,
-                tessellation.indices.as_slice(),
+                indices.as_slice(),
             )?),
-            blend: Blend::from(specs[0].blend_mode)
         })
     }
 }

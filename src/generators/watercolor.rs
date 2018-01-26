@@ -1,4 +1,4 @@
-use color::{BlendMode};
+use color::BlendMode;
 use generators::spawner::{SpawnCfg, SpawnSrc, Spawner};
 use mesh::{DrawMode, Mesh};
 use palette::Colora;

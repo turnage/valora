@@ -11,25 +11,31 @@ use glium::{Program, Surface};
 #[derive(StructOpt, Debug)]
 #[structopt(name = "sketch_config", about = "Sketch configuration.")]
 pub struct SketchCfg {
-    #[structopt(short = "r", long = "resolution", help = "Sketch resolution.", default_value = "400")]
+    #[structopt(short = "r", long = "resolution", help = "Sketch resolution.",
+                default_value = "400")]
     pub resolution: u32,
 
-    #[structopt(short = "o", long = "output", help = "Filename for sketch output; directories for animations.")]
+    #[structopt(short = "o", long = "output",
+                help = "Filename for sketch output; directories for animations.")]
     pub output: Option<String>,
 
-    #[structopt(short = "l", long = "limit", help = "Max frames to write to disk for animation.", default_value = "0")]
+    #[structopt(short = "l", long = "limit", help = "Max frames to write to disk for animation.",
+                default_value = "0")]
     pub frame_limit: usize,
 
     #[structopt(short = "s", long = "seed", help = "Seed for the sketch rng.")]
     pub seed: Option<usize>,
 
-    #[structopt(short = "t", long = "still", help = "This sketch is still; do not animate; brainstorm seeds.")]
+    #[structopt(short = "t", long = "still",
+                help = "This sketch is still; do not animate; brainstorm seeds.")]
     pub still: bool,
     /// quality sets the factor above the output resolution that textures and
     /// polygons will render with and be super sampled at for output. Should
     /// be a power of 2 but hey, you do you.
 
-    #[structopt(short = "q", long = "quality", help = "Factor above resolution to sample down at; should be power of 2.", default_value = "1")]
+    #[structopt(short = "q", long = "quality",
+                help = "Factor above resolution to sample down at; should be power of 2.",
+                default_value = "1")]
     pub quality: u32,
 }
 
@@ -68,15 +74,12 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
 
     let mut cycle = Gpu::events(events_loop);
     while let Some((events_loop, events)) = cycle {
-        if let Some(_) = events
-            .iter()
-            .find(|event| match **event {
-                WindowEvent::ReceivedCharacter('r') => true,
-                _ => false,
-            })
-        {
+        if let Some(_) = events.iter().find(|event| match **event {
+            WindowEvent::ReceivedCharacter('r') => true,
+            _ => false,
+        }) {
             context.current_seed = random();
-            println!("Using seed: {}", context.current_seed);            
+            println!("Using seed: {}", context.current_seed);
             frame = 0;
             render = Render::produce(
                 RenderSpec {
@@ -87,10 +90,12 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
             )?;
         }
         if !(context.cfg.still && frame > 0) {
-            render = render.step(frame)?;
-            context
-                .gpu
-                .draw_simple(render.render(frame)?)?;
+            render = render.step(frame);
+            let mut screen = context.gpu.display.draw();
+            for cmd in render.cmds() {
+                cmd.exec(frame, &mut screen)?;
+            }
+            screen.finish()?;
             if let Some(ref root_frame_filename) = context.cfg.output {
                 if frame < context.cfg.frame_limit {
                     let save_path = match context.cfg.still || context.cfg.frame_limit == 1 {
@@ -104,9 +109,7 @@ pub fn sketch<F: Fn(&SketchContext, StdRng) -> Result<Composition>>(
                             format!("{}{:08}", dir, frame)
                         }
                     };
-                    context
-                        .gpu
-                        .save_frame(render.buffer().as_ref(), &save_path)?;
+                    context.gpu.save_frame(&save_path)?;
                 }
             }
         }
