@@ -74,6 +74,12 @@ impl Uniforms for GpuUniforms {
                     ),
                 );
             }
+            GpuUniforms::NearFilter(ref cfg) => {
+                f("start", UniformValue::Float(cfg.start));
+                f("step", UniformValue::Float(cfg.step));
+                f("steps", cfg.steps.as_uniform_value());
+                f("sign", UniformValue::Float(cfg.sign));
+            }
             _ => {}
         }
     }
@@ -81,10 +87,10 @@ impl Uniforms for GpuUniforms {
 
 #[derive(Clone, Debug)]
 pub struct NearFilterCfg {
-    pub start: Tween<f32>,
-    pub step: Tween<f32>,
-    pub steps: Tween<f32>,
-    pub sign: Tween<f32>,
+    pub start: f32,
+    pub step: f32,
+    pub steps: i32,
+    pub sign: f32,
 }
 
 #[derive(Clone, Debug)]

@@ -6,6 +6,7 @@ use poly::{Point, Poly};
 use rand::Rng;
 use transforms::warp::*;
 
+#[derive(Clone, Copy, Debug)]
 pub struct WaterColorCfg {
     pub layers: usize,
     pub spread: f32,
@@ -51,7 +52,7 @@ pub struct WaterColor {
 }
 
 impl WaterColor {
-    pub fn new<R: Rng>(src: Poly, cfg: WaterColorCfg, rng: &mut R) -> Self {
+    pub fn new<R: Rng>(src: Poly, cfg: &WaterColorCfg, rng: &mut R) -> Self {
         let custom_factors: Option<Vec<f32>> = if cfg.uniform_spread {
             None
         } else {
@@ -72,7 +73,7 @@ impl WaterColor {
             custom_factors,
             cfg: WaterColorCfg {
                 spread: cfg.spread * cfg.subdivides_per.pow(cfg.depth as u32) as f32,
-                ..cfg
+                ..*cfg
             },
         }
     }

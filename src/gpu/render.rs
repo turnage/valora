@@ -215,7 +215,7 @@ impl Factory<Layer> for GpuLayer {
         match spec {
             Layer::Mesh { shader, mesh } => Ok(GpuLayer {
                 shader: GpuShader::produce(shader, gpu.clone())?,
-                blend: gpu::Blend::from(BlendMode::Normal),
+                blend: gpu::Blend::from(mesh.blend_mode),
                 src: GpuLayerSource::Batch {
                     cache: BatchCache {
                         sources: vec![mesh.transforms.clone()],
@@ -231,7 +231,7 @@ impl Factory<Layer> for GpuLayer {
             }),
             Layer::MeshInstances { src, meshes } => Ok(GpuLayer {
                 shader: GpuShader::produce(Shader::Instance, gpu.clone())?,
-                blend: gpu::Blend::from(BlendMode::Normal),
+                blend: gpu::Blend::from(src.blend_mode),
                 src: GpuLayerSource::Instances {
                     cache: InstanceCache {
                         data: VertexBuffer::dynamic(
@@ -248,7 +248,7 @@ impl Factory<Layer> for GpuLayer {
             }),
             Layer::MeshGroup { shader, meshes } => Ok(GpuLayer {
                 shader: GpuShader::produce(shader, gpu.clone())?,
-                blend: gpu::Blend::from(BlendMode::Normal),
+                blend: gpu::Blend::from(meshes[0].blend_mode),
                 src: GpuLayerSource::Batch {
                     mesh: GpuMesh::produce(meshes.as_ref(), gpu.clone())?,
                     cache: BatchCache {

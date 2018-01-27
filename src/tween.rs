@@ -21,7 +21,7 @@ impl<V: Clone + fmt::Debug> fmt::Debug for Tween<V> {
     }
 }
 
-impl<V: Clone> Tween<V> {
+impl<V: Clone + 'static> Tween<V> {
     pub fn tween(&self, last: &MeshSnapshot, frame: usize) -> V {
         match *self {
             Tween::Keyframes(ref keyframes) => unimplemented!(),
@@ -35,6 +35,12 @@ impl<V: Clone> Tween<V> {
 
     pub fn function<F: Fn(&MeshSnapshot, usize) -> V + 'static>(f: F) -> Self {
         Tween::Function(Arc::new(f))
+    }
+
+    pub fn chain<F: Fn(&MeshSnapshot, usize, V) -> V + 'static>(self, f: F) -> Self {
+        Tween::Function(Arc::new(move |snapshot, frame| {
+            f(snapshot, frame, self.tween(snapshot, frame))
+        }))
     }
 }
 

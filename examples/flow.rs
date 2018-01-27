@@ -5,8 +5,8 @@ extern crate valora;
 use valora::*;
 use valora::glossy;
 use valora::noise::*;
-use valora::rand::{Rng, StdRng};
-use valora::palette::{Colora, RgbHue};
+use valora::rand::{Rand, Rng, SeedableRng, StdRng};
+use valora::palette::{Colora, Hue, LabHue, RgbHue, Shade};
 use valora::image::Pixel;
 use std::rc::Rc;
 use rayon::prelude::*;
@@ -21,72 +21,134 @@ fn main() {
         |ctx: &SketchContext, mut rng: StdRng| -> Result<Composition> {
             let noise = Perlin::new().set_seed(rng.gen());
 
+            let bg_base = rng.gen_range(180.0, 240.0);
+            let bg_base_range = rng.gen_range(20.0, 50.0);
+            let bg_opacity = rng.gen_range(0.2, 1.0);
+            let bg_root = Mesh::from(Ellipse::circle(Point::center(), rng.gen_range(0.01, 0.03)));
+            let bg = sparkles(10000, &Rect::frame(), &mut rng)
+                .into_iter()
+                .map(|p| {
+                    Mesh::from(Ellipse::circle(p, 1.0))
+                        .with_color(Colora::hsv(
+                            RgbHue::from(bg_base + noise.get([p.x, p.y]) * bg_base_range),
+                            bg_opacity,
+                            1.0,
+                            1.0,
+                        ))
+                        .transforms
+                })
+                .collect();
+
             let palette = uniform_palette(
-                rng.gen_range(0.0, 360.0),
-                rng.gen_range(30.0, 90.0),
-                rng.gen_range(0.2, 1.0),
-                rng.gen_range(0.7, 1.0),
+                bg_base,
+                bg_base_range,
+                rng.gen_range(0.8, 1.0),
+                rng.gen_range(0.8, 1.0),
                 1.0,
-                rng.gen_range(1, 5),
+                rng.gen_range(1, 7),
             );
+
+            let stroke_count = rng.gen_range(200, 1000);
+            let min_size = 0.04;
+            let stroke_size = if min_size > (1.0 / (stroke_count as f32).powf(0.8)) {
+                min_size
+            } else {
+                (1.0 / (stroke_count as f32).sqrt())
+            };
+            let speed = rng.gen_range(0.001, 0.007);
+            let stroke_opacity = rng.gen_range(0.3, 1.0);
 
             let warp_cfg = WarpCfg {
                 variance: rng.gen_range(0.0, 1.0),
                 axis: WarpAxis::Y,
                 ..Default::default()
             };
+            let watercolor_cfg = WaterColorCfg {
+                layers: rng.gen_range(1, 5) * 2 + 1,
+                spread: stroke_size * rng.gen_range(0.5, 2.0),
+                anchor_layer: rng.gen(),
+                ..WaterColorCfg::default()
+            };
             let warper = |poly: Poly, rng: &mut StdRng| -> Poly {
                 warp(poly, &warp_cfg, rng).subdivide_edges()
             };
-
-            let stroke_count = rng.gen_range(20, 10000);
-            let min_size = 0.04;
-            let stroke_size = if min_size > (1.0 / (stroke_count as f32).sqrt()) {
-                min_size
-            } else {
-                (1.0 / (stroke_count as f32).sqrt())
-            };
-            let speed = rng.gen_range(0.001, 0.007);
             let mut warper_rng = rng.clone();
             let strokes: Vec<Mesh> = {
-                let mut stroke = |center: Point| {
-                    let rect_width = stroke_size / 1.2;
-                    let rect_height = stroke_size / 1.8;
-                    let rect = Poly::from(Rect::new(center, rect_width, rect_height)).place(center);
-                    let stroke =
-                        iterate_rand(rect, warper_rng.gen_range(0, 5), &mut warper_rng, &warper)
-                            .place(center);
+                let mut stroke = |center: Point| -> Vec<Mesh> {
+                    let radius = stroke_size / 2.0;
+                    let rect = Poly::from(Ngon {
+                        n: warper_rng.gen_range(3, 10),
+                        phase: warper_rng.gen(),
+                        radius,
+                        center,
+                    }).place(warper_rng.gen::<Point>() * -4.0);
+                    let color = Colora {
+                        alpha: stroke_opacity,
+                        ..*warper_rng.choose(palette.as_ref()).unwrap()
+                    };
+                    let stroke = generate(
+                        &WaterColor::new(
+                            rect,
+                            &WaterColorCfg {
+                                color,
+                                ..watercolor_cfg
+                            },
+                            &mut warper_rng,
+                        ),
+                        warper_rng.clone(),
+                    );
                     let offset = warper_rng.gen_range(0.0, PI / 3.0);
-                    let tail = Mesh::from(stroke)
-                        .with_color(*warper_rng.choose(palette.as_ref()).unwrap())
-                        .with_pos(Tween::function(move |last: &MeshSnapshot, _| {
-                            let sample = noise.get([last.pos.x, last.pos.y]);
-                            let theta = sample * 2.0 * PI;
-                            let mut next =
-                                Ellipse::circle(last.pos, speed).circumpoint(theta + offset);
-                            if next.x > 1.0 + rect_width * 3.0 || next.x < 0.0 - rect_width * 3.0 {
-                                next.x = 1.0 - next.x;
-                            }
-                            if next.y > 1.0 + rect_height * 3.0 || next.y < 0.0 - rect_height * 3.0
-                            {
-                                next.y = 1.0 - next.y;
-                            }
-                            next
+                    let tail: Vec<Mesh> = stroke
+                        .into_iter()
+                        .map(move |m| {
+                            m.with_pos(Tween::function(move |last: &MeshSnapshot, frame| {
+                                let sample = noise.get([last.pos.x, last.pos.y]);
+                                let theta = sample * 2.0 * PI;
+                                let mut next =
+                                    Ellipse::circle(last.pos, speed).circumpoint(theta + offset);
+                                if next.x > 1.0 + radius * 3.0 || next.x < 0.0 - radius * 3.0
+                                    || next.y > 1.0 + radius * 3.0
+                                    || next.y < 0.0 - radius * 3.0
+                                {
+                                    next = StdRng::from_seed(&[
+                                        frame * 100,
+                                        (last.origin.y * 10000.0) as usize,
+                                    ]).gen();
+                                }
+                                next
+                            })).with_rotation(Tween::function(move |last: &MeshSnapshot, _| {
+                                    noise.get([last.pos.x, last.pos.y]) * 2.0 * PI + (PI / 2.0)
+                                }))
+                                .with_scale(Tween::function(move |last: &MeshSnapshot, _| {
+                                    if last.pos.x > 1.0 + radius * 2.0
+                                        || last.pos.x < 0.0 - radius * 2.0
+                                        || last.pos.y > 1.0 + radius * 2.0
+                                        || last.pos.y < 0.0 - radius * 2.0
+                                    {
+                                        0.0
+                                    } else {
+                                        match last.scale {
+                                            x if x > 0.05 && x < 1.0 => x.powf(0.8),
+                                            x if x > 1.0 => x - (x - 1.0) / 2.0,
+                                            0.0 => 0.2,
+                                            _ => 1.0,
+                                        }
+                                    }
+                                }))
+                                .with_blend_mode(BlendMode::Subtract)
+                        })
+                        .collect();
+                    tail.clone()
+                        .into_iter()
+                        .chain(tail.into_iter().map(|m| {
+                            let scale = m.transforms.scale.clone();
+                            m.with_scale(scale.chain(|_, _, raw| raw / 1.5))
+                                .with_color(color.lighten(0.2))
                         }))
-                        .with_rotation(Tween::function(move |last: &MeshSnapshot, _| {
-                            noise.get([last.pos.x, last.pos.y]) * 2.0 * PI + (PI / 2.0) + offset
-                        }));
-                    vec![
-                        tail.clone(),
-                        tail.with_color(Colora::rgb(0.0, 0.0, 0.0, 1.0))
-                            .with_scale(Tween::Constant(1.1))
-                            .with_draw_mode(DrawMode::Stroke {
-                                thickness: stroke_size / warper_rng.gen_range(10.0, 100.0),
-                            }),
-                    ]
+                        .collect()
                 };
                 let sparkles: Vec<Point> = sparkles(
-                    rng.gen_range(20, 400),
+                    stroke_count,
                     &Rect::frame().scale(rng.gen_range(0.7, 1.0)),
                     &mut rng,
                 );
@@ -95,6 +157,10 @@ fn main() {
 
             Ok(Composition::new()
                 .solid_layer(Colora::hsv(RgbHue::from(184.0), 0.2, 0.8, 1.0))
+                .add(Instancer {
+                    src: bg_root,
+                    instances: bg,
+                })
                 .add(strokes))
         },
     ).expect("noise");
