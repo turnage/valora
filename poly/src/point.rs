@@ -5,6 +5,7 @@ use num::traits::identities::{One, Zero};
 use rand::{Rand, Rng};
 use rand::distributions::{IndependentSample, Normal, Sample};
 use std::ops::*;
+use ellipse::Ellipse;
 
 /// 2 dimensional floating point.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -23,6 +24,17 @@ impl Point {
             x: self.x + offset,
             y: self.y + offset,
         }
+    }
+
+    pub fn orbit(self, pivot: Point, phase: f32) -> Point {
+        let theta = self.theta_about(pivot);
+        let theta = theta + phase;
+        Ellipse::circle(pivot, self.distance(&pivot)).circumpoint(theta)
+    }
+
+    pub fn theta_about(&self, pivot: Point) -> f32 {
+        let delta = *self - pivot;
+        delta.y.atan2(delta.x)
     }
 }
 

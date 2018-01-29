@@ -48,7 +48,7 @@ fn main() {
                 rng.gen_range(1, 7),
             );
 
-            let stroke_count = rng.gen_range(200, 1000);
+            let stroke_count = 100;//rng.gen_range(80, 100);
             let min_size = 0.04;
             let stroke_size = if min_size > (1.0 / (stroke_count as f32).powf(0.8)) {
                 min_size
@@ -98,14 +98,38 @@ fn main() {
                         warper_rng.clone(),
                     );
                     let offset = warper_rng.gen_range(0.0, PI / 3.0);
+                    let period = 100;
+                    let height = 0.15;
+                    let rotation = warper_rng.gen::<f32>() * 2.0 * PI;
+                    let phase = warper_rng.gen_range(30, 80);
                     let tail: Vec<Mesh> = stroke
                         .into_iter()
                         .map(move |m| {
                             m.with_pos(Tween::function(move |last: &MeshSnapshot, frame| {
-                                let sample = noise.get([last.pos.x, last.pos.y]);
+                                let completion = (frame + phase) as f32 / (1.0 / speed);
+                                Point {
+                                    x: Ellipse::circle(Point::center(), height).circumpoint(completion * PI * 2.0).x,
+                                    y: Ellipse::circle(Point::center(), height).circumpoint(completion * PI * 2.5).y,
+                                }.orbit(Point::center(), rotation)
+                                
+                                /*let sample = noise.get([last.pos.x, last.pos.y]);
                                 let theta = sample * 2.0 * PI;
                                 let mut next =
                                     Ellipse::circle(last.pos, speed).circumpoint(theta + offset);
+                                let x_osc = Oscillation {
+                                    amplitude: 1.0,
+                                    phase: 0,
+                                    period: 500,
+                                };
+                                let y_osc = Oscillation {
+                                    amplitude: 1.0,
+                                    phase: 0,
+                                    period: 1000,
+                                };
+                                next = last.pos + (next - last.pos) * Point {
+                                    x: x_osc.oscillate(frame),
+                                    y: y_osc.oscillate(frame),
+                                };
                                 if next.x > 1.0 + radius * 3.0 || next.x < 0.0 - radius * 3.0
                                     || next.y > 1.0 + radius * 3.0
                                     || next.y < 0.0 - radius * 3.0
@@ -115,7 +139,7 @@ fn main() {
                                         (last.origin.y * 10000.0) as usize,
                                     ]).gen();
                                 }
-                                next
+                                next*/
                             })).with_rotation(Tween::function(move |last: &MeshSnapshot, _| {
                                     noise.get([last.pos.x, last.pos.y]) * 2.0 * PI + (PI / 2.0)
                                 }))

@@ -26,7 +26,7 @@ impl<V: Clone + 'static> Tween<V> {
         match *self {
             Tween::Keyframes(ref keyframes) => unimplemented!(),
             Tween::Oscillation((ref oscillation, ref adapter)) => {
-                adapter(oscillation.oscillate(frame))
+                adapter(oscillation.oscillate(frame as isize))
             }
             Tween::Constant(ref v) => v.clone(),
             Tween::Function(ref f) => f(last, frame),
@@ -65,7 +65,7 @@ pub struct Oscillation {
 }
 
 impl Oscillation {
-    pub fn oscillate(&self, frame: usize) -> f32 {
+    pub fn oscillate(&self, frame: isize) -> f32 {
         use std::f32::consts::PI;
 
         let x = frame as f32 - self.phase as f32;
@@ -95,7 +95,7 @@ impl Interpolation {
                     (frame - start) as f32 / len as f32
                 }
             }
-            Interpolation::Oscillation(oscillation) => oscillation.oscillate(frame),
+            Interpolation::Oscillation(oscillation) => oscillation.oscillate(frame as isize),
             Interpolation::Constant(completion) => completion,
         }
     }
