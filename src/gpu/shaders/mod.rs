@@ -4,9 +4,8 @@ use gpu::{Factory, Gpu};
 use image::{ImageBuffer, Rgb};
 use std::rc::Rc;
 use glium::uniforms::{AsUniformValue, MagnifySamplerFilter, MinifySamplerFilter, SamplerBehavior,
-                      SamplerWrapFunction, UniformBuffer, UniformValue, Uniforms};
+                      SamplerWrapFunction, UniformValue, Uniforms};
 use glium::Program;
-use tween::Tween;
 
 pub const MAX_VORONOI_SITES: usize = 512;
 

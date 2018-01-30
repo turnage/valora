@@ -1,16 +1,13 @@
 use gpu::{self, Factory, Gpu, GpuBareVertex, GpuMesh};
 use std::rc::Rc;
 use composition::{Composition, Layer};
-use gpu::shaders::{GpuShader, GpuUniforms, Shader, UniformFacade};
+use gpu::shaders::{GpuShader, Shader};
 use mesh::{Mesh, MeshSnapshot, MeshTransforms};
 use glium::draw_parameters::DrawParameters;
 use glium::{Surface, VertexBuffer};
-use glium::texture::{MipmapsOption, Texture2d, UncompressedFloatFormat};
 use errors::Result;
-use rayon::prelude::*;
 use palette::{Blend, Colora};
-use color::BlendMode;
-use glium::uniforms::{AsUniformValue, EmptyUniforms, UniformBuffer, UniformValue, Uniforms};
+use glium::uniforms::{EmptyUniforms, UniformBuffer};
 use poly::Point;
 
 pub const MAX_MESHES: usize = 1024;
@@ -183,12 +180,12 @@ impl<'a> DrawCmd<'a> {
     }
 }
 
-struct InstanceCache {
+pub struct InstanceCache {
     sources: Vec<MeshTransforms>,
     data: VertexBuffer<GpuMeshTransforms>,
 }
 
-struct BatchCache {
+pub struct BatchCache {
     sources: Vec<MeshTransforms>,
     data: UniformBuffer<[GpuMeshTransforms; MAX_MESHES]>,
 }
@@ -320,11 +317,6 @@ impl GpuLayer {
             },
         }
     }
-}
-
-struct BufferSpec {
-    pub width: u32,
-    pub height: u32,
 }
 
 pub struct RenderSpec {

@@ -1,24 +1,17 @@
 extern crate itertools;
-extern crate rayon;
 extern crate valora;
 
 use valora::*;
-use valora::glossy;
 use valora::noise::*;
-use valora::rand::{Rand, Rng, SeedableRng, StdRng};
-use valora::palette::{Colora, Hue, LabHue, RgbHue, Shade};
-use valora::image::Pixel;
-use std::rc::Rc;
-use rayon::prelude::*;
-use itertools::{Either, Itertools};
+use valora::rand::{Rng, StdRng};
+use valora::palette::{Colora, RgbHue, Shade};
 
 use std::f32::consts::PI;
-use std::cmp;
 
 fn main() {
-    sketch(
-        SketchCfg::from_args(),
-        |ctx: &SketchContext, mut rng: StdRng| -> Result<Composition> {
+    compose(
+        CompositionCfg::from_args(),
+        |ctx: &CompositionCtx, mut rng: StdRng| -> Result<Composition> {
             let noise = Perlin::new().set_seed(rng.gen());
 
             let bg_base = rng.gen_range(180.0, 240.0);

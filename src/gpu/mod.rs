@@ -8,10 +8,9 @@ pub use self::tessellation::*;
 
 use color::BlendMode;
 use errors::Result;
-use glium::{glutin, Blend, Display, IndexBuffer, Surface, VertexBuffer};
+use glium::{glutin, Blend, Display, IndexBuffer, VertexBuffer};
 use glium::backend::{Context, Facade};
 use glium::index::PrimitiveType;
-use glium::texture::texture2d::Texture2d;
 use mesh::Mesh;
 use poly::Point;
 use std::ops::{Deref, DerefMut};

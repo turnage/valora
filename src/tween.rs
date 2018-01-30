@@ -1,10 +1,9 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 use std::fmt;
 use mesh::MeshSnapshot;
 
 #[derive(Clone)]
 pub enum Tween<V: Clone> {
-    Keyframes(Vec<Keyframe>),
     Oscillation((Oscillation, Arc<Fn(f32) -> V>)),
     Constant(V),
     Function(Arc<Fn(&MeshSnapshot, usize) -> V>),
@@ -13,7 +12,6 @@ pub enum Tween<V: Clone> {
 impl<V: Clone + fmt::Debug> fmt::Debug for Tween<V> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Tween::Keyframes(ref keyframes) => unimplemented!(),
             Tween::Oscillation((ref oscillation, _)) => oscillation.fmt(f),
             Tween::Constant(ref v) => v.fmt(f),
             Tween::Function(_) => write!(f, "Function tween."),
@@ -24,7 +22,6 @@ impl<V: Clone + fmt::Debug> fmt::Debug for Tween<V> {
 impl<V: Clone + 'static> Tween<V> {
     pub fn tween(&self, last: &MeshSnapshot, frame: usize) -> V {
         match *self {
-            Tween::Keyframes(ref keyframes) => unimplemented!(),
             Tween::Oscillation((ref oscillation, ref adapter)) => {
                 adapter(oscillation.oscillate(frame as isize))
             }
