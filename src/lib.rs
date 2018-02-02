@@ -47,8 +47,8 @@
 //!
 //! Valora re-exports some incredible crates you'll probably end up needing while
 //! writing your art:
-//! 
-//! * [noise-rs](https://github.com/brendanzab/noise-rs) by a group of generous Rustaceans. 
+//!
+//! * [noise-rs](https://github.com/brendanzab/noise-rs) by a group of generous Rustaceans.
 //! * [palette](https://github.com/Ogeon/palette) for color by Erik Hedvall and @sidred
 //! * [image](https://github.com/PistonDevelopers/image) by the Piston team.
 //! * [glossy](https://github.com/elizagamedev/rust-glossy) for loading shaders by Eliza.
@@ -71,28 +71,29 @@
 #![recursion_limit = "128"]
 #![feature(repr_align)]
 #![feature(attr_literals)]
+#![feature(type_ascription)]
 
 #[macro_use]
 extern crate error_chain;
-extern crate itertools;
-extern crate lyon;
-extern crate num;
-extern crate petgraph;
-extern crate rayon;
-extern crate structopt;
-#[macro_use]
-extern crate structopt_derive;
-extern crate tess2;
 #[macro_use]
 pub extern crate glium;
 #[macro_use]
 #[macro_reexport(shader)]
 pub extern crate glossy;
 pub extern crate image;
+extern crate itertools;
+extern crate lyon;
 pub extern crate noise;
+extern crate num;
 pub extern crate palette;
+extern crate petgraph;
 pub extern crate poly;
 pub extern crate rand;
+extern crate rayon;
+extern crate structopt;
+#[macro_use]
+extern crate structopt_derive;
+extern crate tess2;
 
 pub mod patterns;
 pub mod actors;

@@ -6,7 +6,8 @@ use mesh::{Mesh, MeshSnapshot, MeshTransforms};
 use glium::draw_parameters::DrawParameters;
 use glium::{Surface, VertexBuffer};
 use errors::Result;
-use palette::{Blend, Colora};
+use color::Color;
+use palette::Rgb;
 use glium::uniforms::{EmptyUniforms, UniformBuffer};
 use poly::Point;
 
@@ -49,7 +50,7 @@ impl Into<MeshSnapshot> for GpuMeshTransforms {
                 x: self.root_center.0,
                 y: self.root_center.1,
             },
-            color: Colora::rgb(self.color.0, self.color.1, self.color.2, self.color.3),
+            color: Color::new(self.color.0, self.color.1, self.color.2, self.color.3),
         }
     }
 }
@@ -105,9 +106,9 @@ impl GpuMeshTransforms {
     }
 }
 
-fn format_color(color: Colora) -> (f32, f32, f32, f32) {
-    let cp = color.into_premultiplied();
-    (cp.red, cp.green, cp.blue, color.alpha)
+fn format_color(color: Color) -> (f32, f32, f32, f32) {
+    let rgb: &Rgb = &color;
+    (rgb.red, rgb.green, rgb.blue, color.alpha)
 }
 
 impl<'a> From<(Point, &'a Mesh)> for GpuMeshTransforms {

@@ -1,4 +1,6 @@
-use palette::{Colora, RgbHue};
+use palette::{Alpha, Hsva, Limited, Rgb, RgbHue};
+
+pub type Color = Alpha<Rgb, f32>;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BlendMode {
@@ -9,6 +11,14 @@ pub enum BlendMode {
     MaskTransparent,
 }
 
+pub fn hsva(h: f32, s: f32, v: f32, a: f32) -> Color {
+    Hsva::new(RgbHue::from(h), s, v, a).into()
+}
+
+pub fn hsv(h: f32, s: f32, v: f32) -> Color {
+    hsva(h, s, v, 1.0)
+}
+
 pub fn uniform_palette(
     start: f32,
     length: f32,
@@ -16,18 +26,11 @@ pub fn uniform_palette(
     value: f32,
     alpha: f32,
     count: usize,
-) -> Vec<Colora> {
+) -> Vec<Color> {
     let interval = length / (count as f32);
     (0..count)
         .into_iter()
-        .map(|i| {
-            Colora::hsv(
-                RgbHue::from(start + (i as f32) * interval),
-                saturation,
-                value,
-                alpha,
-            )
-        })
+        .map(|i| hsva(start + (i as f32) * interval, saturation, value, alpha))
         .collect()
 }
 

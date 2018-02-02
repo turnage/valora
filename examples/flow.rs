@@ -41,7 +41,7 @@ fn main() {
                 rng.gen_range(1, 7),
             );
 
-            let stroke_count = 100;//rng.gen_range(80, 100);
+            let stroke_count = 100; //rng.gen_range(80, 100);
             let min_size = 0.04;
             let stroke_size = if min_size > (1.0 / (stroke_count as f32).powf(0.8)) {
                 min_size
@@ -101,10 +101,14 @@ fn main() {
                             m.with_pos(Tween::function(move |last: &MeshSnapshot, frame| {
                                 let completion = (frame + phase) as f32 / (1.0 / speed);
                                 Point {
-                                    x: Ellipse::circle(Point::center(), height).circumpoint(completion * PI * 2.0).x,
-                                    y: Ellipse::circle(Point::center(), height).circumpoint(completion * PI * 2.5).y,
+                                    x: Ellipse::circle(Point::center(), height)
+                                        .circumpoint(completion * PI * 2.0)
+                                        .x,
+                                    y: Ellipse::circle(Point::center(), height)
+                                        .circumpoint(completion * PI * 2.5)
+                                        .y,
                                 }.orbit(Point::center(), rotation)
-                                
+
                                 /*let sample = noise.get([last.pos.x, last.pos.y]);
                                 let theta = sample * 2.0 * PI;
                                 let mut next =

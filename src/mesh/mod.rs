@@ -1,8 +1,7 @@
-use color::BlendMode;
+use color::{BlendMode, Color};
 use poly::{Point, Poly};
 use generators::{SpawnCfg, Spawner};
 use tween::Tween;
-use palette::Colora;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DrawMode {
@@ -20,7 +19,7 @@ pub struct Mesh {
 
 #[derive(Clone, Debug)]
 pub struct MeshTransforms {
-    pub color: Colora,
+    pub color: Color,
     pub scale: Tween<f32>,
     pub pos: Tween<Point>,
     pub rotation: Tween<f32>,
@@ -40,7 +39,7 @@ impl MeshTransforms {
 }
 
 pub struct MeshSnapshot {
-    pub color: Colora,
+    pub color: Color,
     pub scale: f32,
     pub pos: Point,
     pub rotation: f32,
@@ -62,7 +61,7 @@ impl<T: Into<Poly>> From<T> for Mesh {
             blend_mode: BlendMode::Normal,
             draw_mode: DrawMode::Fill,
             transforms: MeshTransforms {
-                color: Colora::rgb(1.0, 0.0, 0.0, 1.0),
+                color: Color::new(1.0, 0.0, 0.0, 1.0),
                 scale: Tween::Constant(1.0),
                 pos: Tween::Constant(pos),
                 rotation: Tween::Constant(0.0),
@@ -85,8 +84,8 @@ macro_rules! with {
 macro_rules! with_transform {
     ($f:ident, $field:ident, $type:ty) => {
         impl Mesh {
-            pub fn $f(mut self, $field: $type) -> Self {
-                self.transforms.$field = $field;
+            pub fn $f<F: Into<$type>>(mut self, $field: F) -> Self {
+                self.transforms.$field = $field.into();
                 self
             }
         }
@@ -96,7 +95,7 @@ macro_rules! with_transform {
 with!(with_blend_mode, blend_mode, BlendMode);
 with!(with_draw_mode, draw_mode, DrawMode);
 
-with_transform!(with_color, color, Colora);
+with_transform!(with_color, color, Color);
 with_transform!(with_scale, scale, Tween<f32>);
 with_transform!(with_pos, pos, Tween<Point>);
 with_transform!(with_rotation, rotation, Tween<f32>);
