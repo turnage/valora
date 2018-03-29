@@ -1,17 +1,17 @@
-use color::BlendMode;
+use color::{hsva, BlendMode, Color};
 use generators::spawner::{SpawnCfg, SpawnSrc, Spawner};
 use mesh::{DrawMode, Mesh};
-use palette::Colora;
 use poly::{Point, Poly};
 use rand::Rng;
 use transforms::warp::*;
+use tween::Tween;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct WaterColorCfg {
     pub layers: usize,
     pub spread: f32,
     pub depth: usize,
-    pub color: Colora,
+    pub color: Tween<Color>,
     pub draw_mode: DrawMode,
     pub blend_mode: BlendMode,
     pub anchor_layer: bool,
@@ -26,7 +26,7 @@ impl Default for WaterColorCfg {
             layers: 100,
             spread: 0.03,
             depth: 5,
-            color: Colora::rgb(1.0, 1.0, 1.0, 0.04),
+            color: Tween::Constant(hsva(1.0, 1.0, 1.0, 0.04)),
             draw_mode: DrawMode::Fill,
             blend_mode: BlendMode::Normal,
             anchor_layer: false,
@@ -73,7 +73,7 @@ impl WaterColor {
             custom_factors,
             cfg: WaterColorCfg {
                 spread: cfg.spread * cfg.subdivides_per.pow(cfg.depth as u32) as f32,
-                ..*cfg
+                ..cfg.clone()
             },
         }
     }
@@ -115,14 +115,14 @@ impl Spawner<Mesh> for WaterColor {
                 &WaterColorCfg {
                     subdivides_per: 0,
                     depth: self.cfg.duplicate_depth,
-                    ..self.cfg
+                    ..self.cfg.clone()
                 },
                 &self.custom_factors,
                 cfg.rng,
             ),
         };
         Mesh::from(src.place(cfg.point))
-            .with_color(self.cfg.color)
+            .with_color(self.cfg.color.clone())
             .with_draw_mode(self.cfg.draw_mode)
             .with_blend_mode(self.cfg.blend_mode)
     }

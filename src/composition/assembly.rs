@@ -125,10 +125,6 @@ impl Composition {
         Self::default()
     }
 
-    pub fn solid_layer(self, color: Colora) -> Self {
-        self.add(Mesh::from(Rect::frame()).with_color(color))
-    }
-
     pub fn add<L: Into<LayerInput>>(mut self, layer: L) -> Self {
         self.layers.extend(layer.into());
         self

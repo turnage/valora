@@ -19,7 +19,7 @@ pub struct Mesh {
 
 #[derive(Clone, Debug)]
 pub struct MeshTransforms {
-    pub color: Color,
+    pub color: Tween<Color>,
     pub scale: Tween<f32>,
     pub pos: Tween<Point>,
     pub rotation: Tween<f32>,
@@ -29,7 +29,7 @@ pub struct MeshTransforms {
 impl MeshTransforms {
     pub fn snapshot(&self, last: &MeshSnapshot, frame: usize) -> MeshSnapshot {
         MeshSnapshot {
-            color: last.color,
+            color: self.color.tween(last, frame),
             scale: self.scale.tween(last, frame),
             pos: self.pos.tween(last, frame),
             rotation: self.rotation.tween(last, frame),
@@ -61,7 +61,7 @@ impl<T: Into<Poly>> From<T> for Mesh {
             blend_mode: BlendMode::Normal,
             draw_mode: DrawMode::Fill,
             transforms: MeshTransforms {
-                color: Color::new(1.0, 0.0, 0.0, 1.0),
+                color: Tween::Constant(Color::new(1.0, 0.0, 0.0, 1.0)),
                 scale: Tween::Constant(1.0),
                 pos: Tween::Constant(pos),
                 rotation: Tween::Constant(0.0),
@@ -95,7 +95,7 @@ macro_rules! with_transform {
 with!(with_blend_mode, blend_mode, BlendMode);
 with!(with_draw_mode, draw_mode, DrawMode);
 
-with_transform!(with_color, color, Color);
+with_transform!(with_color, color, Tween<Color>);
 with_transform!(with_scale, scale, Tween<f32>);
 with_transform!(with_pos, pos, Tween<Point>);
 with_transform!(with_rotation, rotation, Tween<f32>);

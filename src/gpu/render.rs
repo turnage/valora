@@ -100,7 +100,7 @@ impl GpuMeshTransforms {
                 let point = tx.pos.tween(&snapshot, frame);
                 (point.x, point.y)
             },
-            color: format_color(tx.color),
+            color: format_color(tx.color.tween(&snapshot, frame)),
             ..self
         }
     }
@@ -120,7 +120,7 @@ impl<'a> From<(Point, &'a Mesh)> for GpuMeshTransforms {
             center: (center.x, center.y),
             root_center: (root_center.x, root_center.y),
             _pad1: [0; 2],
-            color: format_color(src.transforms.color),
+            color: (0.0, 0.0, 0.0, 0.0),
         }
     }
 }
