@@ -10,6 +10,7 @@ import Data.Fixed (mod')
 import qualified Data.Vector as V
 
 import Coords
+import Core
 import Geom
 
 data Isotile = Isotile
@@ -23,6 +24,7 @@ data IsoSide
   = IsoLeft
   | IsoCenter
   | IsoRight
+  deriving (Eq, Show)
 
 isoSideMask :: IsoSide -> Isotile -> Contour
 isoSideMask side (Isotile a b c period) =
@@ -59,12 +61,12 @@ isotiles period = map (tile) [0 ..]
 isotileGrid :: Double -> Double -> Double -> [Isotile]
 isotileGrid period width height = concat $ map (take neededColumns) rows'
   where
-    neededColumns = round $ height / period
-    neededRows = round $ width / period
+    neededColumns = 2 + (round $ height / period)
+    neededRows = 1 + (round $ width / period)
     rows = map (const $ isotiles period) [0 .. neededRows]
     shifter row =
-      let y = fromIntegral row * period
+      let y = fromIntegral row * period - period
       in if row `mod` 2 == 0
-           then shift $ Point 0 y
-           else shift $ Point (period / 2) y
+           then shift $ Point (-period) y
+           else shift $ Point ((period / 2) - period) y
     rows' = map (\(i, row) -> map (shifter i) row) $ zip [0 ..] rows
