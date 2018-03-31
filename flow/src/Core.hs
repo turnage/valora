@@ -3,7 +3,6 @@ module Core
   , World(..)
   , Context(..)
   , cairo
-  , sample
   , screen
   ) where
 
@@ -14,24 +13,11 @@ import Data.RVar
 import Data.Random.Distribution.Normal
 import Data.Random.RVar
 import Data.Random.Source.PureMT
-import Graphics.Rendering.Cairo
+import Graphics.Rendering.Cairo as Cairo
 import Graphics.UI.Gtk
-  ( DrawingArea
-  , containerAdd
-  , drawingAreaNew
-  , initGUI
-  , mainGUI
-  , mainQuit
-  , onDestroy
-  , onExpose
-  , renderWithDrawable
-  , timeoutAdd
-  , widgetGetDrawWindow
-  , widgetGetDrawWindow
-  , widgetShowAll
-  , windowNew
-  , windowSetDefaultSize
-  )
+import Graphics.UI.Gtk.Gdk.Events
+import Graphics.UI.Gtk.OpenGL.Config
+import Graphics.UI.Gtk.OpenGL.DrawingArea
 
 type Generate a = StateT PureMT (ReaderT Context Render) a
 
@@ -56,11 +42,8 @@ frameRange world (start, end) =
 cairo :: Render a -> Generate a
 cairo = lift . lift
 
-sample :: RVar a -> State PureMT a
-sample = sampleRVar
-
-realize :: IORef Int -> PureMT -> World -> Generate () -> IO (Render ())
-realize frameRef rng world work = do
+preprocess :: IORef Int -> PureMT -> World -> Generate () -> IO (Render ())
+preprocess frameRef rng world work = do
   frame <- readIORef frameRef
   modifyIORef frameRef (+ 1)
   let ctx = Context world frame
@@ -73,13 +56,14 @@ screen :: World -> Generate () -> IO ()
 screen (World width height seed factor) work = do
   initGUI
   window <- windowNew
-  drawingArea <- drawingAreaNew
+  glCfg <- glConfigNew [GLModeRGBA, GLModeDouble]
+  drawingArea <- glDrawingAreaNew glCfg
   containerAdd window drawingArea
   rng <- newPureMT
   frameRef <- newIORef 0
-  let work' = realize frameRef rng (World width height seed factor) work
-  drawingArea `onExpose` (\_ -> renderToScreen drawingArea work')
-  timeoutAdd (renderToScreen drawingArea work') 16
+  let work' = preprocess frameRef rng (World width height seed factor) work
+  timeoutAdd (renderToScreen scaledWidth scaledHeight drawingArea work') 16
+  window `onKeyPress` ui
   window `onDestroy` mainQuit
   windowSetDefaultSize window scaledWidth scaledHeight
   widgetShowAll window
@@ -88,9 +72,26 @@ screen (World width height seed factor) work = do
     scaledHeight = round $ (fromIntegral height) * factor
     scaledWidth = round $ (fromIntegral width) * factor
 
-renderToScreen :: DrawingArea -> IO (Render ()) -> IO Bool
-renderToScreen da work = do
+renderToScreen :: Int -> Int -> GLDrawingArea -> IO (Render ()) -> IO Bool
+renderToScreen width height da work = do
   work <- work
   dw <- widgetGetDrawWindow da
-  renderWithDrawable dw work
+  surface <- createImageSurface FormatARGB32 width height
+  renderWith surface work
+  renderWithDrawable dw $ do
+    setSourceSurface surface 0 0
+    Cairo.rectangle 0 0 (fromIntegral width) (fromIntegral height)
+    fill
   return True
+
+escapeKey :: KeyVal
+escapeKey = 65307
+
+ui :: Event -> IO Bool
+ui Key {eventKeyVal, ..} =
+  case eventKeyVal of
+    escapeKey -> do
+      mainQuit
+      return True
+    _ -> return True
+ui _ = return True

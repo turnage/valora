@@ -2,13 +2,15 @@ module Isotile
   ( Isotile(..)
   , IsoSide(..)
   , isoSideMask
-  , isotiles
   , isotileGrid
+  , isotileGridMask
   ) where
 
 import Control.Monad.Reader
 import Data.Fixed (mod')
+import Data.Maybe
 import qualified Data.Vector as V
+import Graphics.Rendering.Cairo (fill)
 
 import Coords
 import Core
@@ -73,3 +75,17 @@ isotileGrid period = do
       in if row `mod` 2 == 0
            then shift $ Point (-period) y
            else shift $ Point ((period / 2) - period) y
+
+isotileGridMask ::
+     Double -> (Generate (), Generate (), Generate ()) -> Generate ()
+isotileGridMask period (left, center, right) = do
+  grid <- isotileGrid 80
+  left
+  foldr1 (>>) $
+    map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask IsoLeft)) grid
+  center
+  foldr1 (>>) $
+    map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask IsoCenter)) grid
+  right
+  foldr1 (>>) $
+    map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask IsoRight)) grid

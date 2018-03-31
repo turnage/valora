@@ -39,12 +39,15 @@ library
     , rvar
     , gtk
     , transformers
+    , gtkglext
   exposed-modules:
       Lib
     , Core
     , Isotile
     , Coords
     , Geom
+    , Traits.Position
+    , Flow
   other-modules:
       Paths_flow
   default-language: Haskell2010
@@ -61,6 +64,9 @@ library
                         , RankNTypes
                         , TupleSections
                         , ScopedTypeVariables
+                        , FlexibleInstances
+                        , UndecidableInstances
+                        , MonoLocalBinds
 
 executable flow-exe
   main-is: Main.hs
@@ -75,6 +81,7 @@ executable flow-exe
     , colour
     , vector
     , random-source
+    , random-fu
     , mtl
     , transformers
   other-modules:
