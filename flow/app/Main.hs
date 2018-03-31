@@ -1,5 +1,6 @@
 module Main where
 
+import Control.Monad.Reader
 import Data.Colour.RGBSpace
 import Data.Colour.RGBSpace.HSV
 import Data.Maybe
@@ -11,31 +12,25 @@ import Core
 import Geom
 import Isotile
 
-width_ = 500
-
-height_ = 500
-
-world :: World
-world = World 500 500 1 2
+world_ :: World
+world_ = World 500 500 1 1
 
 main :: IO ()
-main = screen world $ realize world (pureMT 50) scene
+main = screen world_ scene
 
 scene :: Generate ()
-scene =
-  cairo $ do
-    setSourceRGBA 1 0 0 1
+scene = do
+  cairo $ setSourceRGBA 1 0 0 1
+  grid <- isotileGrid 80
+  Context _ frame <- ask
+  cairo $
     foldr1 (>>) $
-      map (>> fill) $
-      mapMaybe (drawContour . (isoSideMask IsoLeft)) $
-      isotileGrid 80 width_ height_
-    setSourceRGBA 0 0 1 1
+    map (>> fill) $ mapMaybe (drawContour . (isoSideMask IsoLeft)) grid
+  cairo $ setSourceRGBA 0 0 (fromIntegral (frame `mod` 100) / 100.0) 1
+  cairo $
     foldr1 (>>) $
-      map (>> fill) $
-      mapMaybe (drawContour . (isoSideMask IsoCenter)) $
-      isotileGrid 80 width_ height_
-    setSourceRGBA 0 1 0 1
+    map (>> fill) $ mapMaybe (drawContour . (isoSideMask IsoCenter)) grid
+  cairo $ setSourceRGBA 0 1 0 1
+  cairo $
     foldr1 (>>) $
-      map (>> fill) $
-      mapMaybe (drawContour . (isoSideMask IsoRight)) $
-      isotileGrid 80 width_ height_
+    map (>> fill) $ mapMaybe (drawContour . (isoSideMask IsoRight)) grid

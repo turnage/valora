@@ -6,6 +6,7 @@ module Isotile
   , isotileGrid
   ) where
 
+import Control.Monad.Reader
 import Data.Fixed (mod')
 import qualified Data.Vector as V
 
@@ -58,15 +59,17 @@ isotiles period = map (tile) [0 ..]
       , period
       }
 
-isotileGrid :: Double -> Double -> Double -> [Isotile]
-isotileGrid period width height = concat $ map (take neededColumns) rows'
+isotileGrid :: Double -> Generate [Isotile]
+isotileGrid period = do
+  Context (World width height _ _) _ <- ask
+  let neededColumns = 2 + (round $ (fromIntegral height) / period)
+  let neededRows = 1 + (round $ (fromIntegral width) / period)
+  let rows = map (const $ isotiles period) [0 .. neededRows]
+  let rows' = map (\(i, row) -> map (shifter i) row) $ zip [0 ..] rows
+  return $ concat $ map (take neededColumns) rows'
   where
-    neededColumns = 2 + (round $ height / period)
-    neededRows = 1 + (round $ width / period)
-    rows = map (const $ isotiles period) [0 .. neededRows]
     shifter row =
       let y = fromIntegral row * period - period
       in if row `mod` 2 == 0
            then shift $ Point (-period) y
            else shift $ Point ((period / 2) - period) y
-    rows' = map (\(i, row) -> map (shifter i) row) $ zip [0 ..] rows
