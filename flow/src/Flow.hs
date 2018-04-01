@@ -20,17 +20,17 @@ data FlowCfg = FlowCfg
 
 flow :: Place p => FlowCfg -> p -> Generate [(Int -> p)]
 flow (FlowCfg rows cols streamSpeed angle) p = do
-  rows' <- sampleRVar rows >>= \v -> return $ round v
-  cols' <- sampleRVar cols >>= \v -> return $ round v
+  rows' <- sampleRVar rows >>= \v -> return $ round $ abs v
+  cols' <- sampleRVar cols >>= \v -> return $ round $ abs v
   angle' <- sampleRVar angle >>= \v -> return $ v `mod'` (2 * pi)
   streamSpeeds <- sequence $ take rows' $ repeat $ sampleRVar streamSpeed
-  Context (World width height _ _) _ <- ask
-  let locate speed (Point x y) i =
-        let x' = (x + xDelta) `mod'` fromIntegral width
-            y' = (y + yDelta) `mod'` fromIntegral height
-            xDelta = fromIntegral i * cos angle' * speed
-            yDelta = fromIntegral i * sin angle' * speed
-        in place (Point x' y') p
+  center' <- center
+  pacmanF' <- pacmanF
+  let pivotF = pivot center' angle'
+  let locate speed point i =
+        let xDelta = fromIntegral i * speed
+        in place (pacmanF' $ pivotF $ slideX point xDelta) p
   let animate speed row = map (\point -> locate speed point) row
-  grid' <- grid rows' cols'
+  World {width, height, ..} <- asks world
+  grid' <- grid (width * 2) (height * 2) rows' cols'
   return $ concat $ map (uncurry animate) $ zip streamSpeeds grid'

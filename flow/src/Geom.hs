@@ -18,7 +18,7 @@ instance Translate Contour where
   translate delta (Contour vertices) = Contour (V.map (+ delta) vertices)
 
 instance Centered Contour where
-  center (Contour vertices) = Point ((right + left) / 2) ((top + bottom) / 2)
+  centroid (Contour vertices) = Point ((right + left) / 2) ((top + bottom) / 2)
     where
       left = V.minimum xs
       right = V.maximum xs

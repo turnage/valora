@@ -4,16 +4,21 @@ module Core
   , Context(..)
   , cairo
   , screen
+  , hsva
   , file
+  , timeSeed
   ) where
 
 import Control.Monad.Reader
 import Control.Monad.State
+import Data.Colour.RGBSpace.HSV
+import Data.Colour.SRGB
 import Data.IORef
 import Data.RVar
 import Data.Random.Distribution.Normal
 import Data.Random.RVar
 import Data.Random.Source.PureMT
+import Data.Time.Clock.POSIX
 import Graphics.Rendering.Cairo as Cairo
 import Graphics.UI.Gtk
 import Graphics.UI.Gtk.Gdk.Events
@@ -34,6 +39,15 @@ data Context = Context
   , frame :: Int
   }
 
+hsva :: Double -> Double -> Double -> Double -> Generate ()
+hsva hue saturation value alpha =
+  cairo $ setSourceRGBA channelRed channelGreen channelBlue alpha
+  where
+    RGB {..} = hsv hue saturation value
+
+timeSeed :: IO (Int)
+timeSeed = getPOSIXTime >>= \t -> return $ round . (* 1000) $ t
+
 frameRange :: World -> (Int, Int) -> Maybe [Context]
 frameRange world (start, end) =
   if start < end
@@ -43,14 +57,20 @@ frameRange world (start, end) =
 cairo :: Render a -> Generate a
 cairo = lift . lift
 
-preprocess :: IORef Int -> PureMT -> World -> Generate () -> IO (Render ())
-preprocess frameRef rng world work = do
+preprocess :: IORef Int -> IORef Int -> World -> Generate () -> IO (Render ())
+preprocess frameRef seedRef world work = do
   frame <- readIORef frameRef
+  nextSeed <- readIORef seedRef
+  putStrLn $ "Read seed: " ++ (show nextSeed)
   modifyIORef frameRef (+ 1)
-  let ctx = Context world frame
+  let world' = world {seed = nextSeed}
+  let rng = pureMT $ fromInteger $ toInteger nextSeed
+  let ctx = Context world (frame - 1)
   return $
     (flip runReaderT ctx) . (>>= (return . fst)) . (flip runStateT rng) $ do
-      cairo $ scale (scaleFactor world) (scaleFactor world)
+      cairo $ do
+        scale (scaleFactor world') (scaleFactor world')
+        setAntialias AntialiasBest
       work
 
 screen :: World -> Generate () -> IO ()
@@ -60,11 +80,12 @@ screen (World width height seed factor) work = do
   glCfg <- glConfigNew [GLModeRGBA, GLModeDouble]
   drawingArea <- glDrawingAreaNew glCfg
   containerAdd window drawingArea
-  rng <- newPureMT
+  seedRef <- newIORef seed
+  putStrLn $ "Initial seed is: " ++ (show seed)
   frameRef <- newIORef 0
-  let work' = preprocess frameRef rng (World width height seed factor) work
+  let work' = preprocess frameRef seedRef (World width height seed factor) work
   timeoutAdd (renderToScreen scaledWidth scaledHeight drawingArea work') 16
-  window `onKeyPress` ui
+  window `onKeyPress` ui frameRef seedRef
   window `onDestroy` mainQuit
   windowSetDefaultSize window scaledWidth scaledHeight
   widgetShowAll window
@@ -73,18 +94,21 @@ screen (World width height seed factor) work = do
     scaledHeight = round $ (fromIntegral height) * factor
     scaledWidth = round $ (fromIntegral width) * factor
 
-file :: String -> World -> Generate () -> IO ()
-file path (World width height seed factor) work = do
-  rng <- newPureMT
+file :: String -> Int -> World -> Generate () -> IO ()
+file path frames (World width height seed factor) work = do
   frameRef <- newIORef 0
+  seedRef <- newIORef seed
+  putStrLn $ "Output seed is: " ++ (show seed)
+  workFrame <- preprocess frameRef seedRef (World width height seed factor) work
   let frame i = do
-        surface <- createImageSurface FormatARGB32 width height
-        workFrame <-
-          preprocess frameRef rng (World width height seed factor) work
+        surface <- createImageSurface FormatARGB32 scaledWidth scaledHeight
         renderWith surface workFrame
         surfaceWriteToPNG surface (path ++ "__" ++ (show i) ++ ".png")
-  sequence $ map (frame) [0 .. 30]
+  sequence $ map (frame) [0 .. frames]
   return ()
+  where
+    scaledHeight = round $ (fromIntegral height) * factor
+    scaledWidth = round $ (fromIntegral width) * factor
 
 renderToScreen :: Int -> Int -> GLDrawingArea -> IO (Render ()) -> IO Bool
 renderToScreen width height da work = do
@@ -98,14 +122,15 @@ renderToScreen width height da work = do
     fill
   return True
 
-escapeKey :: KeyVal
-escapeKey = 65307
-
-ui :: Event -> IO Bool
-ui Key {eventKeyVal, ..} =
+ui :: IORef Int -> IORef Int -> Event -> IO Bool
+ui frameRef seedRef (Key {eventKeyVal, ..}) = do
   case eventKeyVal of
-    escapeKey -> do
-      mainQuit
-      return True
-    _ -> return True
-ui _ = return True
+    65307 -> mainQuit
+    114 -> do
+      modifyIORef frameRef (const 0)
+      seed <- timeSeed
+      putStrLn $ "New seed is: " ++ (show seed)
+      modifyIORef seedRef $ const seed
+    _ -> return ()
+  return True
+ui _ _ _ = return True
