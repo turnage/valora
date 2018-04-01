@@ -4,6 +4,7 @@ module Core
   , Context(..)
   , cairo
   , screen
+  , file
   ) where
 
 import Control.Monad.Reader
@@ -71,6 +72,19 @@ screen (World width height seed factor) work = do
   where
     scaledHeight = round $ (fromIntegral height) * factor
     scaledWidth = round $ (fromIntegral width) * factor
+
+file :: String -> World -> Generate () -> IO ()
+file path (World width height seed factor) work = do
+  rng <- newPureMT
+  frameRef <- newIORef 0
+  let frame i = do
+        surface <- createImageSurface FormatARGB32 width height
+        workFrame <-
+          preprocess frameRef rng (World width height seed factor) work
+        renderWith surface workFrame
+        surfaceWriteToPNG surface (path ++ "__" ++ (show i) ++ ".png")
+  sequence $ map (frame) [0 .. 30]
+  return ()
 
 renderToScreen :: Int -> Int -> GLDrawingArea -> IO (Render ()) -> IO Bool
 renderToScreen width height da work = do

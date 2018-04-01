@@ -10,8 +10,16 @@ import Control.Monad.Reader
 import Data.Fixed (mod')
 import Data.Maybe
 import qualified Data.Vector as V
-import Graphics.Rendering.Cairo (fill)
+import Graphics.Rendering.Cairo
+  ( Operator(..)
+  , fill
+  , getOperator
+  , rectangle
+  , setOperator
+  , setSourceRGBA
+  )
 
+import Compositing
 import Coords
 import Core
 import Geom
@@ -79,13 +87,14 @@ isotileGrid period = do
 isotileGridMask ::
      Double -> (Generate (), Generate (), Generate ()) -> Generate ()
 isotileGridMask period (left, center, right) = do
-  grid <- isotileGrid 80
-  left
+  alphaMatte (isotileMaskLayer period IsoLeft) left
+  alphaMatte (isotileMaskLayer period IsoCenter) center
+  alphaMatte (isotileMaskLayer period IsoRight) right
+
+isotileMaskLayer :: Double -> IsoSide -> Generate ()
+isotileMaskLayer period side = do
+  grid <- isotileGrid period
+  World width height _ _ <- asks world
+  cairo $ setSourceRGBA 1 0 0 1
   foldr1 (>>) $
-    map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask IsoLeft)) grid
-  center
-  foldr1 (>>) $
-    map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask IsoCenter)) grid
-  right
-  foldr1 (>>) $
-    map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask IsoRight)) grid
+    map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask side)) grid
