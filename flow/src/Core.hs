@@ -61,7 +61,7 @@ preprocess :: IORef Int -> IORef Int -> World -> Generate () -> IO (Render ())
 preprocess frameRef seedRef world work = do
   frame <- readIORef frameRef
   nextSeed <- readIORef seedRef
-  putStrLn $ "Read seed: " ++ (show nextSeed)
+  putStrLn $ "frame is: " ++ (show frame)
   modifyIORef frameRef (+ 1)
   let world' = world {seed = nextSeed}
   let rng = pureMT $ fromInteger $ toInteger nextSeed
@@ -99,8 +99,9 @@ file path frames (World width height seed factor) work = do
   frameRef <- newIORef 0
   seedRef <- newIORef seed
   putStrLn $ "Output seed is: " ++ (show seed)
-  workFrame <- preprocess frameRef seedRef (World width height seed factor) work
+  let work' = preprocess frameRef seedRef (World width height seed factor) work
   let frame i = do
+        workFrame <- work'
         surface <- createImageSurface FormatARGB32 scaledWidth scaledHeight
         renderWith surface workFrame
         surfaceWriteToPNG surface (path ++ "__" ++ (show i) ++ ".png")
