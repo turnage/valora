@@ -7,6 +7,7 @@ module Core
   , hsva
   , file
   , timeSeed
+  , runInvocation
   ) where
 
 import Control.Monad.Reader
@@ -24,6 +25,7 @@ import Graphics.UI.Gtk
 import Graphics.UI.Gtk.Gdk.Events
 import Graphics.UI.Gtk.OpenGL.Config
 import Graphics.UI.Gtk.OpenGL.DrawingArea
+import Options
 
 type Generate a = StateT PureMT (ReaderT Context Render) a
 
@@ -38,6 +40,36 @@ data Context = Context
   { world :: World
   , frame :: Int
   }
+
+data MainOptions = MainOptions
+  { optWidth :: Int
+  , optHeight :: Int
+  , optSave :: String
+  , optScale :: Double
+  , optSeed :: Int
+  , optFrames :: Int
+  }
+
+instance Options MainOptions where
+  defineOptions =
+    pure MainOptions <*> simpleOption "w" 500 "Piece width." <*>
+    simpleOption "h" 500 "Piece height." <*>
+    simpleOption "o" "" "Save location." <*>
+    simpleOption "s" 1 "Scale factor." <*>
+    simpleOption "e" 0 "Rng seed." <*>
+    simpleOption "f" 30 "Number of frames to save to file."
+
+runInvocation :: Generate () -> IO ()
+runInvocation scene =
+  runCommand $ \opts args -> do
+    seed <-
+      if (optSeed opts) == 0
+        then timeSeed
+        else return $ optSeed opts
+    let world = World (optWidth opts) (optHeight opts) seed (optScale opts)
+    if optSave opts == ""
+      then screen world scene
+      else file (optSave opts) (optFrames opts) world scene
 
 hsva :: Double -> Double -> Double -> Double -> Generate ()
 hsva hue saturation value alpha =
@@ -61,7 +93,6 @@ preprocess :: IORef Int -> IORef Int -> World -> Generate () -> IO (Render ())
 preprocess frameRef seedRef world work = do
   frame <- readIORef frameRef
   nextSeed <- readIORef seedRef
-  putStrLn $ "frame is: " ++ (show frame)
   modifyIORef frameRef (+ 1)
   let world' = world {seed = nextSeed}
   let rng = pureMT $ fromInteger $ toInteger nextSeed

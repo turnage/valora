@@ -43,6 +43,7 @@ library
     , options
     , colour
     , time
+    , linear
   exposed-modules:
       Lib
     , Core
@@ -52,6 +53,7 @@ library
     , Traits.Position
     , Flow
     , Compositing
+    , Scenes.Isoflow
   other-modules:
       Paths_flow
   default-language: Haskell2010
@@ -80,18 +82,6 @@ executable flow-exe
   build-depends:
       base >=4.7 && <5
     , flow
-    , cairo
-    , gtk
-    , colour
-    , vector
-    , random-source
-    , random-fu
-    , mtl
-    , rvar
-    , transformers
-    , options
-    , colour
-    , time
   other-modules:
       Paths_flow
   default-language: Haskell2010
