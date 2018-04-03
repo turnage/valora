@@ -6,6 +6,7 @@ module Isotile
   , isotileGridMask
   ) where
 
+import Control.Lens ((^.))
 import Control.Monad.Reader
 import Data.Fixed (mod')
 import Data.Maybe
@@ -18,6 +19,8 @@ import Graphics.Rendering.Cairo
   , setOperator
   , setSourceRGBA
   )
+import Linear
+import Linear.V2
 
 import Compositing
 import Coords
@@ -25,9 +28,9 @@ import Core
 import Geom
 
 data Isotile = Isotile
-  { a :: Point
-  , b :: Point
-  , c :: Point
+  { a :: V2 Double
+  , b :: V2 Double
+  , c :: V2 Double
   , period :: Double
   } deriving (Eq, Show)
 
@@ -40,15 +43,15 @@ data IsoSide
 isoSideMask :: IsoSide -> Isotile -> Contour
 isoSideMask side (Isotile a b c period) =
   let d = midpoint a c
-      e = Point (x a) (y a + period / 2)
-      f = Point (x c) (y c + period / 2)
-      g = Point (x d) (y d + period)
+      e = V2 (a ^. _x) (a ^. _y + period / 2)
+      f = V2 (c ^. _x) (c ^. _y + period / 2)
+      g = V2 (d ^. _x) (d ^. _y + period)
   in case side of
        IsoLeft -> Contour $ V.fromList [a, b, d, e]
        IsoCenter -> Contour $ V.fromList [e, d, f, g]
        IsoRight -> Contour $ V.fromList [b, c, f, d]
 
-shift :: Point -> Isotile -> Isotile
+shift :: V2 Double -> Isotile -> Isotile
 shift off (Isotile a b c p) = Isotile (a + off) (b + off) (c + off) p
 
 isotiles :: Double -> [Isotile]
@@ -59,13 +62,13 @@ isotiles period = map (tile) [0 ..]
       Isotile
       { a =
           let x = i * period
-          in Point x (f x)
+          in V2 x (f x)
       , b =
           let x = i * period + period / 2
-          in Point x (f x)
+          in V2 x (f x)
       , c =
           let x = (i + 1) * period
-          in Point x (f x)
+          in V2 x (f x)
       , period
       }
 
@@ -81,8 +84,8 @@ isotileGrid period = do
     shifter row =
       let y = fromIntegral row * period - period
       in if row `mod` 2 == 0
-           then shift $ Point (-period) y
-           else shift $ Point ((period / 2) - period) y
+           then shift $ V2 (-period) y
+           else shift $ V2 ((period / 2) - period) y
 
 isotileGridMask ::
      Double -> (Generate (), Generate (), Generate ()) -> Generate ()

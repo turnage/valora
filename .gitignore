@@ -1,3 +1,4 @@
 *.bk
 target
 valora.cabal
+.stack-work

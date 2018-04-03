@@ -12,6 +12,7 @@ import Data.RVar
 import Data.Random.Distribution.Normal
 import Data.Random.Source.PureMT
 import Graphics.Rendering.Cairo
+import Linear
 
 import Compositing
 import Coords
@@ -28,7 +29,7 @@ squares angle color = do
   sqs <-
     flow
       (FlowCfg density density (normal 0.2 3) (normal angle 20))
-      (square (Point 0 0) $ sqSize')
+      (square (V2 0 0) $ sqSize')
   Context (World width height _ _) frame <- ask
   color
   foldr1 (>>) $ mapMaybe (drawContour) $ map (\f -> f frame) sqs

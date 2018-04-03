@@ -4,16 +4,18 @@ module Traits.Position
   , Place(..)
   ) where
 
+import Linear
+
 import Coords
 
 class Centered c where
-  centroid :: c -> Point
+  centroid :: c -> V2 Double
 
 class Translate t where
-  translate :: Point -> t -> t
+  translate :: V2 Double -> t -> t
 
 class Place p where
-  place :: Point -> p -> p
+  place :: V2 Double -> p -> p
 
 instance (Translate a, Centered a) => Place a where
   place dest a = translate (dest - centroid a) a

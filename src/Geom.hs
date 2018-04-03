@@ -6,28 +6,29 @@ module Geom
 
 import qualified Data.Vector as V
 import Graphics.Rendering.Cairo (closePath, fill, lineTo, moveTo, newPath)
+import Linear
 
 import Coords
 import Core
 import Traits.Position
 
 newtype Contour =
-  Contour (V.Vector Point)
+  Contour (V.Vector (V2 Double))
 
 instance Translate Contour where
   translate delta (Contour vertices) = Contour (V.map (+ delta) vertices)
 
 instance Centered Contour where
-  centroid (Contour vertices) = Point ((right + left) / 2) ((top + bottom) / 2)
+  centroid (Contour vertices) = V2 ((right + left) / 2) ((top + bottom) / 2)
     where
       left = V.minimum xs
       right = V.maximum xs
       top = V.maximum ys
       bottom = V.minimum ys
-      ys = V.map (y) vertices
-      xs = V.map (x) vertices
+      ys = V.map (\(V2 _ y) -> y) vertices
+      xs = V.map (\(V2 x _) -> x) vertices
 
-square :: Point -> Double -> Contour
+square :: V2 Double -> Double -> Contour
 square topLeft size =
   Contour
     (V.fromList
@@ -44,7 +45,7 @@ drawContour (Contour vertices) =
     else Nothing
   where
     path = foldr1 (>>) $ concat [initCmds, lines, endCmds]
-    initCmds = [newPath, moveTo (Coords.x start) (Coords.y start)]
-    lines = V.toList $ V.map (\(Point x y) -> lineTo x y) $ V.tail vertices
+    initCmds = [newPath, moveTo (startX) (startY)]
+    lines = V.toList $ V.map (\(V2 x y) -> lineTo x y) $ V.tail vertices
     endCmds = [closePath]
-    start = V.head vertices
+    V2 startX startY = V.head vertices
