@@ -1,0 +1,68 @@
+name:                valora
+version:             0.1.0.0
+github:              "turnage/valora"
+license:             MIT
+author:              "Payton Turnage"
+maintainer:          "pt@paytonturnage.com"
+copyright:           "2018 Payton Turnage"
+
+extra-source-files:
+- readme.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on Github at <https://github.com/turnage/valora#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- cairo
+- colour
+- vector
+- random-source
+- random-fu
+- mtl
+- rvar
+- gtk
+- transformers
+- gtkglext
+- options
+- time
+- linear
+
+default-extensions:
+- NamedFieldPuns
+- DuplicateRecordFields
+- OverloadedStrings
+- NamedFieldPuns
+- DeriveAnyClass
+- GeneralizedNewtypeDeriving
+- RecordWildCards
+- OverloadedLabels
+- ExistentialQuantification
+- DeriveFunctor
+- RankNTypes
+- TupleSections
+- ScopedTypeVariables
+- FlexibleInstances
+- UndecidableInstances
+- MonoLocalBinds
+
+library:
+  source-dirs: src
+
+executables:
+  flow-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - valora
