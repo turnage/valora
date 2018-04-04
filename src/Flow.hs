@@ -29,7 +29,7 @@ flow (FlowCfg rows cols streamSpeed angle) p = do
   let pivotF = pivot center' angle'
   let locate speed point i =
         let xDelta = fromIntegral i * speed
-        in place (pacmanF' $ pivotF $ slideX point xDelta) p
+        in place p $ pacmanF' $ pivotF $ slideX point xDelta
   let animate speed row = map (\point -> locate speed point) row
   World {width, height, ..} <- asks world
   grid' <- grid (width * 2) (height * 2) rows' cols'

@@ -15,7 +15,7 @@ class Translate t where
   translate :: V2 Double -> t -> t
 
 class Place p where
-  place :: V2 Double -> p -> p
+  place :: p -> V2 Double -> p
 
 instance (Translate a, Centered a) => Place a where
-  place dest a = translate (dest - centroid a) a
+  place a dest = translate (dest - centroid a) a

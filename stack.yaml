@@ -39,7 +39,7 @@ packages:
 - .
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
-extra-deps: [gtk-0.14.7, gio-0.13.4.1, gtkglext-0.13.1.1, Cabal-1.24.2.0, process-1.4.3.0]
+extra-deps: [gtk-0.14.7, gio-0.13.4.1, gtkglext-0.13.1.1, Cabal-1.24.2.0, process-1.4.3.0, splines-0.5.0.1, polynomial-0.7.3]
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

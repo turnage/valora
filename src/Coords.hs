@@ -45,8 +45,6 @@ pivot (V2 x y) theta point = V2 rX rY
     rX = x + cos theta * xDelta - sin theta * yDelta
     rY = y + sin theta * xDelta + cos theta * yDelta
 
---distance :: V2 Double -> V2 Double -> Double
---distance (V2 x1 y1) (V2 x2 y2) = sqrt $ ((x2 - x1) ^ 2) + ((y2 - y1) ^ 2)
 manhattanDistance :: V2 Double -> V2 Double -> Double
 manhattanDistance (V2 x1 y1) (V2 x2 y2) = abs (x2 - x1) + abs (y2 - y1)
 

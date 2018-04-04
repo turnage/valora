@@ -4,6 +4,7 @@ module Geom
   , square
   ) where
 
+import Control.Lens
 import qualified Data.Vector as V
 import Graphics.Rendering.Cairo (closePath, fill, lineTo, moveTo, newPath)
 import Linear
@@ -25,8 +26,8 @@ instance Centered Contour where
       right = V.maximum xs
       top = V.maximum ys
       bottom = V.minimum ys
-      ys = V.map (\(V2 _ y) -> y) vertices
-      xs = V.map (\(V2 x _) -> x) vertices
+      ys = V.map (^. _y) vertices
+      xs = V.map (^. _x) vertices
 
 square :: V2 Double -> Double -> Contour
 square topLeft size =

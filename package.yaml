@@ -35,6 +35,7 @@ dependencies:
 - time
 - linear
 - lens
+- splines
 
 default-extensions:
 - NamedFieldPuns
@@ -53,12 +54,13 @@ default-extensions:
 - FlexibleInstances
 - UndecidableInstances
 - MonoLocalBinds
+- FlexibleContexts
 
 library:
   source-dirs: src
 
 executables:
-  flow-exe:
+  g:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
