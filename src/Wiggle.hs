@@ -22,13 +22,12 @@ data WiggleCfg = WiggleCfg
   }
 
 simpleWiggle ::
-     RVar Double -> V.Vector (V2 Double) -> Generate (V.Vector (V2 Double))
+     RVar Double -> V.Vector (V2 Double) -> Random (V.Vector (V2 Double))
 simpleWiggle var =
   wiggle WiggleCfg {wiggleHint = Nothing, xDist = var, yDist = var}
 
-wiggle :: WiggleCfg -> V.Vector (V2 Double) -> Generate (V.Vector (V2 Double))
+wiggle :: WiggleCfg -> V.Vector (V2 Double) -> Random (V.Vector (V2 Double))
 wiggle WiggleCfg {wiggleHint, xDist, yDist} vertices = do
-  World {width, height, ..} <- asks world
   points <-
     V.sequence $
     V.map (uncurry offset) $

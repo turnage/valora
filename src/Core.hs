@@ -1,5 +1,6 @@
 module Core
   ( Generate(..)
+  , Random(..)
   , World(..)
   , Context(..)
   , cairo
@@ -8,10 +9,11 @@ module Core
   , file
   , timeSeed
   , runInvocation
+  , runRand
   ) where
 
 import Control.Monad.Reader
-import Control.Monad.State
+import Control.Monad.State as State
 import Data.Colour.RGBSpace.HSV
 import Data.Colour.SRGB
 import Data.IORef
@@ -28,6 +30,8 @@ import Graphics.UI.Gtk.OpenGL.DrawingArea
 import Options
 
 type Generate a = StateT PureMT (ReaderT Context Render) a
+
+type Random a = State PureMT a
 
 data World = World
   { width :: Int
@@ -58,6 +62,13 @@ instance Options MainOptions where
     simpleOption "s" 1 "Scale factor." <*>
     simpleOption "e" 0 "Rng seed." <*>
     simpleOption "f" 30 "Number of frames to save to file."
+
+runRand :: Random a -> Generate a
+runRand rand = do
+  rng <- State.get
+  let (val, rng') = runState rand rng
+  State.put rng'
+  return val
 
 runInvocation :: Generate () -> IO ()
 runInvocation scene =
