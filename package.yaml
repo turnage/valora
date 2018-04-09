@@ -55,6 +55,7 @@ default-extensions:
 - UndecidableInstances
 - MonoLocalBinds
 - FlexibleContexts
+- MultiParamTypeClasses
 
 library:
   source-dirs: src

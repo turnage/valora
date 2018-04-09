@@ -2,7 +2,7 @@ module Stroke
   ( Stroke
   , StrokeCfg(..)
   , mkStroke
-  , sampleStroke
+  , rasterStroke
   ) where
 
 import Control.Lens ((^.))
@@ -15,6 +15,7 @@ import Graphics.Rendering.Cairo (fill, rectangle, setSourceRGBA)
 import Linear
 import Math.Spline
 
+import Continuous
 import Core
 import Geom
 import Traits.Position
@@ -27,14 +28,19 @@ data Stroke = Stroke
   , ySpline :: BezierCurve Double
   }
 
-sampleStroke :: Stroke -> Double -> V2 Double
-sampleStroke (Stroke xSpline ySpline) completion = V2 x y
-  where
-    x = evalSpline xSpline completion
-    y = evalSpline ySpline completion
+instance Continuous Stroke (V2 Double) where
+  sample (Stroke xSpline ySpline) completion = V2 x y
+    where
+      x = evalSpline xSpline completion
+      y = evalSpline ySpline completion
 
 mkStroke :: V.Vector (V2 Double) -> Stroke
 mkStroke vertices = Stroke xSpline ySpline
   where
     xSpline = bezierCurve $ V.map (^. _x) vertices
     ySpline = bezierCurve $ V.map (^. _y) vertices
+
+rasterStroke :: Stroke -> Int -> Sampler -> Contour -> Random [Contour]
+rasterStroke stroke n sampler dot = do
+  dotPositions <- sampleN stroke n sampler
+  return $ map (place dot) dotPositions

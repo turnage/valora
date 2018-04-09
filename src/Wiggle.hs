@@ -17,8 +17,8 @@ data WiggleCfg = WiggleCfg
     -- It should return an adjusted offset. If not provided, the offset will be used as
     -- sampled from the provided random variables.
   { wiggleHint :: Maybe (Int -> V2 Double -> V2 Double)
-  , yDist :: RVar Double
   , xDist :: RVar Double
+  , yDist :: RVar Double
   }
 
 simpleWiggle ::
