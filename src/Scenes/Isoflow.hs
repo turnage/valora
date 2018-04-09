@@ -17,9 +17,9 @@ import Linear
 import Compositing
 import Coords
 import Core
-import Flow
 import Geom
-import Isotile
+import Patterns.Flow
+import Patterns.Isotile
 
 squares :: Double -> Generate () -> Generate ()
 squares angle color = do
