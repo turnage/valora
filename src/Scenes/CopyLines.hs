@@ -28,10 +28,11 @@ scene = do
   let Line firstLine' = subdivision firstLine 5
   let wiggleCfg =
         WiggleCfg
-        {wiggleHint = Nothing, xDist = uniform 200 20, yDist = uniform 5 1}
+        {wiggleHint = Nothing, xDist = uniform 200 20, yDist = uniform 200 20}
   firstLine'' <- runRand $ wiggle wiggleCfg firstLine'
   let sampler = UniformSampler
-  let dot = square (V2 0 0) 1
+  sqSize <- sampleRVar $ uniform 1 6
+  let dot = square (V2 0 0) sqSize
   let stroke = mkStroke firstLine''
   hsva 180 1 1 1
   maybe (pure ()) (id) $ drawContour $ square (V2 0 0) (fromIntegral height)

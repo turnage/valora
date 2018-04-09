@@ -18,7 +18,9 @@ import Data.Colour.RGBSpace.HSV
 import Data.Colour.SRGB
 import Data.IORef
 import Data.RVar
+import Data.Random
 import Data.Random.Distribution.Normal
+import Data.Random.Distribution.Uniform
 import Data.Random.RVar
 import Data.Random.Source.PureMT
 import Data.Time.Clock.POSIX
@@ -27,6 +29,7 @@ import Graphics.UI.Gtk
 import Graphics.UI.Gtk.Gdk.Events
 import Graphics.UI.Gtk.OpenGL.Config
 import Graphics.UI.Gtk.OpenGL.DrawingArea
+import Numeric.Noise.Perlin
 import Options
 
 type Generate a = StateT PureMT (ReaderT Context Render) a
@@ -43,6 +46,7 @@ data World = World
 data Context = Context
   { world :: World
   , frame :: Int
+  , noise :: Perlin
   }
 
 data MainOptions = MainOptions
@@ -91,12 +95,6 @@ hsva hue saturation value alpha =
 timeSeed :: IO (Int)
 timeSeed = getPOSIXTime >>= \t -> return $ round . (* 1000) $ t
 
-frameRange :: World -> (Int, Int) -> Maybe [Context]
-frameRange world (start, end) =
-  if start < end
-    then Just $ map (\i -> Context world i) [start .. end]
-    else Nothing
-
 cairo :: Render a -> Generate a
 cairo = lift . lift
 
@@ -107,7 +105,13 @@ preprocess frameRef seedRef world work = do
   modifyIORef frameRef (+ 1)
   let world' = world {seed = nextSeed}
   let rng = pureMT $ fromInteger $ toInteger nextSeed
-  let ctx = Context world (frame - 1)
+  noise <-
+    do octaves <- sampleRVar $ uniform 1 5
+       persistance <- sampleRVar $ normal 2 1
+       noiseScale <- sampleRVar $ normal 10 3
+       let noise = perlin nextSeed octaves noiseScale persistance
+       return noise
+  let ctx = Context world (frame - 1) noise
   return $
     (flip runReaderT ctx) . (>>= (return . fst)) . (flip runStateT rng) $ do
       cairo $ do

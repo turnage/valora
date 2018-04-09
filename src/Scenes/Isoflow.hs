@@ -30,7 +30,7 @@ squares angle color = do
     flow
       (FlowCfg density density (normal 0.2 3) (normal angle 20))
       (square (V2 0 0) $ sqSize')
-  Context (World width height _ _) frame <- ask
+  Context {world = World {width, height, ..}, frame, ..} <- ask
   color
   foldr1 (>>) $ mapMaybe (drawContour) $ map (\f -> f frame) sqs
 

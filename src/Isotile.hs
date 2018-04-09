@@ -74,7 +74,7 @@ isotiles period = map (tile) [0 ..]
 
 isotileGrid :: Double -> Generate [Isotile]
 isotileGrid period = do
-  Context (World width height _ _) _ <- ask
+  World {width, height, ..} <- asks world
   let neededColumns = 2 + (round $ (fromIntegral height) / period)
   let neededRows = 1 + (round $ (fromIntegral width) / period)
   let rows = map (const $ isotiles period) [0 .. neededRows]
@@ -97,7 +97,7 @@ isotileGridMask period (left, center, right) = do
 isotileMaskLayer :: Double -> IsoSide -> Generate ()
 isotileMaskLayer period side = do
   grid <- isotileGrid period
-  World width height _ _ <- asks world
+  World {width, height, ..} <- asks world
   cairo $ setSourceRGBA 1 0 0 1
   foldr1 (>>) $
     map (>> cairo fill) $ mapMaybe (drawContour . (isoSideMask side)) grid
