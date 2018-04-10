@@ -9,10 +9,10 @@ import Linear
 
 import Core
 import Geom
+import Patterns.Stripes
 import Scenes.CopyLines
 import Stroke
 import Wiggle
 
 main :: IO ()
-main = do
-  runInvocation scene
+main = runInvocation scene

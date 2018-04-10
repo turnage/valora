@@ -1,6 +1,5 @@
 module Coords
   ( midpoint
-  , grid
   , slideX
   , slideY
   , pacman
@@ -53,12 +52,3 @@ slideX (V2 x y) slide = V2 (x + slide) y
 
 slideY :: V2 Double -> Double -> V2 Double
 slideY (V2 x y) slide = V2 x (y + slide)
-
--- row-order grid of points (top left corners)
-grid :: Int -> Int -> Int -> Int -> Generate [[V2 Double]]
-grid width height rows cols = do
-  let rowInterval = fromIntegral height / fromIntegral rows
-  let colInterval = fromIntegral width / fromIntegral cols
-  let point r c =
-        V2 (fromIntegral c * colInterval) (fromIntegral r * rowInterval)
-  return $ map (\r -> map (\c -> point r c) [0 .. cols]) [0 .. rows]

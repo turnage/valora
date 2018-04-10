@@ -29,7 +29,10 @@ data Stroke = Stroke
   }
 
 instance Continuous Stroke (V2 Double) where
-  sample (Stroke xSpline ySpline) completion = V2 x y
+  sample (Stroke xSpline ySpline) completion =
+    if completion >= 0 && completion <= 1
+      then Just $ V2 x y
+      else Nothing
     where
       x = evalSpline xSpline completion
       y = evalSpline ySpline completion

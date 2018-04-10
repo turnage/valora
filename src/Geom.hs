@@ -14,6 +14,7 @@ import Linear
 
 import Coords
 import Core
+import Traits.Meta
 import Traits.Position
 import Traits.Transform
 
@@ -41,6 +42,14 @@ instance Subdivide Contour where
 
 instance Subdivide Line where
   subdivide (Line vertices) = Line $ _subdivide False vertices
+
+instance Geom2D Contour where
+  vertices (Contour vertices) = vertices
+  fromVertices = Contour
+
+instance Geom2D Line where
+  vertices (Line vertices) = vertices
+  fromVertices = Line
 
 _subdivide :: Bool -> V.Vector (V2 Double) -> V.Vector (V2 Double)
 _subdivide wrap vertices =

@@ -1,12 +1,14 @@
 module Wiggle
   ( WiggleCfg(..)
-  , wiggle
-  , simpleWiggle
+  , wigglePoints
+  , wiggleCfgDefault
+  , simpleWigglePoints
   ) where
 
 import Control.Monad.Reader
 import Data.Maybe
 import Data.RVar
+import Data.Random.Distribution.Normal
 import qualified Data.Vector as V
 import Linear
 
@@ -21,13 +23,17 @@ data WiggleCfg = WiggleCfg
   , yDist :: RVar Double
   }
 
-simpleWiggle ::
-     RVar Double -> V.Vector (V2 Double) -> Random (V.Vector (V2 Double))
-simpleWiggle var =
-  wiggle WiggleCfg {wiggleHint = Nothing, xDist = var, yDist = var}
+wiggleCfgDefault =
+  WiggleCfg {wiggleHint = Nothing, xDist = normal 5 1, yDist = normal 5 1}
 
-wiggle :: WiggleCfg -> V.Vector (V2 Double) -> Random (V.Vector (V2 Double))
-wiggle WiggleCfg {wiggleHint, xDist, yDist} vertices = do
+simpleWigglePoints ::
+     RVar Double -> V.Vector (V2 Double) -> Random (V.Vector (V2 Double))
+simpleWigglePoints var =
+  wigglePoints WiggleCfg {wiggleHint = Nothing, xDist = var, yDist = var}
+
+wigglePoints ::
+     WiggleCfg -> V.Vector (V2 Double) -> Random (V.Vector (V2 Double))
+wigglePoints WiggleCfg {wiggleHint, xDist, yDist} vertices = do
   points <-
     V.sequence $
     V.map (uncurry offset) $
