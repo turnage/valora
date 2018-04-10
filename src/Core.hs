@@ -24,6 +24,7 @@ import Data.Random.Distribution.Uniform
 import Data.Random.RVar
 import Data.Random.Source.PureMT
 import Data.Time.Clock.POSIX
+import qualified Data.Vector as V
 import Graphics.Rendering.Cairo as Cairo
 import Graphics.UI.Gtk
 import Graphics.UI.Gtk.Gdk.Events
@@ -42,6 +43,11 @@ data World = World
   , seed :: Int
   , scaleFactor :: Double
   } deriving (Eq, Show)
+
+scaledDimensions :: World -> (Int, Int)
+scaledDimensions World {width, height, scaleFactor, ..} =
+  ( round $ fromIntegral width * scaleFactor
+  , round $ fromIntegral height * scaleFactor)
 
 data Context = Context
   { world :: World
@@ -67,6 +73,81 @@ instance Options MainOptions where
     simpleOption "e" 0 "Rng seed." <*>
     simpleOption "f" 30 "Number of frames to save to file."
 
+data RenderContext = RenderContext
+  { renderSeed :: IORef Int
+  , renderFrame :: IORef Int
+  , renderedFrames :: IORef (V.Vector Surface)
+  , renderWorld :: World
+  , renderScene :: Generate ()
+  , renderEndFrame :: Int
+  }
+
+data RenderJob = RenderJob
+  { canvas :: IO Surface
+  , dimensions :: (Int, Int)
+  , ctx :: RenderContext
+  }
+
+mkRender :: World -> Generate () -> Int -> IO RenderJob
+mkRender world scene endFrame = do
+  ctx' <- ctx
+  return
+    RenderJob
+    {canvas = render ctx', dimensions = scaledDimensions world, ctx = ctx'}
+  where
+    ctx = do
+      seedRef <- newIORef (seed world)
+      frameRef <- newIORef 0
+      renderedFramesRef <- newIORef V.empty
+      return
+        RenderContext
+        { renderSeed = seedRef
+        , renderFrame = frameRef
+        , renderedFrames = renderedFramesRef
+        , renderScene = scene
+        , renderEndFrame = endFrame
+        , renderWorld = world
+        }
+
+render :: RenderContext -> IO Surface
+render RenderContext { renderSeed
+                     , renderFrame
+                     , renderedFrames
+                     , renderWorld
+                     , renderScene
+                     , renderEndFrame
+                     } = do
+  frame <- readIORef renderFrame
+  modifyIORef renderFrame $ (`mod` renderEndFrame) . (+ 1)
+  rendered <- readIORef renderedFrames
+  if V.length rendered > frame
+    then return $ rendered V.! frame
+    else do
+      surface <- _render frame
+      modifyIORef renderedFrames (\frames -> V.snoc frames surface)
+      return surface
+  where
+    (scaledWidth, scaledHeight) = scaledDimensions renderWorld
+    _render frame = do
+      seed <- readIORef renderSeed
+      let world' = renderWorld {seed}
+      let rng = pureMT $ fromInteger $ toInteger seed
+      noise <-
+        do octaves <- sampleRVar $ uniform 1 5
+           persistance <- sampleRVar $ normal 2 1
+           noiseScale <- sampleRVar $ normal 10 3
+           let noise = perlin seed octaves noiseScale persistance
+           return noise
+      let ctx = Context world' frame noise
+      surface <- createImageSurface FormatARGB32 scaledWidth scaledHeight
+      renderWith surface $
+        (flip runReaderT ctx) . (>>= (return . fst)) . (flip runStateT rng) $ do
+          cairo $ do
+            scale (scaleFactor renderWorld) (scaleFactor renderWorld)
+            setAntialias AntialiasBest
+          renderScene
+      return surface
+
 runRand :: Random a -> Generate a
 runRand rand = do
   rng <- State.get
@@ -82,9 +163,11 @@ runInvocation scene =
         then timeSeed
         else return $ optSeed opts
     let world = World (optWidth opts) (optHeight opts) seed (optScale opts)
+    render <- mkRender world scene (optFrames opts)
+    putStrLn $ "Initial seed is: " ++ (show seed)
     if optSave opts == ""
-      then screen world scene
-      else file (optSave opts) (optFrames opts) world scene
+      then screen render
+      else file (optSave opts) render
 
 hsva :: Double -> Double -> Double -> Double -> Generate ()
 hsva hue saturation value alpha =
@@ -98,86 +181,59 @@ timeSeed = getPOSIXTime >>= \t -> return $ round . (* 1000) $ t
 cairo :: Render a -> Generate a
 cairo = lift . lift
 
-preprocess :: IORef Int -> IORef Int -> World -> Generate () -> IO (Render ())
-preprocess frameRef seedRef world work = do
-  frame <- readIORef frameRef
-  nextSeed <- readIORef seedRef
-  modifyIORef frameRef (+ 1)
-  let world' = world {seed = nextSeed}
-  let rng = pureMT $ fromInteger $ toInteger nextSeed
-  noise <-
-    do octaves <- sampleRVar $ uniform 1 5
-       persistance <- sampleRVar $ normal 2 1
-       noiseScale <- sampleRVar $ normal 10 3
-       let noise = perlin nextSeed octaves noiseScale persistance
-       return noise
-  let ctx = Context world (frame - 1) noise
-  return $
-    (flip runReaderT ctx) . (>>= (return . fst)) . (flip runStateT rng) $ do
-      cairo $ do
-        scale (scaleFactor world') (scaleFactor world')
-        setAntialias AntialiasBest
-      work
-
-screen :: World -> Generate () -> IO ()
-screen (World width height seed factor) work = do
+screen :: RenderJob -> IO ()
+screen RenderJob { canvas
+                 , dimensions
+                 , ctx = RenderContext {renderSeed, renderFrame, renderedFrames}
+                 } = do
   initGUI
   window <- windowNew
   glCfg <- glConfigNew [GLModeRGBA, GLModeDouble]
   drawingArea <- glDrawingAreaNew glCfg
   containerAdd window drawingArea
-  seedRef <- newIORef seed
-  putStrLn $ "Initial seed is: " ++ (show seed)
-  frameRef <- newIORef 0
-  let work' = preprocess frameRef seedRef (World width height seed factor) work
-  timeoutAdd (renderToScreen scaledWidth scaledHeight drawingArea work') 16
-  window `onKeyPress` ui frameRef seedRef
+  timeoutAdd (renderToScreen drawingArea canvas dimensions) 16
+  window `onKeyPress` ui renderFrame renderSeed renderedFrames
   window `onDestroy` mainQuit
-  windowSetDefaultSize window scaledWidth scaledHeight
+  uncurry (windowSetDefaultSize window) dimensions
   widgetShowAll window
   mainGUI
-  where
-    scaledHeight = round $ (fromIntegral height) * factor
-    scaledWidth = round $ (fromIntegral width) * factor
 
-file :: String -> Int -> World -> Generate () -> IO ()
-file path frames (World width height seed factor) work = do
-  frameRef <- newIORef 0
-  seedRef <- newIORef seed
+file :: String -> RenderJob -> IO ()
+file path RenderJob { canvas
+                    , dimensions
+                    , ctx = RenderContext { renderEndFrame
+                                          , renderWorld = World {seed, ..}
+                                          , ..
+                                          }
+                    , ..
+                    } = do
   putStrLn $ "Output seed is: " ++ (show seed)
-  let work' = preprocess frameRef seedRef (World width height seed factor) work
-  let frame i = do
-        workFrame <- work'
-        surface <- createImageSurface FormatARGB32 scaledWidth scaledHeight
-        renderWith surface workFrame
-        surfaceWriteToPNG surface (path ++ "__" ++ (show i) ++ ".png")
-  sequence $ map (frame) [0 .. frames]
+  let writeFrame i =
+        canvas >>= \surface ->
+          surfaceWriteToPNG surface (path ++ "__" ++ (show i) ++ ".png")
+  sequence $ map (writeFrame) [0 .. renderEndFrame]
   return ()
-  where
-    scaledHeight = round $ (fromIntegral height) * factor
-    scaledWidth = round $ (fromIntegral width) * factor
 
-renderToScreen :: Int -> Int -> GLDrawingArea -> IO (Render ()) -> IO Bool
-renderToScreen width height da work = do
-  work <- work
+renderToScreen :: GLDrawingArea -> IO Surface -> (Int, Int) -> IO Bool
+renderToScreen da surface (width, height) = do
   dw <- widgetGetDrawWindow da
-  surface <- createImageSurface FormatARGB32 width height
-  renderWith surface work
+  surface' <- surface
   renderWithDrawable dw $ do
-    setSourceSurface surface 0 0
+    setSourceSurface surface' 0 0
     Cairo.rectangle 0 0 (fromIntegral width) (fromIntegral height)
     fill
   return True
 
-ui :: IORef Int -> IORef Int -> Event -> IO Bool
-ui frameRef seedRef (Key {eventKeyVal, ..}) = do
+ui :: IORef Int -> IORef Int -> IORef (V.Vector Surface) -> Event -> IO Bool
+ui frameRef seedRef renderedFramesRef (Key {eventKeyVal, ..}) = do
   case eventKeyVal of
     65307 -> mainQuit
     114 -> do
+      modifyIORef renderedFramesRef (const V.empty)
       modifyIORef frameRef (const 0)
-      seed <- timeSeed
-      putStrLn $ "New seed is: " ++ (show seed)
-      modifyIORef seedRef $ const seed
+      newSeed <- timeSeed
+      putStrLn $ "New seed is: " ++ (show newSeed)
+      modifyIORef seedRef $ const newSeed
     _ -> return ()
   return True
-ui _ _ _ = return True
+ui _ _ _ _ = return True

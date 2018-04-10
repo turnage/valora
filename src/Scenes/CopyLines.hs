@@ -34,7 +34,7 @@ scene = do
   hsva 260 1 1 1
   strokeRasters <-
     sequence $
-    map (\stroke -> runRand $ rasterStroke stroke 100 sampler dot) strokes'
+    map (\stroke -> runRand $ rasterStroke stroke 1000 sampler dot) strokes'
   let dots = concat strokeRasters
   foldr1 (>>) $ mapMaybe (drawContour) dots
 
