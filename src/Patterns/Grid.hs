@@ -3,9 +3,11 @@ module Patterns.Grid
   , TileFocus(..)
   , grid
   , gridCfgDefault
+  , gridCoords
   ) where
 
 import Control.Monad.Reader
+import Data.Maybe
 import Linear
 
 import Core
@@ -47,20 +49,20 @@ gridCfgDefault =
   , tileFocus = Center
   }
 
--- row-order grid of points (top left corners)
-grid :: GridCfg -> Generate [[V2 Double]]
-grid GridCfg {rows, cols, width, height, topLeft, tileFocus} = do
+-- row-order grid of points
+grid :: GridCfg -> Generate [V2 Double]
+grid GridCfg {cols, rows, width, height, topLeft, tileFocus} = do
   World {width = worldWidth, height = worldHeight, ..} <- asks world
-  let width' =
-        case width of
-          Just w -> w
-          Nothing -> fromIntegral worldWidth
-  let height' =
-        case height of
-          Just h -> h
-          Nothing -> fromIntegral worldHeight
-  let tileWidth = width' / fromIntegral cols
-  let tileHeight = height' / fromIntegral rows
-  let point r c = V2 (fromIntegral c * tileWidth) (fromIntegral r * tileHeight)
-  let tiles = map (\r -> map (\c -> point r c) [0 .. cols - 1]) [0 .. rows - 1]
-  return $ (map . map) (focalPoint tileWidth tileHeight tileFocus) tiles
+  let (width', height') =
+        ( fromMaybe (fromIntegral worldWidth) width
+        , fromMaybe (fromIntegral worldHeight) height)
+  let (tileWidth, tileHeight) =
+        (width' / fromIntegral cols, height' / fromIntegral rows)
+  let point (c, r) =
+        V2 (fromIntegral c * tileWidth) (fromIntegral r * tileHeight)
+  let tiles = map (point) $ gridCoords (cols, rows)
+  return $ map ((+ topLeft) . (focalPoint tileWidth tileHeight tileFocus)) tiles
+
+gridCoords :: (Int, Int) -> [(Int, Int)]
+gridCoords (cols, rows) =
+  concat $ map (\c -> zip (repeat c) [0 .. rows - 1]) [0 .. cols - 1]

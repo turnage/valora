@@ -23,6 +23,5 @@ stripes StripesCfg {stripeCount} = do
   let mkLine p =
         Line $ V.fromList [p, V2 (p ^. _x) (fromIntegral height - p ^. _y)]
   gridPoints <-
-    grid gridCfgDefault {rows = 1, cols = stripeCount, tileFocus = TopCenter} >>=
-    return . concat
+    grid gridCfgDefault {rows = 1, cols = stripeCount, tileFocus = TopCenter}
   return $ map (mkLine) gridPoints

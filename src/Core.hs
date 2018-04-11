@@ -71,7 +71,7 @@ instance Options MainOptions where
     simpleOption "o" "" "Save location." <*>
     simpleOption "s" 1 "Scale factor." <*>
     simpleOption "e" 0 "Rng seed." <*>
-    simpleOption "f" 30 "Number of frames to save to file."
+    simpleOption "f" 1 "Number of frames to save to file."
 
 data RenderContext = RenderContext
   { renderSeed :: IORef Int
@@ -163,7 +163,7 @@ runInvocation scene =
         then timeSeed
         else return $ optSeed opts
     let world = World (optWidth opts) (optHeight opts) seed (optScale opts)
-    render <- mkRender world scene (optFrames opts)
+    render <- mkRender world scene $ (optFrames opts)
     putStrLn $ "Initial seed is: " ++ (show seed)
     if optSave opts == ""
       then screen render
@@ -211,7 +211,7 @@ file path RenderJob { canvas
   let writeFrame i =
         canvas >>= \surface ->
           surfaceWriteToPNG surface (path ++ "__" ++ (show i) ++ ".png")
-  sequence $ map (writeFrame) [0 .. renderEndFrame]
+  sequence $ map (writeFrame) [0 .. renderEndFrame - 1]
   return ()
 
 renderToScreen :: GLDrawingArea -> IO Surface -> (Int, Int) -> IO Bool

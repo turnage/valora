@@ -24,7 +24,7 @@ data WiggleCfg = WiggleCfg
   }
 
 wiggleCfgDefault =
-  WiggleCfg {wiggleHint = Nothing, xDist = normal 5 1, yDist = normal 5 1}
+  WiggleCfg {wiggleHint = Nothing, xDist = normal 0 1, yDist = normal 0 1}
 
 simpleWigglePoints ::
      RVar Double -> V.Vector (V2 Double) -> Random (V.Vector (V2 Double))

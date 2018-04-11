@@ -5,6 +5,7 @@ module Patterns.Flow
 
 import Control.Monad.Reader
 import Data.Fixed
+import Data.List.Split
 import Data.RVar
 
 import Coords
@@ -41,4 +42,5 @@ flow (FlowCfg rows cols streamSpeed angle) p = do
       , rows = rows'
       , cols = cols'
       }
-  return $ concat $ map (uncurry animate) $ zip streamSpeeds grid'
+  return $
+    concat $ map (uncurry animate) $ zip streamSpeeds $ chunksOf cols' grid'

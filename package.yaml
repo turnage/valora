@@ -37,6 +37,7 @@ dependencies:
 - lens
 - splines
 - hsnoise
+- split
 
 default-extensions:
 - NamedFieldPuns
