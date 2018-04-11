@@ -62,6 +62,7 @@ data MainOptions = MainOptions
   , optScale :: Double
   , optSeed :: Int
   , optFrames :: Int
+  , optBrainstorm :: Bool
   }
 
 instance Options MainOptions where
@@ -71,7 +72,8 @@ instance Options MainOptions where
     simpleOption "o" "" "Save location." <*>
     simpleOption "s" 1 "Scale factor." <*>
     simpleOption "e" 0 "Rng seed." <*>
-    simpleOption "f" 1 "Number of frames to save to file."
+    simpleOption "f" 1 "Number of frames to save to file." <*>
+    simpleOption "b" False "Brainstorm mode."
 
 data RenderContext = RenderContext
   { renderSeed :: IORef Int
@@ -80,6 +82,7 @@ data RenderContext = RenderContext
   , renderWorld :: World
   , renderScene :: Generate ()
   , renderEndFrame :: Int
+  , renderBrainstorm :: Bool
   }
 
 data RenderJob = RenderJob
@@ -88,8 +91,8 @@ data RenderJob = RenderJob
   , ctx :: RenderContext
   }
 
-mkRender :: World -> Generate () -> Int -> IO RenderJob
-mkRender world scene endFrame = do
+mkRender :: World -> Generate () -> Int -> Bool -> IO RenderJob
+mkRender world scene endFrame brainstorm = do
   ctx' <- ctx
   return
     RenderJob
@@ -107,6 +110,7 @@ mkRender world scene endFrame = do
         , renderScene = scene
         , renderEndFrame = endFrame
         , renderWorld = world
+        , renderBrainstorm = brainstorm
         }
 
 render :: RenderContext -> IO Surface
@@ -116,6 +120,7 @@ render RenderContext { renderSeed
                      , renderWorld
                      , renderScene
                      , renderEndFrame
+                     , renderBrainstorm
                      } = do
   frame <- readIORef renderFrame
   modifyIORef renderFrame $ (`mod` renderEndFrame) . (+ 1)
@@ -129,7 +134,13 @@ render RenderContext { renderSeed
   where
     (scaledWidth, scaledHeight) = scaledDimensions renderWorld
     _render frame = do
-      seed <- readIORef renderSeed
+      seed <-
+        if renderBrainstorm
+          then do
+            r <- getRandomDouble >>= return . round . (* 1000000)
+            modifyIORef renderSeed (const r)
+            return r
+          else readIORef renderSeed
       let world' = renderWorld {seed}
       let rng = pureMT $ fromInteger $ toInteger seed
       noise <-
@@ -163,7 +174,7 @@ runInvocation scene =
         then timeSeed
         else return $ optSeed opts
     let world = World (optWidth opts) (optHeight opts) seed (optScale opts)
-    render <- mkRender world scene $ (optFrames opts)
+    render <- mkRender world scene (optFrames opts) (optBrainstorm opts)
     putStrLn $ "Initial seed is: " ++ (show seed)
     if optSave opts == ""
       then screen render
@@ -201,16 +212,15 @@ screen RenderJob { canvas
 file :: String -> RenderJob -> IO ()
 file path RenderJob { canvas
                     , dimensions
-                    , ctx = RenderContext { renderEndFrame
-                                          , renderWorld = World {seed, ..}
-                                          , ..
-                                          }
+                    , ctx = RenderContext {renderEndFrame, renderSeed, ..}
                     , ..
                     } = do
-  putStrLn $ "Output seed is: " ++ (show seed)
-  let writeFrame i =
-        canvas >>= \surface ->
-          surfaceWriteToPNG surface (path ++ "__" ++ (show i) ++ ".png")
+  let writeFrame i = do
+        surface <- canvas
+        seed <- readIORef renderSeed
+        surfaceWriteToPNG
+          surface
+          (path ++ "__" ++ (show seed) ++ "__" ++ (show i) ++ ".png")
   sequence $ map (writeFrame) [0 .. renderEndFrame - 1]
   return ()
 
