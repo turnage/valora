@@ -43,6 +43,10 @@ scene = do
       strokes'
   let dots = concat strokeRasters
   foldr1 (>>) $ mapMaybe (drawContour) dots
+  sparkles <- sequence $ map (const randomPoint) [0 .. 10000]
+  let texture = map (place dot) sparkles
+  hsva 0 0 1 0.01
+  foldr1 (>>) $ mapMaybe (drawContour) texture
 
 strokes :: Generate [Stroke]
 strokes = do

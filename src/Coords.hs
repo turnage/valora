@@ -8,10 +8,13 @@ module Coords
   , manhattanDistance
   , pivot
   , center
+  , randomPoint
   ) where
 
 import Control.Monad.Reader
 import Data.Fixed
+import Data.RVar
+import Data.Random.Distribution.Uniform
 import Linear
 
 import Core
@@ -20,6 +23,13 @@ center :: Generate (V2 Double)
 center = do
   World width height _ _ <- asks world
   return $ V2 (fromIntegral width / 2) (fromIntegral height / 2)
+
+randomPoint :: Generate (V2 Double)
+randomPoint = do
+  World width height _ _ <- asks world
+  x <- sampleRVar $ uniform 0 (fromIntegral width)
+  y <- sampleRVar $ uniform 0 (fromIntegral height)
+  return $ V2 x y
 
 midpoint :: V2 Double -> V2 Double -> V2 Double
 midpoint (V2 x1 y1) (V2 x2 y2) = V2 ((x2 - x1) / 2 + x1) ((y2 - y1) / 2 + y1)
