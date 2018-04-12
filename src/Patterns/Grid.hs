@@ -64,5 +64,4 @@ grid GridCfg {cols, rows, width, height, topLeft, tileFocus} = do
   return $ map ((+ topLeft) . (focalPoint tileWidth tileHeight tileFocus)) tiles
 
 gridCoords :: (Int, Int) -> [(Int, Int)]
-gridCoords (cols, rows) =
-  concat $ map (\c -> zip (repeat c) [0 .. rows - 1]) [0 .. cols - 1]
+gridCoords (cols, rows) = [(c, r) | c <- [0 .. cols - 1], r <- [0 .. rows - 1]]
