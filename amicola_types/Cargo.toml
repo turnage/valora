@@ -1,8 +1,0 @@
-[package]
-name = "amicola_types"
-version = "0.1.0"
-authors = ["Payton Turnage <paytonturnage@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-num = "0.2.0"
