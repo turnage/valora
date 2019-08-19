@@ -4,6 +4,7 @@ use crate::geo::V2;
 use failure::Fail;
 use std::convert::*;
 
+#[derive(Debug)]
 pub struct MonotonicSegment {
     source: MonotonicElement,
 }
@@ -64,7 +65,7 @@ impl<'a> TryFrom<(&'a V2, &'a V2)> for MonotonicElement {
         let (top, bottom) = if a.y > b.y { (a.y, b.y) } else { (b.y, a.y) };
         let dx = right.x - left.x;
         let dy = right.y - left.y;
-        let m = dx / dy;
+        let m = dy / dx;
 
         Ok(MonotonicElement::LineSegment {
             m,
@@ -94,6 +95,23 @@ mod test {
                     left: 3.0,
                     right: 4.0,
                     top: 2.0,
+                    bottom: 1.0
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn monotonic_element_try_from_line_segment_valid_steep_slope() {
+        assert_eq!(
+            MonotonicElement::try_from((&V2::new(3.0, 1.0), &V2::new(4.0, 3.0))),
+            Ok(MonotonicElement::LineSegment {
+                m: 2.0,
+                b: -5.0,
+                bounds: Bounds {
+                    left: 3.0,
+                    right: 4.0,
+                    top: 3.0,
                     bottom: 1.0
                 }
             })

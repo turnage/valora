@@ -26,7 +26,7 @@ impl Polygon {
             .zip(self.vertices.iter().take(1));
         self.vertices
             .iter()
-            .zip(self.vertices.iter())
+            .zip(self.vertices.iter().skip(1))
             .chain(wrap_around)
     }
 
@@ -67,6 +67,21 @@ mod test {
             Ok(Polygon {
                 vertices: expected_vertices
             })
+        );
+    }
+
+    #[test]
+    fn polygon_edges() {
+        let polygon = Polygon {
+            vertices: vec![V2::new(0.0, 0.0), V2::new(0.0, 1.0), V2::new(1.0, 0.0)],
+        };
+        assert_eq!(
+            polygon.edges().collect::<Vec<(&V2, &V2)>>(),
+            vec![
+                (&V2::new(0.0, 0.0), &V2::new(0.0, 1.0)),
+                (&V2::new(0.0, 1.0), &V2::new(1.0, 0.0)),
+                (&V2::new(1.0, 0.0), &V2::new(0.0, 0.0))
+            ]
         );
     }
 }
