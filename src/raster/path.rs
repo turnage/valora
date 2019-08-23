@@ -20,7 +20,7 @@ pub struct Bounds {
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {
     #[fail(display = "Vertical segment is an invalid element.")]
-    VerticalSegmentIsInvalidElement,
+    HorizontalSegmentIsInvalidElement,
 }
 
 impl MonotonicSegment {
@@ -30,11 +30,14 @@ impl MonotonicSegment {
         })
     }
 
-    pub fn sample(&self, t: f64) -> Option<f64> {
+    pub fn sample(&self, y: f64) -> Option<f64> {
         match self.source {
-            MonotonicElement::LineSegment { m, b, bounds } => {
-                if bounds.left <= t && t <= bounds.right {
-                    Some(t * m + b)
+            MonotonicElement::LineSegment { m, bounds } => {
+                if bounds.bottom <= y && y <= bounds.top {
+                    match m {
+                        Slope::Vertical => Some(bounds.right),
+                        Slope::Defined { m, b } => Some((y - b) / m),
+                    }
                 } else {
                     None
                 }
@@ -51,14 +54,20 @@ impl MonotonicSegment {
 
 #[derive(Debug, PartialEq)]
 enum MonotonicElement {
-    LineSegment { m: f64, b: f64, bounds: Bounds },
+    LineSegment { m: Slope, bounds: Bounds },
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum Slope {
+    Vertical,
+    Defined { m: f64, b: f64 },
 }
 
 impl<'a> TryFrom<(&'a V2, &'a V2)> for MonotonicElement {
     type Error = Error;
     fn try_from((a, b): (&'a V2, &'a V2)) -> Result<Self, Self::Error> {
-        if a.x == b.x {
-            Err(Error::VerticalSegmentIsInvalidElement)?;
+        if a.y == b.y {
+            Err(Error::HorizontalSegmentIsInvalidElement)?;
         }
 
         let (left, right) = if a.x < b.x { (a, b) } else { (b, a) };
@@ -66,10 +75,17 @@ impl<'a> TryFrom<(&'a V2, &'a V2)> for MonotonicElement {
         let dx = right.x - left.x;
         let dy = right.y - left.y;
         let m = dy / dx;
+        let m = if dx == 0.0 {
+            Slope::Vertical
+        } else {
+            Slope::Defined {
+                b: left.y - m * left.x,
+                m: dy / dx,
+            }
+        };
 
         Ok(MonotonicElement::LineSegment {
             m,
-            b: left.y - m * left.x,
             bounds: Bounds {
                 left: left.x,
                 right: right.x,
@@ -89,8 +105,7 @@ mod test {
         assert_eq!(
             MonotonicElement::try_from((&V2::new(3.0, 1.0), &V2::new(4.0, 2.0))),
             Ok(MonotonicElement::LineSegment {
-                m: 1.0,
-                b: -2.0,
+                m: Slope::Defined { m: 1.0, b: -2.0 },
                 bounds: Bounds {
                     left: 3.0,
                     right: 4.0,
@@ -106,8 +121,7 @@ mod test {
         assert_eq!(
             MonotonicElement::try_from((&V2::new(3.0, 1.0), &V2::new(4.0, 3.0))),
             Ok(MonotonicElement::LineSegment {
-                m: 2.0,
-                b: -5.0,
+                m: Slope::Defined { m: 2.0, b: -5.0 },
                 bounds: Bounds {
                     left: 3.0,
                     right: 4.0,
@@ -121,22 +135,56 @@ mod test {
     #[test]
     fn monotonic_element_try_from_line_segment_invalid() {
         assert_eq!(
-            MonotonicElement::try_from((&V2::new(3.0, 1.0), &V2::new(3.0, 2.0))),
-            Err(Error::VerticalSegmentIsInvalidElement)
+            MonotonicElement::try_from((&V2::new(3.0, 1.0), &V2::new(6.0, 1.0))),
+            Err(Error::HorizontalSegmentIsInvalidElement)
         );
     }
 
     #[test]
     fn monotonic_segment_sample_line_segment() -> Result<(), Error> {
-        let element = MonotonicSegment::try_from((&V2::new(3.0, 1.0), &V2::new(4.0, 2.0)))?;
-        assert_eq!(element.sample(3.0), Some(1.0));
-        assert!(element
-            .sample(3.5)
-            .map(|d| (d - 1.5).abs() < 0.1)
+        let segment = MonotonicSegment::try_from((&V2::new(3.0, 1.0), &V2::new(4.0, 2.0)))?;
+        assert_eq!(segment.sample(1.0), Some(3.0));
+        assert!(segment
+            .sample(1.5)
+            .map(|d| (d - 3.5).abs() < 0.1)
             .unwrap_or(false));
-        assert_eq!(element.sample(4.0), Some(2.0));
-        assert_eq!(element.sample(4.1), None);
+        assert_eq!(segment.sample(2.0), Some(4.0));
+        assert_eq!(segment.sample(2.1), None);
 
         Ok(())
+    }
+
+    #[test]
+    fn monotonic_element_try_from_triangle_edges() {
+        assert_eq!(
+            MonotonicElement::try_from((&V2::new(0.0, 0.0), &V2::new(0.0, 100.0))),
+            Ok(MonotonicElement::LineSegment {
+                m: Slope::Vertical,
+                bounds: Bounds {
+                    left: 0.0,
+                    right: 0.0,
+                    top: 100.0,
+                    bottom: 0.0
+                }
+            })
+        );
+
+        assert_eq!(
+            MonotonicElement::try_from((&V2::new(0.0, 100.0), &V2::new(100.0, 0.0))),
+            Ok(MonotonicElement::LineSegment {
+                m: Slope::Defined { m: -1.0, b: 100.0 },
+                bounds: Bounds {
+                    left: 0.0,
+                    right: 100.0,
+                    top: 100.0,
+                    bottom: 0.0
+                }
+            })
+        );
+
+        assert_eq!(
+            MonotonicElement::try_from((&V2::new(100.0, 0.0), &V2::new(0.0, 0.0))),
+            Err(Error::HorizontalSegmentIsInvalidElement)
+        );
     }
 }

@@ -16,16 +16,15 @@ mod test {
     #[test]
     fn image_output() {
         let mut buffer = Buffer::new(200, 200);
+        let triangle = Polygon::try_from(vec![
+            V2::new(0.0, 0.0),
+            V2::new(0.0, 100.0),
+            V2::new(100.0, 0.0),
+        ])
+        .expect("triangle");
 
         let mut region_list = RegionList::new();
-        region_list.push(
-            Polygon::try_from(vec![
-                V2::new(0.0, 0.0),
-                V2::new(0.0, 100.0),
-                V2::new(100.0, 0.0),
-            ])
-            .expect("triangle"),
-        );
+        region_list.push(triangle);
 
         println!("Region list: {:?}", region_list);
 
@@ -33,9 +32,13 @@ mod test {
             match region {
                 Region::Boundary { x, y } => {
                     println!("Shading boundary region {:?}v{:?}", x, y);
-                    buffer.get_pixel_mut(x as u32, y as u32).map(|_| 1.0);
+                    buffer
+                        .get_pixel_mut(x as u32, 199 - (y as u32))
+                        .apply(|_| 1.0);
                 }
-                _ => {}
+                e => {
+                    println!("Other boundary: {:?}", e);
+                }
             }
         }
 

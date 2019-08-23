@@ -37,31 +37,33 @@ impl RegionList {
 
                 let iter = GridLinesIter::Bounds(bounds);
                 for (i, horizontal_line) in iter.horizontal().enumerate() {
-                    //println!("Sampling {:?} at {:?}", segment, horizontal_line);
-                    if let Some(y) = segment.sample(horizontal_line as f64).or_else(|| {
-                        let x = if i == 0 { bounds.left } else { bounds.right };
+                    if let Some(x) = segment.sample(horizontal_line as f64).or_else(|| {
+                        let x = if i == 0 { bounds.bottom } else { bounds.top };
                         let s = segment.sample(x);
                         println!("Sampled: {:?}", s);
                         s
                     }) {
-                        self.mark_intersection(self.scan_line(y), horizontal_line);
+                        println!("Sampling at {:?} -> {:?}", horizontal_line, x);
+                        self.mark_intersection(horizontal_line, self.scan_column(x));
                     }
                 }
             });
     }
 
     pub fn regions(mut self) -> impl Iterator<Item = Region> {
-        for scan_line in self.scan_lines.iter_mut() {
-            scan_line.sort_unstable();
-        }
-
-        RegionIter {
-            scan_lines: self.scan_lines,
-            row: 0,
-            i: 0,
-            last_on_row: None,
-            queue: None,
-        }
+        self.scan_lines
+            .into_iter()
+            .enumerate()
+            .flat_map(|(y, mut scan_line)| {
+                scan_line.sort_unstable();
+                RegionIter {
+                    scan_line,
+                    y,
+                    i: 0,
+                    last_on_row: None,
+                    queue: None,
+                }
+            })
     }
 
     fn mark_intersection(&mut self, row: usize, column: usize) {
@@ -79,15 +81,15 @@ impl RegionList {
         }
     }
 
-    fn scan_line(&self, y: f64) -> usize {
-        y.floor() as usize
+    fn scan_column(&self, x: f64) -> usize {
+        x.floor() as usize
     }
 }
 
 struct RegionIter {
-    /// Scan lines where each line is assumed to have intersections sorted by left to right.
-    scan_lines: Vec<Vec<usize>>,
-    row: usize,
+    /// Scan line assumed to have intersections sorted by left to right.
+    scan_line: Vec<usize>,
+    y: usize,
     i: usize,
     last_on_row: Option<usize>,
     queue: Option<Region>,
@@ -100,34 +102,56 @@ impl Iterator for RegionIter {
             return Some(queue);
         }
 
-        let scan_line = self.scan_lines.get(self.row)?;
-        let next_boundary = scan_line.get(self.i)?;
+        let next_boundary = self.scan_line.get(self.i)?;
         if let Some(last_on_row) = self.last_on_row.take() {
-            if next_boundary - 1 > last_on_row {
+            if *next_boundary > last_on_row + 2 {
                 self.queue = Some(Region::Fill {
                     start_x: last_on_row + 1,
                     end_x: *next_boundary,
-                    y: self.row,
+                    y: self.y,
                 });
             }
-        }
-
-        self.last_on_row = Some(*next_boundary);
-        let next = Some(Region::Boundary {
-            x: *next_boundary,
-            y: self.row,
-        });
-
-        if self.i > self.scan_lines[self.row].len() {
-            self.i = 0;
-            self.row += 1;
         } else {
-            self.i += 1;
+            self.last_on_row = Some(*next_boundary);
         }
 
-        next
+        self.i += 1;
+        Some(Region::Boundary {
+            x: *next_boundary,
+            y: self.y,
+        })
     }
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use super::*;
+    use std::convert::*;
+
+    #[test]
+    fn triangle_regions() {
+        let triangle = Polygon::try_from(vec![
+            V2::new(0.0, 0.0),
+            V2::new(0.0, 2.0),
+            V2::new(2.0, 0.0),
+        ])
+        .expect("triangle");
+
+        let mut regions = RegionList::new();
+        regions.push(triangle);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Region::Boundary { x: 0, y: 0 },
+                Region::Boundary { x: 2, y: 0 },
+                Region::Boundary { x: 0, y: 1 },
+                Region::Boundary { x: 1, y: 1 },
+                Region::Boundary { x: 0, y: 2 },
+                Region::Boundary { x: 0, y: 2 }
+            ]
+        );
+    }
+}
