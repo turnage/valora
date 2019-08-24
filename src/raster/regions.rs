@@ -16,6 +16,58 @@ pub enum Region {
     },
 }
 
+impl IntoIterator for Region {
+    type IntoIter = ShadeCommandIter;
+    type Item = ShadeCommand;
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Region::Boundary { x, y } => ShadeCommandIter {
+                x,
+                y,
+                end_x: x + 1,
+                super_sample: true,
+            },
+            Region::Fill { start_x, end_x, y } => ShadeCommandIter {
+                x: start_x,
+                y,
+                end_x,
+                super_sample: false,
+            },
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ShadeCommand {
+    pub x: usize,
+    pub y: usize,
+    pub super_sample: bool,
+}
+
+pub struct ShadeCommandIter {
+    x: usize,
+    y: usize,
+    end_x: usize,
+    super_sample: bool,
+}
+
+impl Iterator for ShadeCommandIter {
+    type Item = ShadeCommand;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.x < self.end_x {
+            self.x += 1;
+            Some(ShadeCommand {
+                x: self.x - 1,
+                y: self.y,
+                super_sample: self.super_sample,
+            })
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct RegionList {
     scan_lines: Vec<Vec<usize>>,
@@ -104,7 +156,7 @@ impl Iterator for RegionIter {
 
         let next_boundary = self.scan_line.get(self.i)?;
         if let Some(last_on_row) = self.last_on_row.take() {
-            if *next_boundary > last_on_row + 2 {
+            if *next_boundary > last_on_row + 1 {
                 self.queue = Some(Region::Fill {
                     start_x: last_on_row + 1,
                     end_x: *next_boundary,
@@ -147,6 +199,11 @@ mod test {
             vec![
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 2, y: 0 },
+                Region::Fill {
+                    start_x: 1,
+                    end_x: 2,
+                    y: 0
+                },
                 Region::Boundary { x: 0, y: 1 },
                 Region::Boundary { x: 1, y: 1 },
                 Region::Boundary { x: 0, y: 2 },
