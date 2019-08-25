@@ -12,6 +12,7 @@ mod test {
     use crate::geo::*;
     use image::Pixel;
     use std::convert::TryFrom;
+    use std::iter::*;
 
     #[test]
     fn image_output() {
@@ -23,8 +24,7 @@ mod test {
         ])
         .expect("triangle");
 
-        let mut region_list = RegionList::new();
-        region_list.push(triangle);
+        let region_list = RegionList::from_iter(vec![triangle]);
 
         println!("Region list: {:?}", region_list);
 

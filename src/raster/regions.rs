@@ -70,15 +70,31 @@ impl Iterator for ShadeCommandIter {
 
 #[derive(Debug)]
 pub struct RegionList {
+    /// Scan lines assumed to have intersections sorted by left to right.
     scan_lines: Vec<Vec<usize>>,
 }
 
-impl RegionList {
-    pub fn new() -> Self {
-        Self { scan_lines: vec![] }
-    }
+impl std::iter::FromIterator<Polygon> for RegionList {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = Polygon>,
+    {
+        let mut list = RegionList { scan_lines: vec![] };
 
-    pub fn push(&mut self, poly: Polygon) {
+        for polygon in iter {
+            list.push(polygon);
+        }
+
+        list.scan_lines
+            .iter_mut()
+            .for_each(|scan_line| scan_line.sort_unstable());
+
+        list
+    }
+}
+
+impl RegionList {
+    fn push(&mut self, poly: Polygon) {
         poly.edges()
             .map(MonotonicSegment::try_from)
             .filter_map(Result::ok)
@@ -106,15 +122,12 @@ impl RegionList {
         self.scan_lines
             .into_iter()
             .enumerate()
-            .flat_map(|(y, mut scan_line)| {
-                scan_line.sort_unstable();
-                RegionIter {
-                    scan_line,
-                    y,
-                    i: 0,
-                    last_on_row: None,
-                    queue: None,
-                }
+            .flat_map(|(y, mut scan_line)| RegionIter {
+                scan_line,
+                y,
+                i: 0,
+                last_on_row: None,
+                queue: None,
             })
     }
 
@@ -179,6 +192,7 @@ impl Iterator for RegionIter {
 mod test {
     use super::*;
     use std::convert::*;
+    use std::iter::*;
 
     #[test]
     fn triangle_regions() {
@@ -189,8 +203,7 @@ mod test {
         ])
         .expect("triangle");
 
-        let mut regions = RegionList::new();
-        regions.push(triangle);
+        let regions = RegionList::from_iter(vec![triangle]);
 
         println!("Regions: {:#?}", regions);
 
