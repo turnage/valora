@@ -1,8 +1,8 @@
 mod grid_lines;
 mod path;
-mod regions;
+pub mod regions;
 mod sampling;
-mod surface;
+pub mod surface;
 
 #[cfg(test)]
 mod test {
@@ -27,10 +27,7 @@ mod test {
 
         let region_list = RegionList::from_iter(vec![triangle]);
 
-        println!("Region list: {:?}", region_list);
-
         for shade_command in region_list.shade_commands() {
-            println!("\tCommand: {:?}", shade_command);
             surface.pixel(shade_command.x, shade_command.y).map(|p| {
                 p[0] = 1.0;
                 p[1] = 1.0;

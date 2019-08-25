@@ -29,10 +29,9 @@ impl Into<u64> for SampleDepth {
 pub fn coverage<'a>(offset: V2, depth: SampleDepth, path: &[MonotonicSegment]) -> f64 {
     let mut hits = 0;
     for command in hammersley(depth).map(|cmd| cmd + offset) {
-        println!("sample command: {:?}", command);
         let mut pass_count = 0;
         for segment in path {
-            if let Some(x) = segment.sample(command.y) {
+            if let Some(x) = segment.sample_y(command.y).map(|i| i.axis) {
                 if x <= command.x {
                     pass_count += 1;
                 }
@@ -49,7 +48,6 @@ pub fn coverage<'a>(offset: V2, depth: SampleDepth, path: &[MonotonicSegment]) -
 
 fn hammersley(depth: SampleDepth) -> impl Iterator<Item = V2> {
     let n: u64 = depth.into();
-    println!("Generating {:?} samplepoints..", n);
     (0..n).map(move |i| V2::new(i as f64 / n as f64, van_der_corput(i) as f64))
 }
 

@@ -23,6 +23,14 @@ pub enum Error {
     HorizontalSegmentIsInvalidElement,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Intersection {
+    /// Where on the excluded axis (x or y) the intersection occurs.
+    pub axis: f64,
+    /// Where along the segment [0.0, 1.0] the intersection occurs.
+    pub t: f64,
+}
+
 impl MonotonicSegment {
     pub fn try_from(src: impl TryInto<MonotonicElement, Error = Error>) -> Result<Self, Error> {
         Ok(MonotonicSegment {
@@ -30,18 +38,63 @@ impl MonotonicSegment {
         })
     }
 
-    pub fn sample(&self, y: f64) -> Option<f64> {
+    pub fn sample_y(&self, y: f64) -> Option<Intersection> {
         match self.source {
             MonotonicElement::LineSegment { m, bounds } => {
                 if bounds.bottom <= y && y <= bounds.top {
                     match m {
-                        Slope::Vertical => Some(bounds.right),
-                        Slope::Defined { m, b } => Some((y - b) / m),
+                        Slope::Vertical => Some(Intersection {
+                            axis: bounds.right,
+                            t: (y - bounds.bottom) / (bounds.top - bounds.bottom),
+                        }),
+                        Slope::Defined { m, b } => {
+                            let x = (y - b) / m;
+                            Some(Intersection {
+                                axis: x,
+                                t: (x - bounds.left) / (bounds.right - bounds.left),
+                            })
+                        }
                     }
                 } else {
                     None
                 }
             }
+        }
+    }
+
+    pub fn sample_x(&self, x: f64) -> Option<Intersection> {
+        match self.source {
+            MonotonicElement::LineSegment { m, bounds } => {
+                if bounds.left <= x && x <= bounds.right {
+                    match m {
+                        Slope::Vertical => None,
+                        Slope::Defined { m, b } => {
+                            let y = m * x + b;
+                            Some(Intersection {
+                                axis: y,
+                                t: (y - bounds.bottom) / (bounds.top - bounds.bottom),
+                            })
+                        }
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    pub fn bookends(&self) -> (V2, V2) {
+        match self.source {
+            MonotonicElement::LineSegment { m, bounds } => match m {
+                Slope::Vertical => (
+                    V2::new(bounds.left, bounds.bottom),
+                    V2::new(bounds.right, bounds.top),
+                ),
+                Slope::Defined { m, b } => (
+                    V2::new(bounds.left, m * bounds.left + b),
+                    V2::new(bounds.right, m * bounds.right + b),
+                ),
+            },
         }
     }
 
@@ -143,13 +196,19 @@ mod test {
     #[test]
     fn monotonic_segment_sample_line_segment() -> Result<(), Error> {
         let segment = MonotonicSegment::try_from((&V2::new(3.0, 1.0), &V2::new(4.0, 2.0)))?;
-        assert_eq!(segment.sample(1.0), Some(3.0));
+        assert_eq!(
+            segment.sample_y(1.0),
+            Some(Intersection { axis: 3.0, t: 0.0 })
+        );
         assert!(segment
-            .sample(1.5)
-            .map(|d| (d - 3.5).abs() < 0.1)
+            .sample_y(1.5)
+            .map(|i| (i.axis - 3.5).abs() < 0.1)
             .unwrap_or(false));
-        assert_eq!(segment.sample(2.0), Some(4.0));
-        assert_eq!(segment.sample(2.1), None);
+        assert_eq!(
+            segment.sample_y(2.0),
+            Some(Intersection { axis: 4.0, t: 1.0 })
+        );
+        assert_eq!(segment.sample_y(2.1), None);
 
         Ok(())
     }

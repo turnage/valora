@@ -2,6 +2,7 @@
 
 use super::{grid_lines::*, path::*, sampling::*};
 use crate::geo::*;
+use std::collections::HashSet;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Region {
@@ -51,7 +52,7 @@ impl Iterator for ShadeCommandIter {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 struct PathHit {
     x: usize,
     path: usize,
@@ -92,28 +93,77 @@ impl RegionList {
             .collect();
 
         let path_idx = self.paths.len();
+        let mut seen_hits = HashSet::new();
 
         for segment in &path {
             let bounds = segment.bounds();
-            println!("Bounds: {:?}", bounds);
             self.reserve_up_to(bounds.top.ceil() as usize);
 
+            #[derive(Debug)]
+            pub struct Intersection {
+                location: V2,
+                t: f64,
+            }
+
+            let mut intersections = vec![];
+            let mut excluded_verticals = HashSet::new();
+            let mut has_t1 = false;
+            let mut has_t0 = false;
             let iter = GridLinesIter::Bounds(bounds);
-            for (i, horizontal_line) in iter.horizontal().enumerate() {
-                if let Some(x) = segment.sample(horizontal_line as f64).or_else(|| {
-                    let x = if i == 0 { bounds.bottom } else { bounds.top };
-                    let s = segment.sample(x);
-                    println!("Sampled: {:?}", s);
-                    s
-                }) {
-                    println!("Sampling at {:?} -> {:?}", horizontal_line, x);
-                    self.mark_intersection(
-                        horizontal_line,
-                        PathHit {
-                            x: self.scan_column(x),
-                            path: path_idx,
-                        },
-                    );
+            let mut add_intersection = |x: f64, y: f64, t: f64| {
+                has_t0 |= t.abs() == 0.0;
+                has_t1 |= t == 1.0;
+                intersections.push(Intersection {
+                    location: V2::new(x, y),
+                    t,
+                });
+            };
+
+            for horizontal_line in iter.horizontal() {
+                if let Some(intersection) = segment.sample_y(horizontal_line as f64) {
+                    let floor = intersection.axis.floor();
+                    if floor == intersection.axis {
+                        excluded_verticals.insert(floor as usize);
+                    }
+                    add_intersection(intersection.axis, horizontal_line as f64, intersection.t);
+                }
+            }
+
+            for vertical_line in iter
+                .vertical()
+                .filter(|v| excluded_verticals.get(&v).is_none())
+            {
+                if let Some(intersection) = segment.sample_x(vertical_line as f64) {
+                    add_intersection(vertical_line as f64, intersection.axis, intersection.t);
+                }
+            }
+
+            let (start, end) = segment.bookends();
+            if !has_t0 {
+                intersections.push(Intersection {
+                    location: start,
+                    t: 0.0,
+                });
+            }
+            if !has_t1 {
+                intersections.push(Intersection {
+                    location: end,
+                    t: 1.0,
+                });
+            }
+
+            intersections.sort_unstable_by(|a, b| a.t.partial_cmp(&b.t).unwrap());
+
+            for (a, b) in intersections
+                .windows(2)
+                .map(|w| (w[0].location, w[1].location))
+            {
+                let midpoint = (a + b) / 2.0;
+                let (x, y) = (midpoint.x.floor() as usize, midpoint.y.floor() as usize);
+                let path_hit = PathHit { x, path: path_idx };
+                if seen_hits.get(&(y, path_hit)).is_none() {
+                    self.mark_intersection(y, path_hit);
+                    seen_hits.insert((y, path_hit));
                 }
             }
         }
@@ -129,7 +179,7 @@ impl RegionList {
                 end_x: x + 1,
                 coverage: coverage(
                     V2::new(x as f64, y as f64),
-                    SampleDepth::Super4,
+                    SampleDepth::Super64,
                     &self.paths[path],
                 ),
             },
@@ -219,7 +269,7 @@ mod test {
     use std::iter::*;
 
     #[test]
-    fn triangle_regions() {
+    fn small_triangle_boundaries() {
         let triangle = Polygon::try_from(vec![
             V2::new(0.0, 0.0),
             V2::new(0.0, 2.0),
@@ -240,13 +290,48 @@ mod test {
                     path: 0
                 },
                 Region::Boundary {
-                    x: 2,
+                    x: 1,
+                    y: 0,
+                    path: 0
+                },
+                Region::Boundary {
+                    x: 0,
+                    y: 1,
+                    path: 0
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn triangle_regions() {
+        let triangle = Polygon::try_from(vec![
+            V2::new(0.0, 0.0),
+            V2::new(0.0, 5.0),
+            V2::new(5.0, 0.0),
+        ])
+        .expect("triangle");
+
+        let regions = RegionList::from_iter(vec![triangle]);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Region::Boundary {
+                    x: 0,
+                    y: 0,
+                    path: 0
+                },
+                Region::Boundary {
+                    x: 4,
                     y: 0,
                     path: 0
                 },
                 Region::Fill {
                     start_x: 1,
-                    end_x: 2,
+                    end_x: 4,
                     y: 0,
                     path: 0
                 },
@@ -256,7 +341,13 @@ mod test {
                     path: 0
                 },
                 Region::Boundary {
-                    x: 1,
+                    x: 3,
+                    y: 1,
+                    path: 0
+                },
+                Region::Fill {
+                    start_x: 1,
+                    end_x: 3,
                     y: 1,
                     path: 0
                 },
@@ -266,8 +357,29 @@ mod test {
                     path: 0
                 },
                 Region::Boundary {
-                    x: 0,
+                    x: 2,
                     y: 2,
+                    path: 0
+                },
+                Region::Fill {
+                    start_x: 1,
+                    end_x: 2,
+                    y: 2,
+                    path: 0
+                },
+                Region::Boundary {
+                    x: 0,
+                    y: 3,
+                    path: 0
+                },
+                Region::Boundary {
+                    x: 1,
+                    y: 3,
+                    path: 0
+                },
+                Region::Boundary {
+                    x: 0,
+                    y: 4,
                     path: 0
                 }
             ]

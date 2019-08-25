@@ -13,6 +13,12 @@ impl<'a> GridLinesIter<'a> {
         }
     }
 
+    pub fn vertical(&self) -> impl Iterator<Item = usize> {
+        match self {
+            GridLinesIter::Bounds(bounds) => Self::inclusive_iter(bounds.left, bounds.right),
+        }
+    }
+
     fn inclusive_iter(startf: f64, endf: f64) -> impl Iterator<Item = usize> {
         let start = startf.floor() as usize;
         let end = endf.ceil() as usize;
@@ -35,5 +41,17 @@ mod test {
         });
 
         assert_eq!(iter.horizontal().collect::<Vec<usize>>(), vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn vertical() {
+        let iter = GridLinesIter::Bounds(&Bounds {
+            left: 1.1,
+            right: 3.1,
+            top: 0.0,
+            bottom: 0.0,
+        });
+
+        assert_eq!(iter.vertical().collect::<Vec<usize>>(), vec![1, 2, 3, 4]);
     }
 }
