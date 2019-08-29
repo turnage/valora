@@ -1,7 +1,7 @@
 //! Raster region search and enumeration.
 
 use super::{grid_lines::*, path::*, sampling::*};
-use crate::geo::*;
+use crate::amicola::geo::*;
 use std::collections::HashSet;
 
 #[derive(Copy, Clone, Debug, PartialEq)]

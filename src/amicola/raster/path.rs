@@ -1,6 +1,6 @@
 //! Module for working with paths and path segments.
 
-use crate::geo::V2;
+use crate::amicola::V2;
 use failure::Fail;
 use std::convert::*;
 

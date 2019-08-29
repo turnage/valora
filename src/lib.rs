@@ -1,6 +1,4 @@
-mod geo;
-mod raster;
+//! A toolkit for writing generative fine art.
 
-pub use crate::geo::*;
-pub use crate::raster::regions::RegionList;
-pub use crate::raster::surface::*;
+pub mod amicola;
+mod rainier;

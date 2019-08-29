@@ -6,11 +6,11 @@ pub mod surface;
 
 #[cfg(test)]
 mod test {
+    use super::geo::*;
     use super::grid_lines::*;
     use super::path::*;
     use super::regions::*;
     use super::surface::*;
-    use crate::geo::*;
     use image::Pixel;
     use std::convert::TryFrom;
     use std::iter::*;

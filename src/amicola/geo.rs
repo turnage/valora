@@ -5,6 +5,7 @@ use nalgebra::{base::*, Matrix};
 use std::convert::TryFrom;
 
 pub type V2 = Matrix<f64, U2, U1, ArrayStorage<f64, U2, U1>>;
+pub type V4 = Matrix<f64, U4, U1, ArrayStorage<f64, U4, U1>>;
 
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {

@@ -1,7 +1,7 @@
 //! Super sampling patterns.
 
 use super::path::*;
-use crate::geo::*;
+use crate::amicola::geo::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SampleDepth {
