@@ -11,6 +11,8 @@ use crate::amicola::{Element, RasterMethod, Shader};
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
+use palette::{rgb::LinSrgba, Blend};
+
 pub fn raster(surface: &mut Surface, mut element: Element) {
     match element.raster_method {
         RasterMethod::Fill => {
@@ -24,10 +26,19 @@ pub fn raster(surface: &mut Surface, mut element: Element) {
                 match &element.shader {
                     Shader::Solid(color) => {
                         surface.pixel(shade_command.x, shade_command.y).map(|p| {
-                            p[0] = color.x;
-                            p[1] = color.y;
-                            p[2] = color.z;
-                            p[3] = shade_command.coverage * color.w;
+                            let dest = LinSrgba::new(p[0], p[1], p[2], p[3]);
+                            let src = LinSrgba::new(
+                                color.x,
+                                color.y,
+                                color.z,
+                                shade_command.coverage * color.w,
+                            );
+                            let (r, g, b, a) = src.over(dest).into_components();
+
+                            p[0] = r;
+                            p[1] = g;
+                            p[2] = b;
+                            p[3] = a;
                         })
                     }
                     Shader::Dynamic(f) => {

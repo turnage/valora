@@ -6,7 +6,7 @@ mod raster;
 use derive_more::DebugCustom;
 use std::sync::Arc;
 
-pub use self::geo::{V2, V4};
+pub use self::geo::{Error, Polygon, V2, V4};
 pub use self::raster::{
     raster,
     surface::{FinalBuffer, Surface},

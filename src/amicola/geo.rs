@@ -13,7 +13,7 @@ pub enum Error {
     TooFewVerticesForPolygon(usize),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Polygon {
     vertices: Vec<V2>,
 }

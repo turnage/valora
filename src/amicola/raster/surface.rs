@@ -7,6 +7,7 @@ pub type Buffer = ImageBuffer<Rgba<f64>, Vec<f64>>;
 
 pub type FinalBuffer = ImageBuffer<Rgba<u8>, Vec<u8>>;
 
+#[derive(Clone, Debug)]
 pub struct Surface {
     // surface data stored row-major where each pixel is 4 f64s in RGBA order.
     data: Vec<f64>,
