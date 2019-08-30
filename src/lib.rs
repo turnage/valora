@@ -1,4 +1,6 @@
 //! A toolkit for writing generative fine art.
 
-pub mod amicola;
+mod amicola;
 mod rainier;
+
+pub use rainier::*;

@@ -1,42 +1,47 @@
 mod grid_lines;
 mod path;
-pub mod regions;
+mod regions;
 mod sampling;
 pub mod surface;
 
-#[cfg(test)]
-mod test {
-    use super::geo::*;
-    use super::grid_lines::*;
-    use super::path::*;
-    use super::regions::*;
-    use super::surface::*;
-    use image::Pixel;
-    use std::convert::TryFrom;
-    use std::iter::*;
+use self::regions::RegionList;
+use self::surface::Surface;
+use crate::amicola::geo::{Polygon, V2};
+use crate::amicola::{Element, RasterMethod, Shader};
+use std::convert::TryFrom;
+use std::iter::FromIterator;
 
-    #[test]
-    fn image_output() {
-        let mut surface = Surface::with_dimensions(5000, 5000);
-        let triangle = Polygon::try_from(vec![
-            V2::new(0.0, 0.0),
-            V2::new(0.0, 700.0),
-            V2::new(3000.0, 0.0),
-        ])
-        .expect("triangle");
+pub fn raster(surface: &mut Surface, mut element: Element) {
+    match element.raster_method {
+        RasterMethod::Fill => {
+            let poly = match Polygon::try_from(element.path) {
+                Ok(poly) => poly,
+                // An unclosed path has no fill.
+                _ => return,
+            };
 
-        let region_list = RegionList::from_iter(vec![triangle]);
-
-        for shade_command in region_list.shade_commands() {
-            surface.pixel(shade_command.x, shade_command.y).map(|p| {
-                p[0] = 1.0;
-                p[1] = 1.0;
-                p[2] = 1.0;
-                p[3] = shade_command.coverage;
-            });
+            for shade_command in RegionList::from_iter(std::iter::once(poly)).shade_commands() {
+                match &element.shader {
+                    Shader::Solid(color) => {
+                        surface.pixel(shade_command.x, shade_command.y).map(|p| {
+                            p[0] = color.x;
+                            p[1] = color.y;
+                            p[2] = color.z;
+                            p[3] = shade_command.coverage * color.w;
+                        })
+                    }
+                    Shader::Dynamic(f) => {
+                        surface.pixel(shade_command.x, shade_command.y).map(|p| {
+                            let color = f(V2::new(shade_command.x as f64, shade_command.y as f64));
+                            p[0] = color.x;
+                            p[1] = color.y;
+                            p[2] = color.z;
+                            p[3] = shade_command.coverage * color.w;
+                        })
+                    }
+                };
+            }
         }
-
-        let buffer: FinalBuffer = surface.into();
-        buffer.save("test.bmp").expect("To save surface");
-    }
+        _ => unimplemented!(),
+    };
 }

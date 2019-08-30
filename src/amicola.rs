@@ -7,7 +7,10 @@ use derive_more::DebugCustom;
 use std::sync::Arc;
 
 pub use self::geo::{V2, V4};
-pub use self::raster::surface::{FinalBuffer, Surface};
+pub use self::raster::{
+    raster,
+    surface::{FinalBuffer, Surface},
+};
 
 /// The method by which the rasterizer will raster the vector path.
 #[derive(Debug, Clone, Copy)]
@@ -29,10 +32,7 @@ pub enum Shader {
     Solid(V4),
     /// Shades the path with the given function by invoking it with the coordinate of the pixel to shade.
     #[debug(fmt = "Dynamic Shader")]
-    Dynamic(Arc<dyn FnMut(V2) -> V4 + Send + Sync>),
-    /// Shades the path by evaluating the subcomposition.
-    #[debug(fmt = "Sub Composition")]
-    SubComposition(Arc<dyn Iterator<Item = Element> + Send + Sync>),
+    Dynamic(Arc<dyn Fn(V2) -> V4 + Send + Sync>),
 }
 
 /// A rasterable element in a composition.
@@ -41,8 +41,4 @@ pub struct Element {
     pub path: Vec<V2>,
     pub raster_method: RasterMethod,
     pub shader: Shader,
-}
-
-pub fn raster(surface: &mut Surface, composition: impl Iterator<Item = Element>) -> Surface {
-    unimplemented!()
 }
