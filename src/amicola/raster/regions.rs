@@ -9,15 +9,11 @@ enum Region {
     Boundary {
         x: usize,
         y: usize,
-        // path index
-        path: usize,
     },
     Fill {
         start_x: usize,
         end_x: usize,
         y: usize,
-        // path index
-        path: usize,
     },
 }
 
@@ -55,27 +51,21 @@ impl Iterator for ShadeCommandIter {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 struct PathHit {
     x: usize,
-    path: usize,
+    segment_id: usize,
 }
 
 #[derive(Debug, Default)]
 pub struct RegionList {
-    paths: Vec<Vec<MonotonicSegment>>,
     /// Scan lines assumed to have intersections sorted by left to right.
     scan_lines: Vec<Vec<PathHit>>,
+    path: Vec<MonotonicSegment>,
 }
 
-impl std::iter::FromIterator<Polygon> for RegionList {
-    fn from_iter<T>(iter: T) -> Self
-    where
-        T: IntoIterator<Item = Polygon>,
-    {
+impl From<Polygon> for RegionList {
+    fn from(poly: Polygon) -> Self {
         let mut list = RegionList::default();
 
-        for polygon in iter {
-            list.push(polygon);
-        }
-
+        list.push(poly);
         list.scan_lines
             .iter_mut()
             .for_each(|scan_line| scan_line.sort_unstable_by_key(|p| p.x));
@@ -91,11 +81,9 @@ impl RegionList {
             .map(MonotonicSegment::try_from)
             .filter_map(Result::ok)
             .collect();
-
-        let path_idx = self.paths.len();
         let mut seen_hits = HashSet::new();
 
-        for segment in &path {
+        for (segment_id, segment) in path.iter().enumerate() {
             let bounds = segment.bounds();
             self.reserve_up_to(bounds.top.ceil() as usize);
 
@@ -103,6 +91,7 @@ impl RegionList {
             pub struct Intersection {
                 location: V2,
                 t: f64,
+                segment_id: usize,
             }
 
             let mut intersections = vec![];
@@ -116,6 +105,7 @@ impl RegionList {
                 intersections.push(Intersection {
                     location: V2::new(x, y),
                     t,
+                    segment_id,
                 });
             };
 
@@ -143,12 +133,14 @@ impl RegionList {
                 intersections.push(Intersection {
                     location: start,
                     t: 0.0,
+                    segment_id,
                 });
             }
             if !has_t1 {
                 intersections.push(Intersection {
                     location: end,
                     t: 1.0,
+                    segment_id,
                 });
             }
 
@@ -160,7 +152,7 @@ impl RegionList {
             {
                 let midpoint = (a + b) / 2.0;
                 let (x, y) = (midpoint.x.floor() as usize, midpoint.y.floor() as usize);
-                let path_hit = PathHit { x, path: path_idx };
+                let path_hit = PathHit { x, segment_id };
                 if seen_hits.get(&(y, path_hit)).is_none() {
                     self.mark_intersection(y, path_hit);
                     seen_hits.insert((y, path_hit));
@@ -168,19 +160,19 @@ impl RegionList {
             }
         }
 
-        self.paths.push(path);
+        self.path = path;
     }
 
     pub fn shade_commands<'a>(&'a self) -> impl Iterator<Item = ShadeCommand> + 'a {
         self.regions().flat_map(move |region| match region {
-            Region::Boundary { x, y, path } => ShadeCommandIter {
+            Region::Boundary { x, y } => ShadeCommandIter {
                 x,
                 y,
                 end_x: x + 1,
                 coverage: coverage(
                     V2::new(x as f64, y as f64),
                     SampleDepth::Super64,
-                    &self.paths[path],
+                    &self.path,
                 ),
             },
             Region::Fill {
@@ -213,8 +205,6 @@ impl RegionList {
         let rows_allocated = self.scan_lines.len();
         if upper_bound + 1 > rows_allocated {
             let additional = 1 + upper_bound - rows_allocated;
-            println!("additional: {:?}", additional);
-            println!("upper bound: {:?}", upper_bound);
             self.scan_lines.append(&mut vec![vec![]; additional]);
         }
     }
@@ -228,7 +218,7 @@ struct RegionIter<'a> {
     region_list: &'a RegionList,
     y: usize,
     i: usize,
-    last_on_row: Option<usize>,
+    last_on_row: Option<PathHit>,
     queue: Option<Region>,
 }
 
@@ -239,25 +229,32 @@ impl<'a> Iterator for RegionIter<'a> {
             return Some(queue);
         }
 
-        let next_boundary = self.region_list.scan_lines[self.y].get(self.i)?.x;
-        if let Some(last_on_row) = self.last_on_row.take() {
-            if next_boundary > last_on_row + 1 {
+        let next_boundary = self.region_list.scan_lines[self.y].get(self.i)?;
+
+        if self
+            .last_on_row
+            .as_ref()
+            .map(|b| b.segment_id == next_boundary.segment_id)
+            .unwrap_or(false)
+        {
+            // Each segment can only increment the winding number once.
+            self.last_on_row.replace(*next_boundary);
+        } else if let Some(last_on_row) = self.last_on_row.take() {
+            if next_boundary.x > last_on_row.x + 1 {
                 self.queue = Some(Region::Fill {
-                    start_x: last_on_row + 1,
-                    end_x: next_boundary,
+                    start_x: last_on_row.x + 1,
+                    end_x: next_boundary.x,
                     y: self.y,
-                    path: 0, // TODO
                 });
             }
         } else {
-            self.last_on_row = Some(next_boundary);
+            self.last_on_row = Some(*next_boundary);
         }
 
         self.i += 1;
         Some(Region::Boundary {
-            x: next_boundary,
+            x: next_boundary.x,
             y: self.y,
-            path: 0, // TODO
         })
     }
 }
@@ -265,6 +262,7 @@ impl<'a> Iterator for RegionIter<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
     use std::convert::*;
     use std::iter::*;
 
@@ -277,28 +275,16 @@ mod test {
         ])
         .expect("triangle");
 
-        let regions = RegionList::from_iter(vec![triangle]);
+        let regions = RegionList::from(triangle);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
             regions.regions().collect::<Vec<Region>>(),
             vec![
-                Region::Boundary {
-                    x: 0,
-                    y: 0,
-                    path: 0
-                },
-                Region::Boundary {
-                    x: 1,
-                    y: 0,
-                    path: 0
-                },
-                Region::Boundary {
-                    x: 0,
-                    y: 1,
-                    path: 0
-                },
+                Region::Boundary { x: 0, y: 0 },
+                Region::Boundary { x: 1, y: 0 },
+                Region::Boundary { x: 0, y: 1 },
             ]
         );
     }
@@ -312,76 +298,123 @@ mod test {
         ])
         .expect("triangle");
 
-        let regions = RegionList::from_iter(vec![triangle]);
+        let regions = RegionList::from(triangle);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
             regions.regions().collect::<Vec<Region>>(),
             vec![
-                Region::Boundary {
-                    x: 0,
-                    y: 0,
-                    path: 0
-                },
-                Region::Boundary {
-                    x: 4,
-                    y: 0,
-                    path: 0
-                },
+                Region::Boundary { x: 0, y: 0 },
+                Region::Boundary { x: 4, y: 0 },
                 Region::Fill {
                     start_x: 1,
                     end_x: 4,
                     y: 0,
-                    path: 0
                 },
-                Region::Boundary {
-                    x: 0,
-                    y: 1,
-                    path: 0
-                },
-                Region::Boundary {
-                    x: 3,
-                    y: 1,
-                    path: 0
-                },
+                Region::Boundary { x: 0, y: 1 },
+                Region::Boundary { x: 3, y: 1 },
                 Region::Fill {
                     start_x: 1,
                     end_x: 3,
                     y: 1,
-                    path: 0
                 },
-                Region::Boundary {
-                    x: 0,
-                    y: 2,
-                    path: 0
-                },
-                Region::Boundary {
-                    x: 2,
-                    y: 2,
-                    path: 0
-                },
+                Region::Boundary { x: 0, y: 2 },
+                Region::Boundary { x: 2, y: 2 },
                 Region::Fill {
                     start_x: 1,
                     end_x: 2,
                     y: 2,
-                    path: 0
                 },
-                Region::Boundary {
-                    x: 0,
+                Region::Boundary { x: 0, y: 3 },
+                Region::Boundary { x: 1, y: 3 },
+                Region::Boundary { x: 0, y: 4 }
+            ]
+        );
+    }
+
+    #[test]
+    fn inverted_triangle_regions() {
+        let triangle = Polygon::try_from(vec![
+            V2::new(0.0, 3.0),
+            V2::new(4.0, 3.0),
+            V2::new(2.0, 0.0),
+        ])
+        .expect("triangle");
+
+        let regions = RegionList::from(triangle);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Region::Boundary { x: 1, y: 0 },
+                Region::Boundary { x: 2, y: 0 },
+                Region::Boundary { x: 0, y: 1 },
+                Region::Boundary { x: 1, y: 1 },
+                Region::Boundary { x: 2, y: 1 },
+                Region::Boundary { x: 3, y: 1 },
+                Region::Boundary { x: 0, y: 2 },
+                Region::Boundary { x: 3, y: 2 },
+                Region::Fill {
+                    start_x: 1,
+                    end_x: 3,
+                    y: 2,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn quadrilateral_regions() {
+        let quad = Polygon::try_from(vec![
+            V2::new(3.0, 2.0),
+            V2::new(6.0, 4.0),
+            V2::new(4.0, 7.0),
+            V2::new(1.0, 5.0),
+        ])
+        .expect("quad");
+
+        let regions = RegionList::from(quad);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Region::Boundary { x: 2, y: 2 },
+                Region::Boundary { x: 3, y: 2 },
+                Region::Boundary { x: 4, y: 2 },
+                Region::Boundary { x: 1, y: 3 },
+                Region::Boundary { x: 2, y: 3 },
+                Region::Boundary { x: 4, y: 3 },
+                Region::Fill {
+                    start_x: 3,
+                    end_x: 4,
                     y: 3,
-                    path: 0
                 },
-                Region::Boundary {
-                    x: 1,
-                    y: 3,
-                    path: 0
-                },
-                Region::Boundary {
-                    x: 0,
+                Region::Boundary { x: 5, y: 3 },
+                Region::Boundary { x: 1, y: 4 },
+                Region::Boundary { x: 5, y: 4 },
+                Region::Fill {
+                    start_x: 2,
+                    end_x: 5,
                     y: 4,
-                    path: 0
-                }
+                },
+                Region::Boundary { x: 1, y: 5 },
+                Region::Boundary { x: 2, y: 5 },
+                Region::Boundary { x: 4, y: 5 },
+                Region::Fill {
+                    start_x: 3,
+                    end_x: 4,
+                    y: 5,
+                },
+                Region::Boundary { x: 5, y: 5 },
+                Region::Boundary { x: 2, y: 6 },
+                Region::Boundary { x: 3, y: 6 },
+                Region::Boundary { x: 4, y: 6 },
+                Region::Boundary { x: 4, y: 7 }
             ]
         );
     }

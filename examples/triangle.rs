@@ -43,7 +43,7 @@ impl Iterator for NgonIter {
 
 fn main() {
     let mut comp = Composition::with_dimensions(5000, 5000);
-    for v in NgonIter::new(0.0, 500.0, V2::new(2500.0, 2500.0), 8) {
+    for v in NgonIter::new(1.0, 500.0, V2::new(2500.0, 2500.0), 4) {
         comp.line_to(v);
     }
 

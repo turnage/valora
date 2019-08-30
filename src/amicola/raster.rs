@@ -20,7 +20,7 @@ pub fn raster(surface: &mut Surface, mut element: Element) {
                 _ => return,
             };
 
-            for shade_command in RegionList::from_iter(std::iter::once(poly)).shade_commands() {
+            for shade_command in RegionList::from(poly).shade_commands() {
                 match &element.shader {
                     Shader::Solid(color) => {
                         surface.pixel(shade_command.x, shade_command.y).map(|p| {
