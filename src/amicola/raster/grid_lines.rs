@@ -7,21 +7,21 @@ pub enum GridLinesIter<'a> {
 }
 
 impl<'a> GridLinesIter<'a> {
-    pub fn horizontal(&self) -> impl Iterator<Item = usize> {
+    pub fn horizontal(&self) -> impl Iterator<Item = isize> {
         match self {
             GridLinesIter::Bounds(bounds) => Self::inclusive_iter(bounds.bottom, bounds.top),
         }
     }
 
-    pub fn vertical(&self) -> impl Iterator<Item = usize> {
+    pub fn vertical(&self) -> impl Iterator<Item = isize> {
         match self {
             GridLinesIter::Bounds(bounds) => Self::inclusive_iter(bounds.left, bounds.right),
         }
     }
 
-    fn inclusive_iter(startf: f64, endf: f64) -> impl Iterator<Item = usize> {
-        let start = startf.floor() as usize;
-        let end = endf.ceil() as usize;
+    fn inclusive_iter(startf: f64, endf: f64) -> impl Iterator<Item = isize> {
+        let start = startf.floor() as isize;
+        let end = endf.ceil() as isize;
 
         (start..=end)
     }
@@ -40,7 +40,7 @@ mod test {
             bottom: 1.1,
         });
 
-        assert_eq!(iter.horizontal().collect::<Vec<usize>>(), vec![1, 2, 3, 4]);
+        assert_eq!(iter.horizontal().collect::<Vec<isize>>(), vec![1, 2, 3, 4]);
     }
 
     #[test]
@@ -52,6 +52,6 @@ mod test {
             bottom: 0.0,
         });
 
-        assert_eq!(iter.vertical().collect::<Vec<usize>>(), vec![1, 2, 3, 4]);
+        assert_eq!(iter.vertical().collect::<Vec<isize>>(), vec![1, 2, 3, 4]);
     }
 }

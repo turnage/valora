@@ -199,10 +199,10 @@ impl Composer<()> for Paint {
                 if i % 100 == 0 {
                     println!("Finished {:?}", i);
                 }
-                //let subdivided = base.subdivided().generate(ctx, rng);
-                //let warped = subdivided.warped().generate(ctx, rng);
+                let subdivided = base.subdivided().generate(ctx, rng);
+                let warped = subdivided.warped().generate(ctx, rng);
 
-                for v in base.poly.vertices() {
+                for v in warped.poly.vertices() {
                     comp.line_to(*v);
                 }
 
@@ -212,7 +212,7 @@ impl Composer<()> for Paint {
         let rows = 10;
         let cols = 10;
         let radius = ctx.width / rows as f64;
-        iproduct!(1..(rows - 1), 1..(cols - 1)).for_each(|(i, j)| {
+        iproduct!(0..rows, 0..cols).for_each(|(i, j)| {
             let x = ctx.width / cols as f64 * i as f64 + radius / 2.0;
             let y = ctx.height / rows as f64 * j as f64 + radius / 2.0;
             draw_splotch(V4::new(1.0, 0.0, 0.0, 1.0), V2::new(x, y), radius, 1);

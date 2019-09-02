@@ -125,23 +125,16 @@ impl RegionList {
             segment_hits.insert(FloatOrd(0.0));
             segment_hits.insert(FloatOrd(1.0));
 
-            let mut excluded_verticals = HashSet::new();
             let iter = GridLinesIter::Bounds(bounds);
 
             for horizontal_line in iter.horizontal() {
                 if let Some(intersection) = segment.sample_y(horizontal_line as f64) {
                     let floor = intersection.axis.floor();
-                    if floor == intersection.axis {
-                        excluded_verticals.insert(floor as usize);
-                    }
                     segment_hits.insert(FloatOrd(intersection.t));
                 }
             }
 
-            for vertical_line in iter
-                .vertical()
-                .filter(|v| excluded_verticals.get(&v).is_none())
-            {
+            for vertical_line in iter.vertical() {
                 if let Some(intersection) = segment.sample_x(vertical_line as f64) {
                     segment_hits.insert(FloatOrd(intersection.t));
                 }
@@ -260,6 +253,45 @@ mod test {
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 1, y: 0 },
                 Region::Boundary { x: 0, y: 1 },
+            ]
+        );
+    }
+
+    #[test]
+    fn small_triangle_off_screen_to_left() {
+        let triangle = Polygon::try_from(vec![
+            V2::new(-1.0, 0.0),
+            V2::new(3.0, 0.0),
+            V2::new(3.0, 3.0),
+        ])
+        .expect("triangle");
+
+        let regions = RegionList::from(triangle);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Region::Boundary { x: -1, y: 0 },
+                Region::Boundary { x: 0, y: 0 },
+                Region::Boundary { x: 3, y: 0 },
+                Region::Fill {
+                    start_x: 1,
+                    end_x: 3,
+                    y: 0
+                },
+                Region::Boundary { x: 0, y: 1 },
+                Region::Boundary { x: 1, y: 1 },
+                Region::Boundary { x: 3, y: 1 },
+                Region::Fill {
+                    start_x: 2,
+                    end_x: 3,
+                    y: 1
+                },
+                Region::Boundary { x: 1, y: 2 },
+                Region::Boundary { x: 2, y: 2 },
+                Region::Boundary { x: 3, y: 2 }
             ]
         );
     }
