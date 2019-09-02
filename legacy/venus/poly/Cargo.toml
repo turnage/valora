@@ -1,8 +1,0 @@
-[package]
-name = "poly"
-version = "0.1.0"
-authors = ["Payton Turnage <paytonturnage@gmail.com>"]
-
-[dependencies]
-num = "0.1"
-rand = "0.3"
