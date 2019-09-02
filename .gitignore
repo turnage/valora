@@ -1,4 +1,3 @@
-*.bk
 target
-valora.cabal
-.stack-work
+**/*.rs.bk
+Cargo.lock
