@@ -97,6 +97,16 @@ impl MonotonicSegment {
         }
     }
 
+    pub fn sample_t(&self, t: f64) -> Option<V2> {
+        if t < 0.0 || t > 1.0 {
+            return None;
+        }
+
+        match self.source {
+            MonotonicElement::LineSegment { start, end, .. } => Some((end - start) * t + start),
+        }
+    }
+
     pub fn bookends(&self) -> (V2, V2) {
         match self.source {
             MonotonicElement::LineSegment { start, end, .. } => (start, end),
