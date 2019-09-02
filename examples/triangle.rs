@@ -2,6 +2,7 @@ use std::convert::*;
 use std::iter::*;
 use valora::*;
 
+use itertools::{iproduct, Itertools};
 use nalgebra::distance;
 use rand::distributions::*;
 
@@ -118,7 +119,8 @@ impl Splotch {
         move |ctx: &Context<S>, rng: &mut StdRng| {
             let offset = rng.gen_range(0.0, 1.0);
             let c = centroid(self.poly.vertices().iter());
-            let dist = Normal::new(0.0, ctx.width / 10.0);
+            let dist = Normal::new(0.0, ctx.width / 100.0);
+            let phase_dist = Normal::new(0.0, std::f64::consts::PI / 2.0);
             Self {
                 poly: Polygon::try_from(
                     self.poly
@@ -127,11 +129,34 @@ impl Splotch {
                         .map(|v| {
                             let offset = dist.sample(rng);
                             let circle = Ellipse::circle(c, (v - c).norm() + offset);
-                            circle.circumpoint(circle.circumphase(v))
+                            let phase = circle.circumphase(v);
+                            let phase_offset = phase + phase_dist.sample(rng);
+                            circle.circumpoint(phase_offset)
                         })
                         .collect::<Vec<V2>>(),
                 )
                 .unwrap(),
+            }
+        }
+    }
+
+    fn subdivided<'a, S>(&'a self) -> impl Generate<S, Output = Splotch> + 'a {
+        move |ctx: &Context<S>, rng: &mut StdRng| {
+            let original_vertices = self.poly.vertices();
+            let mut vertices: Vec<V2> = original_vertices
+                .iter()
+                .tuple_windows::<(_, _)>()
+                .flat_map(|(v1, v2)| {
+                    let mut next = Some((v1 + v2) / 2.0);
+                    std::iter::successors(Some(*v1), move |_| next.take())
+                })
+                .collect();
+            let wrap_around =
+                (original_vertices.first().unwrap() + original_vertices.last().unwrap()) / 2.0;
+            vertices.push(wrap_around);
+
+            Self {
+                poly: Polygon::try_from(vertices).unwrap(),
             }
         }
     }
@@ -154,34 +179,60 @@ impl Composer<()> for Paint {
     }
 
     fn draw(&mut self, ctx: &Context<()>, rng: &mut StdRng, comp: &mut Composition) -> () {
-        let base = Splotch {
-            poly: Polygon::try_from(
-                NgonIter::new(1.0, ctx.width / 3.0, ctx.center(), 4).collect::<Vec<V2>>(),
-            )
-            .unwrap(),
-        };
-
         comp.set_shader(Shader::Solid(V4::new(1.0, 1.0, 1.0, 1.0)));
         for v in ctx.full_frame().vertices() {
             comp.line_to(*v);
         }
         comp.fill();
 
-        comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 0.0, 1.0 / 255.0)));
-        let warper = base.warped();
-        for i in 0..255 {
-            println!("Writing warped {:?}", i);
-            let warped = warper.generate(ctx, rng);
-            if i >= 154 {
-                println!("Warped vertices: {:?}", warped.poly.vertices());
-            }
+        let mut sub_rng = rng.clone();
+        let mut draw_splotch = |color, center, size, layers| {
+            let base = Splotch {
+                poly: Polygon::try_from(
+                    NgonIter::new(1.0, size / 1.5, center, 3).collect::<Vec<V2>>(),
+                )
+                .unwrap(),
+            };
 
-            for v in warped.poly.vertices() {
-                comp.line_to(*v);
-            }
+            comp.set_shader(Shader::Solid(color));
+            for i in 0..layers {
+                if i % 100 == 0 {
+                    println!("Finished {:?}", i);
+                }
+                //let subdivided = base.subdivided().generate(ctx, rng);
+                //let warped = subdivided.warped().generate(ctx, rng);
 
-            comp.fill();
-        }
+                for v in base.poly.vertices() {
+                    comp.line_to(*v);
+                }
+
+                comp.fill();
+            }
+        };
+        let rows = 10;
+        let cols = 10;
+        let radius = ctx.width / rows as f64;
+        iproduct!(1..(rows - 1), 1..(cols - 1)).for_each(|(i, j)| {
+            let x = ctx.width / cols as f64 * i as f64 + radius / 2.0;
+            let y = ctx.height / rows as f64 * j as f64 + radius / 2.0;
+            draw_splotch(V4::new(1.0, 0.0, 0.0, 1.0), V2::new(x, y), radius, 1);
+        });
+
+        /*
+
+        let variance = ctx.width / 12.0;
+        for _ in 0..4 {
+            draw_splotch(
+                V4::new(1.0, 1.0, 1.0, 1.0 / 200.0),
+                ctx.center()
+                    + V2::new(
+                        sub_rng.gen_range(-variance, variance),
+                        sub_rng.gen_range(-variance, variance),
+                    ),
+                ctx.width / 8.0,
+                300,
+            );
+        }*/
 
         ()
     }
