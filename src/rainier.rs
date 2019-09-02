@@ -18,11 +18,11 @@ pub struct Options {
 
     /// Width of view pane.
     #[structopt(short = "w", long = "width", default_value = "512")]
-    pub width: usize,
+    pub width: u32,
 
     /// Height of view pane.
     #[structopt(short = "h", long = "height", default_value = "512")]
-    pub height: usize,
+    pub height: u32,
 
     /// Scale of view pane.
     #[structopt(short = "s", long = "scale", default_value = "1.0")]
@@ -134,11 +134,11 @@ pub struct Composition {
 }
 
 impl Composition {
-    fn with_dimensions(width: usize, height: usize, scale: f64) -> Self {
+    fn with_dimensions(width: u32, height: u32, scale: f64) -> Self {
         let width = width as f64 * scale;
         let height = height as f64 * scale;
         Self {
-            surface: Surface::with_dimensions(width as usize, height as usize),
+            surface: Surface::with_dimensions(width as u32, height as u32),
             current_path: vec![],
             current_shader: Shader::Solid(V4::new(1.0, 1.0, 1.0, 1.0)),
             scale,

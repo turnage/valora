@@ -2,6 +2,7 @@
 
 use image::{ImageBuffer, Rgba};
 use rayon::prelude::*;
+use std::convert::TryFrom;
 
 pub type Buffer = ImageBuffer<Rgba<f64>, Vec<f64>>;
 
@@ -11,26 +12,26 @@ pub type FinalBuffer = ImageBuffer<Rgba<u8>, Vec<u8>>;
 pub struct Surface {
     // surface data stored row-major where each pixel is 4 f64s in RGBA order.
     data: Vec<f64>,
-    width: usize,
-    height: usize,
+    width: u32,
+    height: u32,
 }
 
 impl Surface {
-    pub fn with_dimensions(width: usize, height: usize) -> Self {
+    pub fn with_dimensions(width: u32, height: u32) -> Self {
         Self {
-            data: vec![0.0; width * height * 4],
+            data: vec![0.0; (width * height * 4) as usize],
             width,
             height,
         }
     }
 
-    pub fn pixel(&mut self, x: usize, y: usize) -> Option<&mut [f64]> {
-        let i = self.normalize(x, y);
+    pub fn pixel(&mut self, x: isize, y: isize) -> Option<&mut [f64]> {
+        let i = usize::try_from(self.normalize(x, y)).ok()?;
         self.data.get_mut(i..(i + 4))
     }
 
-    fn normalize(&self, x: usize, y: usize) -> usize {
-        y * self.width * 4 + x * 4
+    fn normalize(&self, x: isize, y: isize) -> isize {
+        y * (self.width as isize) * 4 + x * 4
     }
 }
 

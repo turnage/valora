@@ -11,27 +11,27 @@ use std::hash::{Hash, Hasher};
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Region {
     Boundary {
-        x: usize,
-        y: usize,
+        x: isize,
+        y: isize,
     },
     Fill {
-        start_x: usize,
-        end_x: usize,
-        y: usize,
+        start_x: isize,
+        end_x: isize,
+        y: isize,
     },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ShadeCommand {
-    pub x: usize,
-    pub y: usize,
+    pub x: isize,
+    pub y: isize,
     pub coverage: f64,
 }
 
 pub struct ShadeCommandIter {
-    x: usize,
-    y: usize,
-    end_x: usize,
+    x: isize,
+    y: isize,
+    end_x: isize,
     coverage: f64,
 }
 
@@ -54,8 +54,8 @@ impl Iterator for ShadeCommandIter {
 
 #[derive(Debug, Copy, Clone)]
 struct Hit {
-    x: usize,
-    y: usize,
+    x: isize,
+    y: isize,
     segment_id: usize,
 }
 
@@ -116,8 +116,6 @@ impl RegionList {
         for (segment_id, segment) in path.iter().enumerate() {
             let bounds = segment.bounds();
 
-            println!("Testing segment: {:#?}", segment);
-
             #[derive(Debug)]
             struct SegmentHit {
                 t: f64,
@@ -131,23 +129,14 @@ impl RegionList {
             let iter = GridLinesIter::Bounds(bounds);
 
             for horizontal_line in iter.horizontal() {
-                println!("Testing against horizonal {:?}: ", horizontal_line);
                 if let Some(intersection) = segment.sample_y(horizontal_line as f64) {
-                    println!("\tIntersection found: {:?}", intersection);
                     let floor = intersection.axis.floor();
                     if floor == intersection.axis {
                         excluded_verticals.insert(floor as usize);
                     }
                     segment_hits.insert(FloatOrd(intersection.t));
-                } else {
-                    println!("\tNo intersection with vertical line found.");
                 }
             }
-
-            println!(
-                "Now testing vertical lines: excluded verticals: {:?}",
-                excluded_verticals
-            );
 
             for vertical_line in iter
                 .vertical()
@@ -163,8 +152,7 @@ impl RegionList {
                 .tuple_windows::<(_, _)>()
                 .filter_map(|(t0, t1)| segment.sample_t((t0.0 + t1.0) / 2.0))
             {
-                println!("Hit point: {:?}", hit_point);
-                let (x, y) = (hit_point.x.floor() as usize, hit_point.y.floor() as usize);
+                let (x, y) = (hit_point.x.floor() as isize, hit_point.y.floor() as isize);
                 let hit = Hit { x, y, segment_id };
                 self.hits.insert(hit);
             }
@@ -233,12 +221,12 @@ impl RegionList {
         })
     }
 
-    fn scan_column(&self, x: f64) -> usize {
-        x.floor() as usize
+    fn scan_column(&self, x: f64) -> isize {
+        x.floor() as isize
     }
 }
 
-fn difference(a: usize, b: usize) -> usize {
+fn difference(a: isize, b: isize) -> isize {
     if a > b {
         a - b
     } else {

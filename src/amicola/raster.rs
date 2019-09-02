@@ -13,6 +13,7 @@ use std::iter::FromIterator;
 
 use palette::{rgb::LinSrgba, Blend};
 
+/// Rasters an element.
 pub fn raster(surface: &mut Surface, mut element: Element) {
     match element.raster_method {
         RasterMethod::Fill => {
