@@ -2,6 +2,7 @@
 
 use super::{grid_lines::*, path::*, sampling::*};
 use crate::amicola::geo::*;
+use log::trace;
 use std::collections::HashSet;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -87,6 +88,8 @@ impl RegionList {
             let bounds = segment.bounds();
             self.reserve_up_to(bounds.top.ceil() as usize);
 
+            println!("Testing segment: {:#?}", segment);
+
             #[derive(Debug)]
             pub struct Intersection {
                 location: V2,
@@ -102,6 +105,7 @@ impl RegionList {
             let mut add_intersection = |x: f64, y: f64, t: f64| {
                 has_t0 |= t.abs() == 0.0;
                 has_t1 |= t == 1.0;
+                println!("Pushing intersection at ({:?}, {:?})", x, y);
                 intersections.push(Intersection {
                     location: V2::new(x, y),
                     t,
@@ -110,14 +114,23 @@ impl RegionList {
             };
 
             for horizontal_line in iter.horizontal() {
+                println!("Testing against horizonal {:?}: ", horizontal_line);
                 if let Some(intersection) = segment.sample_y(horizontal_line as f64) {
+                    println!("\tIntersection found: {:?}", intersection);
                     let floor = intersection.axis.floor();
                     if floor == intersection.axis {
                         excluded_verticals.insert(floor as usize);
                     }
                     add_intersection(intersection.axis, horizontal_line as f64, intersection.t);
+                } else {
+                    println!("\tNo intersection with vertical line found.");
                 }
             }
+
+            println!(
+                "Now testing vertical lines: excluded verticals: {:?}",
+                excluded_verticals
+            );
 
             for vertical_line in iter
                 .vertical()
@@ -144,15 +157,17 @@ impl RegionList {
                 });
             }
 
-            intersections.sort_unstable_by(|a, b| a.t.partial_cmp(&b.t).unwrap());
+            intersections.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap());
 
-            for (a, b) in intersections
-                .windows(2)
-                .map(|w| (w[0].location, w[1].location))
-            {
+            for (ref ai, ref bi) in intersections.as_slice().windows(2).map(|w| (&w[0], &w[1])) {
+                let (a, b) = (ai.location, bi.location);
                 let midpoint = (a + b) / 2.0;
                 let (x, y) = (midpoint.x.floor() as usize, midpoint.y.floor() as usize);
                 let path_hit = PathHit { x, segment_id };
+                println!(
+                    "Intersection ({:?}-{:?}) becomes path hit ({:#?} at y {:?})",
+                    ai, bi, path_hit, y
+                );
                 if seen_hits.get(&(y, path_hit)).is_none() {
                     self.mark_intersection(y, path_hit);
                     seen_hits.insert((y, path_hit));
@@ -230,23 +245,31 @@ impl<'a> Iterator for RegionIter<'a> {
         }
 
         let next_boundary = self.region_list.scan_lines[self.y].get(self.i)?;
+        let difference = |a, b| {
+            if a > b {
+                a - b
+            } else {
+                b - a
+            }
+        };
 
         if self
             .last_on_row
             .as_ref()
-            .map(|b| b.segment_id == next_boundary.segment_id)
+            .map(|b| {
+                // Each segment can only increment the winding number once.
+                // There must also be a gap to fill.
+                b.segment_id == next_boundary.segment_id || difference(b.x, next_boundary.x) <= 1
+            })
             .unwrap_or(false)
         {
-            // Each segment can only increment the winding number once.
             self.last_on_row.replace(*next_boundary);
         } else if let Some(last_on_row) = self.last_on_row.take() {
-            if next_boundary.x > last_on_row.x + 1 {
-                self.queue = Some(Region::Fill {
-                    start_x: last_on_row.x + 1,
-                    end_x: next_boundary.x,
-                    y: self.y,
-                });
-            }
+            self.queue = Some(Region::Fill {
+                start_x: last_on_row.x + 1,
+                end_x: next_boundary.x,
+                y: self.y,
+            });
         } else {
             self.last_on_row = Some(*next_boundary);
         }
@@ -262,7 +285,7 @@ impl<'a> Iterator for RegionIter<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use pretty_assertions::assert_eq;
+    //use pretty_assertions::assert_eq;
     use std::convert::*;
     use std::iter::*;
 
@@ -415,6 +438,144 @@ mod test {
                 Region::Boundary { x: 3, y: 6 },
                 Region::Boundary { x: 4, y: 6 },
                 Region::Boundary { x: 4, y: 7 }
+            ]
+        );
+    }
+
+    #[test]
+    fn irregular_regions() {
+        let irregular = Polygon::try_from(vec![
+            V2::new(6.18, 5.22),
+            V2::new(5.06, 1.07),
+            V2::new(2.33, 2.75),
+            V2::new(1.69, 6.31),
+        ])
+        .expect("irregular");
+
+        let regions = RegionList::from(irregular);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Region::Boundary { x: 3, y: 1 },
+                Region::Boundary { x: 4, y: 1 },
+                Region::Boundary { x: 5, y: 1 },
+                Region::Boundary { x: 5, y: 1 },
+                Region::Boundary { x: 2, y: 2 },
+                Region::Boundary { x: 2, y: 2 },
+                Region::Boundary { x: 3, y: 2 },
+                Region::Boundary { x: 5, y: 2 },
+                Region::Fill {
+                    start_x: 4,
+                    end_x: 5,
+                    y: 2
+                },
+                Region::Boundary { x: 2, y: 3 },
+                Region::Boundary { x: 5, y: 3 },
+                Region::Fill {
+                    start_x: 3,
+                    end_x: 5,
+                    y: 3
+                },
+                Region::Boundary { x: 1, y: 4 },
+                Region::Boundary { x: 2, y: 4 },
+                Region::Boundary { x: 5, y: 4 },
+                Region::Fill {
+                    start_x: 3,
+                    end_x: 5,
+                    y: 4
+                },
+                Region::Boundary { x: 6, y: 4 },
+                Region::Boundary { x: 1, y: 5 },
+                Region::Boundary { x: 2, y: 5 },
+                Region::Boundary { x: 3, y: 5 },
+                Region::Boundary { x: 4, y: 5 },
+                Region::Boundary { x: 5, y: 5 },
+                Region::Boundary { x: 6, y: 5 },
+                Region::Boundary { x: 6, y: 5 },
+                Region::Boundary { x: 1, y: 6 },
+                Region::Boundary { x: 1, y: 6 },
+                Region::Boundary { x: 2, y: 6 }
+            ]
+        );
+    }
+
+    #[test]
+    fn irregular_regions_2() {
+        let irregular = Polygon::try_from(vec![
+            V2::new(8.83, 7.46),
+            V2::new(7.23, 1.53),
+            V2::new(3.33, 3.93),
+            V2::new(2.42, 9.02),
+        ])
+        .expect("irregular");
+
+        let regions = RegionList::from(irregular);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Region::Boundary { x: 6, y: 1 },
+                Region::Boundary { x: 7, y: 1 },
+                Region::Boundary { x: 7, y: 1 },
+                Region::Boundary { x: 4, y: 2 },
+                Region::Boundary { x: 5, y: 2 },
+                Region::Boundary { x: 6, y: 2 },
+                Region::Boundary { x: 7, y: 2 },
+                Region::Boundary { x: 3, y: 3 },
+                Region::Boundary { x: 3, y: 3 },
+                Region::Boundary { x: 4, y: 3 },
+                Region::Boundary { x: 7, y: 3 },
+                Region::Fill {
+                    start_x: 5,
+                    end_x: 7,
+                    y: 3
+                },
+                Region::Boundary { x: 3, y: 4 },
+                Region::Boundary { x: 7, y: 4 },
+                Region::Fill {
+                    start_x: 4,
+                    end_x: 7,
+                    y: 4
+                },
+                Region::Boundary { x: 8, y: 4 },
+                Region::Boundary { x: 2, y: 5 },
+                Region::Boundary { x: 3, y: 5 },
+                Region::Boundary { x: 8, y: 5 },
+                Region::Fill {
+                    start_x: 4,
+                    end_x: 8,
+                    y: 5
+                },
+                Region::Boundary { x: 2, y: 6 },
+                Region::Boundary { x: 8, y: 6 },
+                Region::Fill {
+                    start_x: 3,
+                    end_x: 8,
+                    y: 6
+                },
+                Region::Boundary { x: 2, y: 7 },
+                Region::Boundary { x: 6, y: 7 },
+                Region::Fill {
+                    start_x: 3,
+                    end_x: 6,
+                    y: 7
+                },
+                Region::Boundary { x: 7, y: 7 },
+                Region::Boundary { x: 8, y: 7 },
+                Region::Boundary { x: 8, y: 7 },
+                Region::Boundary { x: 2, y: 8 },
+                Region::Boundary { x: 2, y: 8 },
+                Region::Boundary { x: 3, y: 8 },
+                Region::Boundary { x: 4, y: 8 },
+                Region::Boundary { x: 5, y: 8 },
+                Region::Boundary { x: 6, y: 8 },
+                Region::Boundary { x: 2, y: 9 },
+                Region::Boundary { x: 2, y: 9 }
             ]
         );
     }

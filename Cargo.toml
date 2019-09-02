@@ -12,11 +12,11 @@ failure = "0.1.5"
 failure_derive = "0.1.5"
 image = "0.22.1"
 rayon = "1.1.0"
-log = "0.4.8"
 derive_more = { git = "https://github.com/JelteF/derive_more.git" }
 rand = "0.7.0"
 structopt = "0.3.0"
 palette = "0.4.1"
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_warn"] }
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

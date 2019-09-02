@@ -40,7 +40,13 @@ impl MonotonicSegment {
 
     pub fn sample_y(&self, y: f64) -> Option<Intersection> {
         match self.source {
-            MonotonicElement::LineSegment { m, bounds } => {
+            MonotonicElement::LineSegment {
+                m,
+                bounds,
+                start,
+                length,
+                ..
+            } => {
                 if bounds.bottom <= y && y <= bounds.top {
                     match m {
                         Slope::Vertical => Some(Intersection {
@@ -49,9 +55,10 @@ impl MonotonicSegment {
                         }),
                         Slope::Defined { m, b } => {
                             let x = (y - b) / m;
+                            let p = V2::new(x, y);
                             Some(Intersection {
                                 axis: x,
-                                t: (x - bounds.left) / (bounds.right - bounds.left),
+                                t: (p - start).norm() / length,
                             })
                         }
                     }
@@ -64,15 +71,22 @@ impl MonotonicSegment {
 
     pub fn sample_x(&self, x: f64) -> Option<Intersection> {
         match self.source {
-            MonotonicElement::LineSegment { m, bounds } => {
+            MonotonicElement::LineSegment {
+                m,
+                bounds,
+                start,
+                length,
+                ..
+            } => {
                 if bounds.left <= x && x <= bounds.right {
                     match m {
                         Slope::Vertical => None,
                         Slope::Defined { m, b } => {
                             let y = m * x + b;
+                            let p = V2::new(x, y);
                             Some(Intersection {
                                 axis: y,
-                                t: (y - bounds.bottom) / (bounds.top - bounds.bottom),
+                                t: (p - start).norm() / length,
                             })
                         }
                     }
@@ -85,16 +99,7 @@ impl MonotonicSegment {
 
     pub fn bookends(&self) -> (V2, V2) {
         match self.source {
-            MonotonicElement::LineSegment { m, bounds } => match m {
-                Slope::Vertical => (
-                    V2::new(bounds.left, bounds.bottom),
-                    V2::new(bounds.right, bounds.top),
-                ),
-                Slope::Defined { m, b } => (
-                    V2::new(bounds.left, m * bounds.left + b),
-                    V2::new(bounds.right, m * bounds.right + b),
-                ),
-            },
+            MonotonicElement::LineSegment { start, end, .. } => (start, end),
         }
     }
 
@@ -107,7 +112,13 @@ impl MonotonicSegment {
 
 #[derive(Debug, PartialEq)]
 enum MonotonicElement {
-    LineSegment { m: Slope, bounds: Bounds },
+    LineSegment {
+        m: Slope,
+        bounds: Bounds,
+        start: V2,
+        end: V2,
+        length: f64,
+    },
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -145,6 +156,9 @@ impl<'a> TryFrom<(&'a V2, &'a V2)> for MonotonicElement {
                 top,
                 bottom,
             },
+            start: *a,
+            end: *b,
+            length: (a - b).norm(),
         })
     }
 }
@@ -164,7 +178,10 @@ mod test {
                     right: 4.0,
                     top: 2.0,
                     bottom: 1.0
-                }
+                },
+                start: V2::new(3.0, 1.0),
+                end: V2::new(4.0, 2.0),
+                length: 1.4142135623730951,
             })
         );
     }
@@ -180,7 +197,10 @@ mod test {
                     right: 4.0,
                     top: 3.0,
                     bottom: 1.0
-                }
+                },
+                start: V2::new(3.0, 1.0),
+                end: V2::new(4.0, 3.0),
+                length: 2.23606797749979,
             })
         );
     }
@@ -224,7 +244,10 @@ mod test {
                     right: 0.0,
                     top: 100.0,
                     bottom: 0.0
-                }
+                },
+                start: V2::new(0.0, 0.0),
+                end: V2::new(0.0, 100.0),
+                length: 100.0,
             })
         );
 
@@ -237,7 +260,10 @@ mod test {
                     right: 100.0,
                     top: 100.0,
                     bottom: 0.0
-                }
+                },
+                start: V2::new(0.0, 100.0),
+                end: V2::new(100.0, 0.0),
+                length: 141.4213562373095,
             })
         );
 

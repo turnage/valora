@@ -161,17 +161,20 @@ impl Composer<()> for Paint {
             .unwrap(),
         };
 
+        println!("Vertices: {:?}", base.poly.vertices());
+
         comp.set_shader(Shader::Solid(V4::new(1.0, 1.0, 1.0, 1.0)));
         for v in ctx.full_frame().vertices() {
             comp.line_to(*v);
         }
         comp.fill();
 
-        comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 0.0, 0.01)));
+        comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 0.0, 1.0)));
         let warper = base.warped();
-        for i in 0..150 {
+        for i in 0..1 {
             println!("Writing warped {:?}", i);
             let warped = warper.generate(ctx, rng);
+            println!("Warped vertices: {:?}", warped.poly.vertices());
 
             for v in warped.poly.vertices() {
                 comp.line_to(*v);
