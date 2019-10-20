@@ -186,53 +186,24 @@ impl Composer<()> for Paint {
         comp.fill();
 
         let mut sub_rng = rng.clone();
-        let mut draw_splotch = |color, center, size, layers| {
-            let base = Splotch {
-                poly: Polygon::try_from(
-                    NgonIter::new(1.0, size / 1.5, center, 3).collect::<Vec<V2>>(),
-                )
-                .unwrap(),
-            };
-
-            comp.set_shader(Shader::Solid(color));
-            for i in 0..layers {
-                if i % 100 == 0 {
-                    println!("Finished {:?}", i);
-                }
-                let subdivided = base.subdivided().generate(ctx, rng);
-                let warped = subdivided.warped().generate(ctx, rng);
-
-                for v in warped.poly.vertices() {
-                    comp.line_to(*v);
-                }
-
-                comp.fill();
-            }
+        let base = Splotch {
+            poly: Polygon::try_from(
+                vec![
+                    V2::new(3.0, 5.0),
+                    V2::new(5.0, 9.0),
+                    V2::new(7.0, 2.0),
+                    V2::new(9.0, 9.0),
+                    V2::new(11.0, 5.0),
+                ]
+                .into_iter()
+                .map(|v| v * 20.0)
+                .collect::<Vec<V2>>(),
+            )
+            .unwrap(),
         };
-        let rows = 10;
-        let cols = 10;
-        let radius = ctx.width / rows as f64;
-        iproduct!(0..rows, 0..cols).for_each(|(i, j)| {
-            let x = ctx.width / cols as f64 * i as f64 + radius / 2.0;
-            let y = ctx.height / rows as f64 * j as f64 + radius / 2.0;
-            draw_splotch(V4::new(1.0, 0.0, 0.0, 1.0), V2::new(x, y), radius, 1);
-        });
 
-        /*
-
-        let variance = ctx.width / 12.0;
-        for _ in 0..4 {
-            draw_splotch(
-                V4::new(1.0, 1.0, 1.0, 1.0 / 200.0),
-                ctx.center()
-                    + V2::new(
-                        sub_rng.gen_range(-variance, variance),
-                        sub_rng.gen_range(-variance, variance),
-                    ),
-                ctx.width / 8.0,
-                300,
-            );
-        }*/
+        comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 0.0, 1.0)));
+        base.render(comp);
 
         ()
     }

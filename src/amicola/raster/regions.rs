@@ -180,33 +180,40 @@ impl RegionList {
     fn regions<'a>(&'a self) -> impl Iterator<Item = Region> + 'a {
         let mut y = 0;
         let mut last_hit = None;
+        let mut winding_number = 0;
         self.hits.iter().flat_map(move |hit| {
             if hit.y != y {
                 last_hit = None;
+                winding_number = 0;
                 y = hit.y;
             }
 
             let mut fill = None;
 
-            if last_hit
+            let is_new_edge = last_hit
                 .as_ref()
-                .map(|b: &Hit| {
-                    // Each segment can only increment the winding number once.
-                    // There must also be a gap to fill.
-                    b.segment_id == hit.segment_id || difference(b.x, hit.x) <= 1
-                })
-                .unwrap_or(false)
-            {
-                last_hit.replace(*hit);
-            } else if let Some(last_hit) = last_hit.take() {
-                fill = Some(Region::Fill {
-                    start_x: last_hit.x + 1,
-                    end_x: hit.x,
-                    y: hit.y,
-                });
-            } else {
-                last_hit = Some(*hit);
+                .map(|last_hit: &Hit| last_hit.segment_id != hit.segment_id)
+                .unwrap_or(true);
+            if is_new_edge {
+                winding_number += 1;
             }
+
+            let is_gap_between_hits = last_hit
+                .as_ref()
+                .map(|last_hit: &Hit| (last_hit.x - hit.x).abs() > 1)
+                .unwrap_or(false);
+
+            match last_hit.take() {
+                Some(last_hit) if is_new_edge && is_gap_between_hits && winding_number % 2 == 0 => {
+                    fill = Some(Region::Fill {
+                        start_x: last_hit.x + 1,
+                        end_x: hit.x,
+                        y: hit.y,
+                    });
+                }
+                _ => {}
+            };
+            last_hit.replace(*hit);
 
             std::iter::successors(Some(Region::Boundary { x: hit.x, y: hit.y }), move |_| {
                 fill.take()
@@ -219,18 +226,10 @@ impl RegionList {
     }
 }
 
-fn difference(a: isize, b: isize) -> isize {
-    if a > b {
-        a - b
-    } else {
-        b - a
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
-    //use pretty_assertions::assert_eq;
+    use pretty_assertions::assert_eq;
     use std::convert::*;
     use std::iter::*;
 
@@ -551,6 +550,74 @@ mod test {
                 Region::Boundary { x: 5, y: 8 },
                 Region::Boundary { x: 6, y: 8 },
                 Region::Boundary { x: 2, y: 9 }
+            ]
+        );
+    }
+
+    #[test]
+    fn self_intersecting_pyramid() {
+        use Region::*;
+
+        let self_intersecting = Polygon::try_from(vec![
+            V2::new(3.0, 5.0),
+            V2::new(5.0, 9.0),
+            V2::new(7.0, 2.0),
+            V2::new(9.0, 9.0),
+            V2::new(11.0, 5.0),
+        ])
+        .expect("self_intersecting");
+
+        let regions = RegionList::from(self_intersecting);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 6, y: 2 },
+                Boundary { x: 7, y: 2 },
+                Boundary { x: 6, y: 3 },
+                Boundary { x: 7, y: 3 },
+                Boundary { x: 6, y: 4 },
+                Boundary { x: 7, y: 4 },
+                Boundary { x: 3, y: 5 },
+                Boundary { x: 5, y: 5 },
+                Fill {
+                    start_x: 4,
+                    end_x: 5,
+                    y: 5
+                },
+                Boundary { x: 6, y: 5 },
+                Boundary { x: 7, y: 5 },
+                Boundary { x: 8, y: 5 },
+                Boundary { x: 10, y: 5 },
+                Fill {
+                    start_x: 9,
+                    end_x: 10,
+                    y: 5
+                },
+                Boundary { x: 3, y: 6 },
+                Boundary { x: 5, y: 6 },
+                Fill {
+                    start_x: 4,
+                    end_x: 5,
+                    y: 6
+                },
+                Boundary { x: 8, y: 6 },
+                Boundary { x: 10, y: 6 },
+                Fill {
+                    start_x: 9,
+                    end_x: 10,
+                    y: 6
+                },
+                Boundary { x: 4, y: 7 },
+                Boundary { x: 5, y: 7 },
+                Boundary { x: 8, y: 7 },
+                Boundary { x: 9, y: 7 },
+                Boundary { x: 4, y: 8 },
+                Boundary { x: 5, y: 8 },
+                Boundary { x: 8, y: 8 },
+                Boundary { x: 9, y: 8 }
             ]
         );
     }
