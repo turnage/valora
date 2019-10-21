@@ -26,12 +26,17 @@ impl Surface {
     }
 
     pub fn pixel(&mut self, x: isize, y: isize) -> Option<&mut [f64]> {
-        let i = usize::try_from(self.normalize(x, y)).ok()?;
+        let i = self.normalize(x, y)?;
+        let i = usize::try_from(i).ok()?;
         self.data.get_mut(i..(i + 4))
     }
 
-    fn normalize(&self, x: isize, y: isize) -> isize {
-        y * (self.width as isize) * 4 + x * 4
+    fn normalize(&self, x: isize, y: isize) -> Option<isize> {
+        if x >= self.width as isize || x < 0 {
+            return None;
+        }
+
+        Some(y * (self.width as isize) * 4 + x * 4)
     }
 }
 
@@ -71,7 +76,13 @@ mod test {
     #[test]
     fn index_normalization() {
         let surface = Surface::with_dimensions(2, 3);
-        assert_eq!(surface.normalize(1, 2), 20);
+        assert_eq!(surface.normalize(1, 2), Some(20));
+    }
+
+    #[test]
+    fn out_of_bounds_index_normalization() {
+        let surface = Surface::with_dimensions(2, 3);
+        assert_eq!(surface.normalize(2, 2), None);
     }
 
     #[test]
