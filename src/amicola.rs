@@ -8,9 +8,13 @@ use std::sync::Arc;
 
 pub use self::geo::{Error, Polygon, V2, V4};
 pub use self::raster::{
-    raster,
+    gpu_raster::GpuTarget,
     surface::{FinalBuffer, Surface},
 };
+
+pub trait RasterTarget {
+    fn raster(&mut self, element: Element);
+}
 
 /// The method by which the rasterizer will raster the vector path.
 #[derive(Debug, Clone, Copy)]
@@ -30,9 +34,6 @@ pub enum RasterMethod {
 pub enum Shader {
     /// Shades the path with a solid color.
     Solid(V4),
-    /// Shades the path with the given function by invoking it with the coordinate of the pixel to shade.
-    #[debug(fmt = "Dynamic Shader")]
-    Dynamic(Arc<dyn Fn(V2) -> V4 + Send + Sync>),
 }
 
 /// A rasterable element in a composition.

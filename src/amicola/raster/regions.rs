@@ -9,7 +9,7 @@ use std::collections::{BTreeSet, HashSet};
 use std::hash::{Hash, Hasher};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum Region {
+pub enum Region {
     Boundary {
         x: isize,
         y: isize,
@@ -23,33 +23,8 @@ enum Region {
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ShadeCommand {
-    pub x: isize,
-    pub y: isize,
+    pub region: Region,
     pub coverage: f64,
-}
-
-pub struct ShadeCommandIter {
-    x: isize,
-    y: isize,
-    end_x: isize,
-    coverage: f64,
-}
-
-impl Iterator for ShadeCommandIter {
-    type Item = ShadeCommand;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.x < self.end_x {
-            self.x += 1;
-            Some(ShadeCommand {
-                x: self.x - 1,
-                y: self.y,
-                coverage: self.coverage,
-            })
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -155,23 +130,17 @@ impl RegionList {
     }
 
     pub fn shade_commands<'a>(&'a self) -> impl Iterator<Item = ShadeCommand> + 'a {
-        self.regions().flat_map(move |region| match region {
-            Region::Boundary { x, y } => ShadeCommandIter {
-                x,
-                y,
-                end_x: x + 1,
+        self.regions().map(move |region| match region {
+            Region::Boundary { x, y } => ShadeCommand {
+                region: Region::Boundary { x, y },
                 coverage: coverage(
                     V2::new(x as f64, y as f64),
                     SampleDepth::Super64,
                     &self.segments,
                 ),
             },
-            Region::Fill {
-                start_x, end_x, y, ..
-            } => ShadeCommandIter {
-                x: start_x,
-                y,
-                end_x,
+            region @ Region::Fill { .. } => ShadeCommand {
+                region,
                 coverage: 1.0,
             },
         })

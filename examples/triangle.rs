@@ -163,7 +163,7 @@ impl Splotch {
 }
 
 impl Render for Splotch {
-    fn render(&self, comp: &mut Composition) {
+    fn render(&self, comp: &mut Sketch) {
         for v in self.poly.vertices() {
             comp.line_to(*v);
         }
@@ -178,8 +178,8 @@ impl Composer<()> for Paint {
         ()
     }
 
-    fn draw(&mut self, ctx: &Context<()>, rng: &mut StdRng, comp: &mut Composition) -> () {
-        comp.set_shader(Shader::Solid(V4::new(1.0, 1.0, 1.0, 1.0)));
+    fn draw(&mut self, ctx: &Context<()>, rng: &mut StdRng, comp: &mut Sketch) -> () {
+        comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 1.0, 1.0)));
         for v in ctx.full_frame().vertices() {
             comp.line_to(*v);
         }

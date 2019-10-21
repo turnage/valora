@@ -7,6 +7,7 @@ pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 
 use std::convert::TryFrom;
 use std::path::PathBuf;
+use std::rc::Rc;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Clone)]
@@ -17,11 +18,11 @@ pub struct Options {
     pub seed: u64,
 
     /// Width of view pane.
-    #[structopt(short = "w", long = "width", default_value = "512")]
+    #[structopt(short = "w", long = "width", default_value = "1024")]
     pub width: u32,
 
     /// Height of view pane.
-    #[structopt(short = "h", long = "height", default_value = "512")]
+    #[structopt(short = "h", long = "height", default_value = "1308")]
     pub height: u32,
 
     /// Scale of view pane.
@@ -34,7 +35,7 @@ pub struct Options {
 
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
-    pub output: PathBuf,
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -95,12 +96,22 @@ impl<S, T, F: Fn(&Context<S>, &mut StdRng) -> T> Generate<S> for F {
 }
 
 pub trait Render {
-    fn render(&self, comp: &mut Composition);
+    fn render(&self, comp: &mut Sketch);
 }
 
 pub trait Composer<S> {
     fn init(rng: &mut StdRng) -> S;
-    fn draw(&mut self, ctx: &Context<S>, rng: &mut StdRng, comp: &mut Composition) -> S;
+    fn draw(&mut self, ctx: &Context<S>, rng: &mut StdRng, comp: &mut Sketch) -> S;
+}
+
+pub trait Sketch {
+    fn move_to(&mut self, dest: V2);
+
+    fn line_to(&mut self, dest: V2);
+
+    fn set_shader(&mut self, shader: Shader);
+
+    fn fill(&mut self);
 }
 
 pub fn run<S, C: Composer<S>>(mut composer: C) {
@@ -109,68 +120,77 @@ pub fn run<S, C: Composer<S>>(mut composer: C) {
     let mut rng = StdRng::seed_from_u64(options.seed);
     let state = <C as Composer<S>>::init(&mut rng);
     let mut ctx = Context::from((options.clone(), state));
-    let mut comp = Composition::with_dimensions(options.width, options.height, options.scale);
 
-    for frame in 0..(options.frames) {
-        ctx.frame = frame;
-        println!("Running frame {:?}", frame);
-        let next_state = composer.draw(&ctx, &mut rng, &mut comp);
-        ctx.state = next_state;
+    if let Some(output) = options.output.as_ref() {
+        println!("unsupported");
+    } else {
+        use luminance_glfw::{Key, WindowEvent};
 
-        let mut save_path = options.output.clone();
-        save_path.push(format!("{}", ctx.seed));
-        std::fs::create_dir_all(&save_path)
-            .expect(&format!("To create save directory {:?}", save_path));
-        save_path.push(format!("{}.png", ctx.frame));
-        comp.render().save(save_path).expect("To save output.");
+        let mut comp = Rainier::new(
+            GpuTarget::with_dimensions(options.width as u32, options.height as u32),
+            options.scale,
+        );
+        let mut frame = 0;
+
+        'outer: loop {
+            ctx.frame = frame % options.frames;
+            let next_state = composer.draw(&ctx, &mut rng, &mut comp);
+            ctx.state = next_state;
+            comp.target.show();
+
+            let events = comp.target.events();
+            for event in events {
+                match event {
+                    WindowEvent::Close | WindowEvent::Key(Key::Escape, _, _, _) => break 'outer,
+                    _ => {
+                        println!("Event: {:?}", event);
+                    }
+                }
+            }
+
+            std::thread::sleep_ms(1000 / 60);
+        }
     }
 }
 
-pub struct Composition {
-    surface: Surface,
+pub struct Rainier<T> {
+    target: T,
     current_path: Vec<V2>,
     current_shader: Shader,
     scale: f64,
 }
 
-impl Composition {
-    fn with_dimensions(width: u32, height: u32, scale: f64) -> Self {
-        let width = width as f64 * scale;
-        let height = height as f64 * scale;
+impl<T> Rainier<T> {
+    fn new(target: T, scale: f64) -> Self {
         Self {
-            surface: Surface::with_dimensions(width as u32, height as u32),
+            target,
             current_path: vec![],
             current_shader: Shader::Solid(V4::new(1.0, 1.0, 1.0, 1.0)),
             scale,
         }
     }
+}
 
-    pub fn move_to(&mut self, dest: V2) {
+impl<T: RasterTarget> Sketch for Rainier<T> {
+    fn move_to(&mut self, dest: V2) {
         self.current_path = vec![dest * self.scale];
     }
 
-    pub fn line_to(&mut self, dest: V2) {
+    fn line_to(&mut self, dest: V2) {
         self.current_path.push(dest * self.scale);
     }
 
-    pub fn set_shader(&mut self, shader: Shader) {
+    fn set_shader(&mut self, shader: Shader) {
         self.current_shader = shader;
     }
 
-    pub fn fill(&mut self) {
+    fn fill(&mut self) {
         let mut path = vec![];
         std::mem::swap(&mut self.current_path, &mut path);
-        raster(
-            &mut self.surface,
-            Element {
-                path,
-                shader: self.current_shader.clone(),
-                raster_method: RasterMethod::Fill,
-            },
-        );
-    }
-
-    pub fn render(&self) -> FinalBuffer {
-        self.surface.clone().into()
+        self.target.raster(Element {
+            path,
+            shader: self.current_shader.clone(),
+            raster_method: RasterMethod::Fill,
+        });
     }
 }
