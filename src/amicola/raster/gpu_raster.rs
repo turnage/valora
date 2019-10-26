@@ -2,155 +2,65 @@ use crate::amicola::geo::{Polygon, V4};
 use crate::amicola::raster::regions::{Region, RegionList, ShadeCommand};
 use crate::amicola::RasterTarget;
 use crate::amicola::{Element, RasterMethod, Shader};
+use glium::backend::glutin::headless::Headless;
+use glium::implement_vertex;
+use glium::index::PrimitiveType;
+use glium::texture::texture2d::Texture2d;
+use glium::uniform;
+use glium::Display;
+use glium::IndexBuffer;
+use glium::Program;
+use glium::Surface;
+use glium::VertexBuffer;
+use glutin::dpi::LogicalSize;
+use glutin::ContextBuilder;
+use glutin::EventsLoop;
 use itertools::{Either, Itertools};
-use luminance::{
-    context::GraphicsContext,
-    framebuffer::Framebuffer,
-    render_state::RenderState,
-    shader::program::{Program, Uniform},
-    tess::{Mode, Tess, TessBuilder, TessSliceIndex},
-    texture::{Dim2, Flat},
-};
-use luminance_derive::{Semantics as VertexSemantics, UniformInterface, Vertex};
-use luminance_glfw::{GlfwSurface, Surface as LuminanceSurface, WindowDim, WindowEvent, WindowOpt};
 use std::{convert::TryFrom, rc::Rc};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, VertexSemantics)]
-pub enum Semantics {
-    #[sem(name = "position", repr = "[f32; 2]", wrapper = "VertexPosition")]
-    Position,
-    #[sem(name = "color", repr = "[f32; 4]", wrapper = "VertexColor")]
-    Color,
+#[derive(Debug, Copy, Clone)]
+pub struct GpuVertex {
+    pub vpos: [f32; 2],
+    pub vcol: [f64; 4],
 }
 
-#[derive(Debug, UniformInterface)]
-struct UniformSet {
-    width: Uniform<f32>,
-    height: Uniform<f32>,
-}
+implement_vertex!(GpuVertex, vpos, vcol);
 
 const VERTEX_SHADER: &str = include_str!("../../shaders/default.vert");
 const FRAGMENT_SHADER: &str = include_str!("../../shaders/default.frag");
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Vertex)]
-#[vertex(sem = "Semantics")]
-struct Vertex {
-    position: VertexPosition,
-    #[vertex(normalized = "true")]
-    color: VertexColor,
-}
-
 pub struct GpuTarget {
-    surface: GlfwSurface,
-    program: Rc<Program<Semantics, (), UniformSet>>,
-    framebuffer: Framebuffer<Flat, Dim2, (), ()>,
+    surface: Texture2d,
+    display: Display,
+    program: Program,
+    events_loop: EventsLoop,
     width: f32,
     height: f32,
 }
 
-struct Tessellation {
-    boundaries: Tess,
-    spans: Tess,
-}
-
 impl GpuTarget {
     pub fn with_dimensions(width: u32, height: u32) -> Self {
-        let mut surface = GlfwSurface::new(
-            WindowDim::Windowed(width, height),
-            "valora",
-            WindowOpt::default(),
-        )
-        .expect("Glfw surface");
+        let events_loop = glium::glutin::EventsLoop::new();
+        let wb = glium::glutin::WindowBuilder::new()
+            .with_dimensions(LogicalSize {
+                width: width as f64,
+                height: height as f64,
+            })
+            .with_title("valora");
+        let cb = glium::glutin::ContextBuilder::new();
+        let display = glium::Display::new(wb, cb, &events_loop).unwrap();
 
-        let program = Rc::new(
-            Program::<Semantics, (), UniformSet>::from_strings(
-                None,
-                VERTEX_SHADER,
-                None,
-                FRAGMENT_SHADER,
-            )
-            .expect("Compile default shader")
-            .ignore_warnings(),
-        );
-
-        let framebuffer = surface.back_buffer().unwrap();
+        let program = Program::from_source(&display, VERTEX_SHADER, FRAGMENT_SHADER, None)
+            .expect("default shader");
 
         GpuTarget {
-            surface,
+            surface: Texture2d::empty(&display, width, height).expect("texture buffer"),
             program,
-            framebuffer,
+            display,
+            events_loop,
             width: width as f32,
             height: height as f32,
         }
-    }
-
-    pub fn events<'a>(&'a mut self) -> Box<dyn Iterator<Item = WindowEvent> + 'a> {
-        self.surface.poll_events()
-    }
-
-    pub fn show(&mut self) {
-        self.surface.swap_buffers();
-    }
-
-    fn tessellate<'a>(
-        &'a mut self,
-        rgba: V4,
-        shade_commands: impl Iterator<Item = ShadeCommand> + 'a,
-    ) -> Tessellation {
-        let (boundaries, spans): (Vec<Vertex>, Vec<[Vertex; 2]>) =
-            shade_commands.partition_map(move |command| match command.region {
-                Region::Boundary { x, y } => Either::Left(Vertex {
-                    position: VertexPosition::new([x as f32, y as f32]),
-                    color: VertexColor::new([
-                        rgba.x as f32,
-                        rgba.y as f32,
-                        rgba.z as f32,
-                        (rgba.w * command.coverage) as f32,
-                    ]),
-                }),
-                Region::Fill {
-                    start_x, end_x, y, ..
-                } => Either::Right([
-                    Vertex {
-                        position: VertexPosition::new([start_x as f32, y as f32]),
-                        color: VertexColor::new([
-                            rgba.x as f32,
-                            rgba.y as f32,
-                            rgba.z as f32,
-                            rgba.w as f32,
-                        ]),
-                    },
-                    Vertex {
-                        position: VertexPosition::new([(end_x - 1) as f32, y as f32]),
-                        color: VertexColor::new([
-                            rgba.x as f32,
-                            rgba.y as f32,
-                            rgba.z as f32,
-                            rgba.w as f32,
-                        ]),
-                    },
-                ]),
-            });
-
-        let boundaries = TessBuilder::new(&mut self.surface)
-            .add_vertices(boundaries)
-            .set_mode(Mode::Point)
-            .build()
-            .unwrap();
-
-        let spans = TessBuilder::new(&mut self.surface)
-            .add_vertices(
-                spans
-                    .into_iter()
-                    .flat_map(|v| v.to_vec())
-                    .collect::<Vec<Vertex>>(),
-            )
-            .set_mode(Mode::Line)
-            .build()
-            .unwrap();
-
-        Tessellation { boundaries, spans }
     }
 }
 
@@ -167,27 +77,55 @@ impl RasterTarget for GpuTarget {
                 let rgba = match element.shader {
                     Shader::Solid(rgba) => rgba,
                 };
-                let program = self.program.clone();
 
-                let w = self.width;
-                let h = self.height;
+                let vertices = RegionList::from(poly)
+                    .shade_commands()
+                    .flat_map(|cmd| match cmd.region {
+                        Region::Boundary { x, y } => {
+                            let vert = GpuVertex {
+                                vpos: [x as f32, y as f32],
+                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w * cmd.coverage],
+                            };
+                            vec![vert, vert]
+                        }
+                        Region::Fill { start_x, end_x, y } => vec![
+                            GpuVertex {
+                                vpos: [end_x as f32, y as f32],
+                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w],
+                            },
+                            GpuVertex {
+                                vpos: [start_x as f32, y as f32],
+                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w],
+                            },
+                        ],
+                    })
+                    .collect::<Vec<GpuVertex>>();
+                let vertex_buffer =
+                    VertexBuffer::new(&self.display, vertices.as_slice()).expect("vertex buffer");
 
-                let tessellation = self.tessellate(rgba, RegionList::from(poly).shade_commands());
+                let indices = vertices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| i as u32)
+                    .collect::<Vec<u32>>();
+                let index_buffer =
+                    IndexBuffer::new(&self.display, PrimitiveType::LinesList, indices.as_slice())
+                        .expect("index buffer");
 
-                self.surface.pipeline_builder().pipeline(
-                    &self.framebuffer,
-                    [1., 1., 1., 1.],
-                    |_, mut shade_gate| {
-                        shade_gate.shade(program.as_ref(), |uniforms, mut render_gate| {
-                            uniforms.width.update(w);
-                            uniforms.height.update(h);
-                            render_gate.render(RenderState::default(), move |mut tess_gate| {
-                                tess_gate.render(tessellation.boundaries.slice(..));
-                                tess_gate.render(tessellation.spans.slice(..));
-                            });
-                        });
-                    },
-                );
+                let mut frame = self.display.draw();
+                frame
+                    .draw(
+                        &vertex_buffer,
+                        &index_buffer,
+                        &self.program,
+                        &uniform! {
+                            width: self.width,
+                            height: self.height
+                        },
+                        &Default::default(),
+                    )
+                    .expect("draw");
+                frame.finish();
             }
             _ => unimplemented!(),
         };

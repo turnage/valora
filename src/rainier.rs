@@ -136,7 +136,7 @@ pub fn run<S, C: Composer<S>>(mut composer: C) {
             ctx.frame = frame % options.frames;
             let next_state = composer.draw(&ctx, &mut rng, &mut comp);
             ctx.state = next_state;
-            comp.target.show();
+            /*comp.target.show();
 
             let events = comp.target.events();
             for event in events {
@@ -146,7 +146,7 @@ pub fn run<S, C: Composer<S>>(mut composer: C) {
                         println!("Event: {:?}", event);
                     }
                 }
-            }
+            }*/
 
             std::thread::sleep_ms(1000 / 60);
         }

@@ -179,11 +179,11 @@ impl Composer<()> for Paint {
     }
 
     fn draw(&mut self, ctx: &Context<()>, rng: &mut StdRng, comp: &mut Sketch) -> () {
-        comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 1.0, 1.0)));
+        /*comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 1.0, 1.0)));
         for v in ctx.full_frame().vertices() {
             comp.line_to(*v);
         }
-        comp.fill();
+        comp.fill();*/
 
         let mut sub_rng = rng.clone();
         let base = Splotch {
