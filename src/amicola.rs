@@ -4,6 +4,7 @@ mod geo;
 mod raster;
 
 use derive_more::DebugCustom;
+use glium::{uniforms::Uniforms, Program};
 use std::sync::Arc;
 
 pub use self::{
@@ -13,6 +14,7 @@ pub use self::{
         surface::{FinalBuffer, Surface},
     },
 };
+pub use glium::uniforms::UniformValue;
 
 pub trait RasterTarget {
     fn clear(&mut self);
@@ -32,18 +34,40 @@ pub enum RasterMethod {
     Stroke(f32),
 }
 
+pub struct UniformBuffer {
+    uniforms: Vec<(String, UniformValue<'static>)>,
+}
+
+impl Uniforms for UniformBuffer {
+    fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut f: F) {
+        for (name, value) in &self.uniforms {
+            f(name.as_str(), *value);
+        }
+    }
+}
+
+pub struct Glsl {
+    program: Arc<Program>,
+    uniforms: UniformBuffer,
+}
+
 /// The method by which the rasterizer will generate a color for a pixel which is part of the fill
 /// or stroke of a vector path.
-#[derive(Clone, DebugCustom)]
+#[derive(DebugCustom)]
 pub enum Shader {
     /// Shades the path with a solid color.
-    Solid(V4),
+    #[debug(fmt = "Solid shader.")]
+    Solid,
+    /// Shades the path with a custom shader program and uniforms.
+    #[debug(fmt = "Custom shader.")]
+    Glsl(Glsl),
 }
 
 /// A rasterable element in a composition.
 #[derive(Debug)]
-pub struct Element {
+pub struct Element<'a> {
     pub path: Vec<V2>,
+    pub color: V4,
     pub raster_method: RasterMethod,
-    pub shader: Shader,
+    pub shader: &'a Shader,
 }

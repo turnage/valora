@@ -101,6 +101,8 @@ pub trait Sketch {
 
     fn line_to(&mut self, dest: V2);
 
+    fn set_color(&mut self, color: V4);
+
     fn set_shader(&mut self, shader: Shader);
 
     fn fill(&mut self);
@@ -141,6 +143,7 @@ pub struct Rainier<T> {
     target: T,
     current_path: Vec<V2>,
     current_shader: Shader,
+    current_color: V4,
     scale: f32,
 }
 
@@ -149,7 +152,8 @@ impl<T> Rainier<T> {
         Self {
             target,
             current_path: vec![],
-            current_shader: Shader::Solid(V4::new(1.0, 1.0, 1.0, 1.0)),
+            current_shader: Shader::Solid,
+            current_color: V4::new(1.0, 1.0, 1.0, 1.0),
             scale,
         }
     }
@@ -160,6 +164,8 @@ impl<T: RasterTarget> Sketch for Rainier<T> {
 
     fn line_to(&mut self, dest: V2) { self.current_path.push(dest * self.scale); }
 
+    fn set_color(&mut self, color: V4) { self.current_color = color; }
+
     fn set_shader(&mut self, shader: Shader) { self.current_shader = shader; }
 
     fn fill(&mut self) {
@@ -167,7 +173,8 @@ impl<T: RasterTarget> Sketch for Rainier<T> {
         std::mem::swap(&mut self.current_path, &mut path);
         self.target.raster(Element {
             path,
-            shader: self.current_shader.clone(),
+            color: self.current_color,
+            shader: &self.current_shader,
             raster_method: RasterMethod::Fill,
         });
     }

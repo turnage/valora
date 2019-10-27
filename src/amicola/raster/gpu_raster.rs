@@ -100,9 +100,7 @@ impl RasterTarget for GpuTarget {
                     _ => return,
                 };
 
-                let rgba = match element.shader {
-                    Shader::Solid(rgba) => rgba,
-                };
+                let rgba = element.color;
 
                 let vertices = RegionList::from(poly)
                     .shade_commands()
