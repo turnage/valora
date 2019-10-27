@@ -4,6 +4,7 @@ use valora::*;
 use itertools::{iproduct, Itertools};
 use nalgebra::distance;
 use rand::distributions::*;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ellipse {
@@ -114,8 +115,8 @@ impl Splotch {
         move |ctx: &Context<S>, rng: &mut StdRng| {
             let offset = rng.gen_range(0.0, 1.0);
             let c = centroid(self.poly.vertices().iter());
-            let dist = Normal::new(0.0, ctx.width / 100.0);
-            let phase_dist = Normal::new(0.0, std::f32::consts::PI / 2.0);
+            let dist = Normal::new(0.0, ctx.width as f64 / 100.0);
+            let phase_dist = Normal::new(0.0, std::f64::consts::PI / 2.0);
             Self {
                 poly: Polygon::try_from(
                     self.poly
@@ -123,10 +124,11 @@ impl Splotch {
                         .iter()
                         .map(|v| {
                             let offset = dist.sample(rng);
-                            let circle = Ellipse::circle(c, (v - c).norm() + offset);
-                            let phase = circle.circumphase(v);
+                            let circle =
+                                Ellipse::circle(c, ((v - c).norm() as f64 + offset) as f32);
+                            let phase = circle.circumphase(v) as f64;
                             let phase_offset = phase + phase_dist.sample(rng);
-                            circle.circumpoint(phase_offset)
+                            circle.circumpoint(phase_offset as f32)
                         })
                         .collect::<Vec<V2>>(),
                 )
@@ -166,13 +168,23 @@ impl Render for Splotch {
     }
 }
 
-pub struct Paint;
+const NOISE_SHADER: &str = include_str!("../src/shaders/poke.frag");
+
+#[derive(Default)]
+pub struct Paint {
+    shader: Option<Rc<Program>>,
+}
 
 impl Composer<()> for Paint {
     fn init(rng: &mut StdRng) -> () { () }
 
     fn draw(&mut self, ctx: &Context<()>, rng: &mut StdRng, comp: &mut Sketch) -> () {
-        comp.set_shader(Shader::Solid(V4::new(1.0, 1.0, 0.0, 1.0)));
+        if self.shader.is_none() {
+            self.shader = Some(ctx.build_shader(NOISE_SHADER).expect("hnhe"));
+        }
+
+        comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
+        comp.set_shader(Shader::Solid);
         for v in ctx.full_frame().vertices() {
             comp.line_to(*v);
         }
@@ -189,17 +201,21 @@ impl Composer<()> for Paint {
                     V2::new(11.0, 5.0),
                 ]
                 .into_iter()
-                .map(|v| v * 40.0)
+                .map(|v| v * 80.0)
                 .collect::<Vec<V2>>(),
             )
             .unwrap(),
         };
 
-        comp.set_shader(Shader::Solid(V4::new(1.0, 0.0, 0.0, 1.0)));
+        comp.set_color(V4::new(1.0, 0.0, 0.0, 1.0));
+        comp.set_shader(Shader::Glsl(Glsl {
+            program: self.shader.as_ref().unwrap().clone(),
+            uniforms: UniformBuffer::default(),
+        }));
         base.render(comp);
 
         ()
     }
 }
 
-fn main() { run::<(), _>(Paint); }
+fn main() { run::<(), _>(Paint::default()) }

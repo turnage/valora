@@ -2,9 +2,11 @@ use crate::amicola::{
     geo::{Polygon, V4},
     raster::regions::{RegionList, ShadeCommand},
     Element,
+    Glsl,
     RasterMethod,
     RasterTarget,
     Shader,
+    UniformBuffer,
 };
 use glium::{
     backend::glutin::headless::Headless,
@@ -12,6 +14,7 @@ use glium::{
     index::PrimitiveType,
     texture::{texture2d::Texture2d, RawImage2d},
     uniform,
+    uniforms::UniformValue,
     Blend,
     BlendingFunction,
     Display,
@@ -146,17 +149,25 @@ impl RasterTarget for GpuTarget {
 
                 let w = self.width;
                 let h = self.height;
-                let program = self.program.clone();
+                let solid_program = self.program.clone();
+                let (program, mut uniforms) = match element.shader {
+                    Shader::Solid => (solid_program, UniformBuffer::default()),
+                    Shader::Glsl(Glsl {
+                        program,
+                        mut uniforms,
+                    }) => (program.clone(), uniforms),
+                };
+
+                uniforms.push(String::from("width"), UniformValue::Float(w));
+                uniforms.push(String::from("height"), UniformValue::Float(h));
+
                 self.surface
                     .as_surface()
                     .draw(
                         &vertex_buffer,
                         &index_buffer,
                         program.as_ref(),
-                        &uniform! {
-                            width: w,
-                            height: h
-                        },
+                        &uniforms,
                         &DrawParameters {
                             blend: Blend {
                                 color: BlendingFunction::Addition {

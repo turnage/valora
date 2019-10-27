@@ -3,11 +3,12 @@
 use crate::amicola::*;
 
 pub use crate::amicola::{Glsl, Polygon, Shader, UniformBuffer, V2, V4};
+pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 
 use derive_more::DebugCustom;
 use failure::{Error, Fail};
-use glium::{backend::glutin::headless::Headless, program::Program};
+use glium::backend::glutin::headless::Headless;
 use std::{convert::TryFrom, path::PathBuf, rc::Rc};
 use structopt::StructOpt;
 
@@ -186,7 +187,7 @@ impl<T: RasterTarget> Sketch for Rainier<T> {
         self.target.raster(Element {
             path,
             color: self.current_color,
-            shader: &self.current_shader,
+            shader: self.current_shader.clone(),
             raster_method: RasterMethod::Fill,
         });
     }

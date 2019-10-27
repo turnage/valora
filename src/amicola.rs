@@ -35,8 +35,15 @@ pub enum RasterMethod {
     Stroke(f32),
 }
 
+#[derive(Default, Clone)]
 pub struct UniformBuffer {
     uniforms: Vec<(String, UniformValue<'static>)>,
+}
+
+impl UniformBuffer {
+    pub fn push(&mut self, name: String, value: UniformValue<'static>) {
+        self.uniforms.push((name, value));
+    }
 }
 
 impl Uniforms for UniformBuffer {
@@ -47,14 +54,15 @@ impl Uniforms for UniformBuffer {
     }
 }
 
+#[derive(Clone)]
 pub struct Glsl {
-    pub(crate) program: Rc<Program>,
-    pub(crate) uniforms: UniformBuffer,
+    pub program: Rc<Program>,
+    pub uniforms: UniformBuffer,
 }
 
 /// The method by which the rasterizer will generate a color for a pixel which is part of the fill
 /// or stroke of a vector path.
-#[derive(DebugCustom)]
+#[derive(DebugCustom, Clone)]
 pub enum Shader {
     /// Shades the path with a solid color.
     #[debug(fmt = "Solid shader.")]
@@ -66,9 +74,9 @@ pub enum Shader {
 
 /// A rasterable element in a composition.
 #[derive(Debug)]
-pub struct Element<'a> {
+pub struct Element {
     pub path: Vec<V2>,
     pub color: V4,
     pub raster_method: RasterMethod,
-    pub shader: &'a Shader,
+    pub shader: Shader,
 }
