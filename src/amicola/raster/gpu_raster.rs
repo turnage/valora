@@ -36,7 +36,7 @@ pub struct GpuVertex {
 
 implement_vertex!(GpuVertex, vpos, vcol);
 
-const VERTEX_SHADER: &str = include_str!("../../shaders/default.vert");
+pub const VERTEX_SHADER: &str = include_str!("../../shaders/default.vert");
 const FRAGMENT_SHADER: &str = include_str!("../../shaders/default.frag");
 
 pub struct GpuTarget {
@@ -79,6 +79,8 @@ impl GpuTarget {
             height: height as f32,
         }
     }
+
+    pub fn ctx(&self) -> Rc<Headless> { self.ctx.clone() }
 
     pub fn image(&self) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
         let raw: RawImage2d<u8> = self.surface.read();

@@ -2,11 +2,16 @@
 
 use crate::amicola::*;
 
-pub use crate::amicola::{Error, Polygon, Shader, V2, V4};
+pub use crate::amicola::{Glsl, Polygon, Shader, UniformBuffer, V2, V4};
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 
+use derive_more::DebugCustom;
+use failure::{Error, Fail};
+use glium::{backend::glutin::headless::Headless, program::Program};
 use std::{convert::TryFrom, path::PathBuf, rc::Rc};
 use structopt::StructOpt;
+
+type Result<T> = std::result::Result<T, Error>;
 
 #[derive(StructOpt, Debug, Clone)]
 #[structopt(name = "valora")]
@@ -36,7 +41,6 @@ pub struct Options {
     pub output: PathBuf,
 }
 
-#[derive(Debug)]
 pub struct Context<S> {
     pub width: f32,
     pub height: f32,
@@ -44,10 +48,11 @@ pub struct Context<S> {
     pub frames: usize,
     pub frame: usize,
     pub state: S,
+    gpu_ctx: Rc<Headless>,
 }
 
-impl<S> From<(Options, S)> for Context<S> {
-    fn from((options, state): (Options, S)) -> Self {
+impl<S> From<(Options, S, Rc<Headless>)> for Context<S> {
+    fn from((options, state, gpu_ctx): (Options, S, Rc<Headless>)) -> Self {
         Self {
             seed: options.seed,
             width: options.width as f32,
@@ -55,6 +60,7 @@ impl<S> From<(Options, S)> for Context<S> {
             frames: options.frames,
             frame: 0,
             state,
+            gpu_ctx,
         }
     }
 }
@@ -72,6 +78,13 @@ impl<S> Context<S> {
             V2::new(0.0, self.height),
         ])
         .unwrap()
+    }
+
+    pub fn build_shader(&self, source: &str) -> Result<Rc<Program>> {
+        Ok(
+            Program::from_source(self.gpu_ctx.as_ref(), VERTEX_SHADER, source, None)
+                .map(|p| Rc::new(p))?,
+        )
     }
 }
 
@@ -113,9 +126,8 @@ pub fn run<S, C: Composer<S>>(mut composer: C) {
 
     let mut rng = StdRng::seed_from_u64(options.seed);
     let state = <C as Composer<S>>::init(&mut rng);
-    let mut ctx = Context::from((options.clone(), state));
-
     let gpu_target = GpuTarget::with_dimensions(options.width as u32, options.height as u32);
+    let mut ctx = Context::from((options.clone(), state, gpu_target.ctx()));
 
     let mut comp = Rainier::new(gpu_target, options.scale);
     let mut frame = 0;

@@ -5,12 +5,13 @@ mod raster;
 
 use derive_more::DebugCustom;
 use glium::{uniforms::Uniforms, Program};
-use std::sync::Arc;
+use rental::*;
+use std::rc::Rc;
 
 pub use self::{
     geo::{Error, Polygon, V2, V4},
     raster::{
-        gpu_raster::GpuTarget,
+        gpu_raster::{GpuTarget, VERTEX_SHADER},
         surface::{FinalBuffer, Surface},
     },
 };
@@ -47,8 +48,8 @@ impl Uniforms for UniformBuffer {
 }
 
 pub struct Glsl {
-    program: Arc<Program>,
-    uniforms: UniformBuffer,
+    pub(crate) program: Rc<Program>,
+    pub(crate) uniforms: UniformBuffer,
 }
 
 /// The method by which the rasterizer will generate a color for a pixel which is part of the fill

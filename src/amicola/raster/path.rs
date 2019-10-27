@@ -121,7 +121,7 @@ impl MonotonicSegment {
 }
 
 #[derive(Debug, PartialEq)]
-enum MonotonicElement {
+pub enum MonotonicElement {
     LineSegment {
         m: Slope,
         bounds: Bounds,
@@ -132,7 +132,7 @@ enum MonotonicElement {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-enum Slope {
+pub enum Slope {
     Vertical,
     Defined { m: f32, b: f32 },
 }

@@ -25,6 +25,7 @@ luminance-derive = "0.5.0"
 luminance-windowing = "0.8.0"
 glium = "0.25.1"
 glutin = "0.21.1"
+rental = "0.5.5"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"
