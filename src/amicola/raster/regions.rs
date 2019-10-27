@@ -4,9 +4,11 @@ use super::{grid_lines::*, path::*, sampling::*};
 use crate::amicola::geo::*;
 use float_ord::FloatOrd;
 use itertools::Itertools;
-use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashSet};
-use std::hash::{Hash, Hasher};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashSet},
+    hash::{Hash, Hasher},
+};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Region {
@@ -44,15 +46,11 @@ impl PartialOrd for Hit {
 }
 
 impl Ord for Hit {
-    fn cmp(&self, other: &Hit) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
+    fn cmp(&self, other: &Hit) -> Ordering { self.partial_cmp(other).unwrap() }
 }
 
 impl PartialEq for Hit {
-    fn eq(&self, other: &Hit) -> bool {
-        self.x == other.x && self.y == other.y
-    }
+    fn eq(&self, other: &Hit) -> bool { self.x == other.x && self.y == other.y }
 }
 
 impl Eq for Hit {}
@@ -190,17 +188,14 @@ impl RegionList {
         })
     }
 
-    fn scan_column(&self, x: f64) -> isize {
-        x.floor() as isize
-    }
+    fn scan_column(&self, x: f64) -> isize { x.floor() as isize }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
     use pretty_assertions::assert_eq;
-    use std::convert::*;
-    use std::iter::*;
+    use std::{convert::*, iter::*};
 
     #[test]
     fn small_triangle_boundaries() {

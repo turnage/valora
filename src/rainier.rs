@@ -5,9 +5,7 @@ use crate::amicola::*;
 pub use crate::amicola::{Error, Polygon, Shader, V2, V4};
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 
-use std::convert::TryFrom;
-use std::path::PathBuf;
-use std::rc::Rc;
+use std::{convert::TryFrom, path::PathBuf, rc::Rc};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug, Clone)]
@@ -62,13 +60,9 @@ impl<S> From<(Options, S)> for Context<S> {
 }
 
 impl<S> Context<S> {
-    pub fn normalize(&self, p: V2) -> V2 {
-        V2::new(p.x / self.width, p.y / self.height)
-    }
+    pub fn normalize(&self, p: V2) -> V2 { V2::new(p.x / self.width, p.y / self.height) }
 
-    pub fn center(&self) -> V2 {
-        V2::new(self.width / 2.0, self.height / 2.0)
-    }
+    pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
 
     pub fn full_frame(&self) -> Polygon {
         Polygon::try_from(vec![
@@ -90,9 +84,7 @@ pub trait Generate<S> {
 impl<S, T, F: Fn(&Context<S>, &mut StdRng) -> T> Generate<S> for F {
     type Output = T;
 
-    fn generate(&self, ctx: &Context<S>, rng: &mut StdRng) -> Self::Output {
-        (self)(ctx, rng)
-    }
+    fn generate(&self, ctx: &Context<S>, rng: &mut StdRng) -> Self::Output { (self)(ctx, rng) }
 }
 
 pub trait Render {
@@ -164,17 +156,11 @@ impl<T> Rainier<T> {
 }
 
 impl<T: RasterTarget> Sketch for Rainier<T> {
-    fn move_to(&mut self, dest: V2) {
-        self.current_path = vec![dest * self.scale];
-    }
+    fn move_to(&mut self, dest: V2) { self.current_path = vec![dest * self.scale]; }
 
-    fn line_to(&mut self, dest: V2) {
-        self.current_path.push(dest * self.scale);
-    }
+    fn line_to(&mut self, dest: V2) { self.current_path.push(dest * self.scale); }
 
-    fn set_shader(&mut self, shader: Shader) {
-        self.current_shader = shader;
-    }
+    fn set_shader(&mut self, shader: Shader) { self.current_shader = shader; }
 
     fn fill(&mut self) {
         let mut path = vec![];

@@ -1,5 +1,4 @@
-use std::convert::*;
-use std::iter::*;
+use std::{convert::*, iter::*};
 use valora::*;
 
 use itertools::{iproduct, Itertools};
@@ -33,13 +32,9 @@ impl Ellipse {
         }
     }
 
-    pub fn with_phase(self, phase: f64) -> Self {
-        Self { phase, ..self }
-    }
+    pub fn with_phase(self, phase: f64) -> Self { Self { phase, ..self } }
 
-    pub fn circumphase(&self, p: &V2) -> f64 {
-        (p.y - self.center.y).atan2(p.x - self.center.x)
-    }
+    pub fn circumphase(&self, p: &V2) -> f64 { (p.y - self.center.y).atan2(p.x - self.center.x) }
 
     pub fn circumpoint(&self, angle: f64) -> V2 {
         V2::new(
@@ -174,9 +169,7 @@ impl Render for Splotch {
 pub struct Paint;
 
 impl Composer<()> for Paint {
-    fn init(rng: &mut StdRng) -> () {
-        ()
-    }
+    fn init(rng: &mut StdRng) -> () { () }
 
     fn draw(&mut self, ctx: &Context<()>, rng: &mut StdRng, comp: &mut Sketch) -> () {
         comp.set_shader(Shader::Solid(V4::new(1.0, 1.0, 0.0, 1.0)));
@@ -209,6 +202,4 @@ impl Composer<()> for Paint {
     }
 }
 
-fn main() {
-    run::<(), _>(Paint);
-}
+fn main() { run::<(), _>(Paint); }

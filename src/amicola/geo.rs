@@ -31,9 +31,7 @@ impl Polygon {
             .chain(wrap_around)
     }
 
-    pub fn vertices(&self) -> &[V2] {
-        &self.vertices
-    }
+    pub fn vertices(&self) -> &[V2] { &self.vertices }
 }
 
 impl TryFrom<Vec<V2>> for Polygon {

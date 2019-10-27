@@ -1,25 +1,30 @@
-use crate::amicola::geo::{Polygon, V4};
-use crate::amicola::raster::regions::{Region, RegionList, ShadeCommand};
-use crate::amicola::RasterTarget;
-use crate::amicola::{Element, RasterMethod, Shader};
-use glium::backend::glutin::headless::Headless;
-use glium::implement_vertex;
-use glium::index::PrimitiveType;
-use glium::texture::{texture2d::Texture2d, RawImage2d};
-use glium::uniform;
-use glium::Display;
-use glium::DrawParameters;
-use glium::Frame;
-use glium::IndexBuffer;
-use glium::Program;
-use glium::Surface;
-use glium::VertexBuffer;
-use glium::{Blend, BlendingFunction, LinearBlendingFactor};
-use glutin::dpi::PhysicalSize;
-use glutin::ContextBuilder;
-use glutin::EventsLoop;
-use image::ImageBuffer;
-use image::Rgba;
+use crate::amicola::{
+    geo::{Polygon, V4},
+    raster::regions::{Region, RegionList, ShadeCommand},
+    Element,
+    RasterMethod,
+    RasterTarget,
+    Shader,
+};
+use glium::{
+    backend::glutin::headless::Headless,
+    implement_vertex,
+    index::PrimitiveType,
+    texture::{texture2d::Texture2d, RawImage2d},
+    uniform,
+    Blend,
+    BlendingFunction,
+    Display,
+    DrawParameters,
+    Frame,
+    IndexBuffer,
+    LinearBlendingFactor,
+    Program,
+    Surface,
+    VertexBuffer,
+};
+use glutin::{dpi::PhysicalSize, ContextBuilder, EventsLoop};
+use image::{ImageBuffer, Rgba};
 use itertools::{Either, Itertools};
 use std::{convert::TryFrom, rc::Rc};
 
@@ -82,9 +87,7 @@ impl GpuTarget {
 }
 
 impl RasterTarget for GpuTarget {
-    fn clear(&mut self) {
-        self.surface.as_surface().clear_color(1.0, 1.0, 1.0, 1.0);
-    }
+    fn clear(&mut self) { self.surface.as_surface().clear_color(1.0, 1.0, 1.0, 1.0); }
 
     fn flush(&mut self) {}
 

@@ -6,10 +6,12 @@ mod raster;
 use derive_more::DebugCustom;
 use std::sync::Arc;
 
-pub use self::geo::{Error, Polygon, V2, V4};
-pub use self::raster::{
-    gpu_raster::GpuTarget,
-    surface::{FinalBuffer, Surface},
+pub use self::{
+    geo::{Error, Polygon, V2, V4},
+    raster::{
+        gpu_raster::GpuTarget,
+        surface::{FinalBuffer, Surface},
+    },
 };
 
 pub trait RasterTarget {
