@@ -29,7 +29,7 @@ pub enum RasterMethod {
     /// In stroke method, the rasterizer will treat the area immediately adjacent the path within
     /// the given thickness as part of the rastered area. In this method, paths are assumed to be
     /// open.
-    Stroke(f64),
+    Stroke(f32),
 }
 
 /// The method by which the rasterizer will generate a color for a pixel which is part of the fill

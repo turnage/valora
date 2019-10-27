@@ -8,13 +8,13 @@ use rand::distributions::*;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ellipse {
     pub center: V2,
-    pub width: f64,
-    pub height: Option<f64>,
-    pub phase: f64,
+    pub width: f32,
+    pub height: Option<f32>,
+    pub phase: f32,
 }
 
 impl Ellipse {
-    pub fn circle(center: V2, radius: f64) -> Self {
+    pub fn circle(center: V2, radius: f32) -> Self {
         Ellipse {
             center,
             width: radius,
@@ -23,7 +23,7 @@ impl Ellipse {
         }
     }
 
-    pub fn new(center: V2, width: f64, height: f64) -> Self {
+    pub fn new(center: V2, width: f32, height: f32) -> Self {
         Self {
             center,
             width,
@@ -32,11 +32,11 @@ impl Ellipse {
         }
     }
 
-    pub fn with_phase(self, phase: f64) -> Self { Self { phase, ..self } }
+    pub fn with_phase(self, phase: f32) -> Self { Self { phase, ..self } }
 
-    pub fn circumphase(&self, p: &V2) -> f64 { (p.y - self.center.y).atan2(p.x - self.center.x) }
+    pub fn circumphase(&self, p: &V2) -> f32 { (p.y - self.center.y).atan2(p.x - self.center.x) }
 
-    pub fn circumpoint(&self, angle: f64) -> V2 {
+    pub fn circumpoint(&self, angle: f32) -> V2 {
         V2::new(
             self.center.x + angle.cos() * self.width,
             self.center.y + angle.sin() * self.height.unwrap_or(self.width),
@@ -45,15 +45,15 @@ impl Ellipse {
 }
 
 pub struct NgonIter {
-    phase: f64,
-    r: f64,
+    phase: f32,
+    r: f32,
     n: usize,
     c: V2,
     i: usize,
 }
 
 impl NgonIter {
-    pub fn new(phase: f64, r: f64, c: V2, n: usize) -> Self {
+    pub fn new(phase: f32, r: f32, c: V2, n: usize) -> Self {
         Self {
             phase,
             r,
@@ -72,8 +72,8 @@ impl Iterator for NgonIter {
             return None;
         }
 
-        let completion = self.i as f64 / self.n as f64;
-        let theta = (completion * std::f64::consts::PI * 2.0) + self.phase;
+        let completion = self.i as f32 / self.n as f32;
+        let theta = (completion * std::f32::consts::PI * 2.0) + self.phase;
         self.i += 1;
 
         Some(V2::new(
@@ -84,8 +84,8 @@ impl Iterator for NgonIter {
 }
 
 fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
-    let mut min = V2::new(std::f64::MAX, std::f64::MAX);
-    let mut max = V2::new(std::f64::MIN, std::f64::MIN);
+    let mut min = V2::new(std::f32::MAX, std::f32::MAX);
+    let mut max = V2::new(std::f32::MIN, std::f32::MIN);
     for v in vs {
         if v.x < min.x {
             min.x = v.x;
@@ -115,7 +115,7 @@ impl Splotch {
             let offset = rng.gen_range(0.0, 1.0);
             let c = centroid(self.poly.vertices().iter());
             let dist = Normal::new(0.0, ctx.width / 100.0);
-            let phase_dist = Normal::new(0.0, std::f64::consts::PI / 2.0);
+            let phase_dist = Normal::new(0.0, std::f32::consts::PI / 2.0);
             Self {
                 poly: Polygon::try_from(
                     self.poly

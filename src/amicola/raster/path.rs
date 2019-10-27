@@ -11,10 +11,10 @@ pub struct MonotonicSegment {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Bounds {
-    pub left: f64,
-    pub right: f64,
-    pub top: f64,
-    pub bottom: f64,
+    pub left: f32,
+    pub right: f32,
+    pub top: f32,
+    pub bottom: f32,
 }
 
 #[derive(Debug, Fail, PartialEq)]
@@ -26,9 +26,9 @@ pub enum Error {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Intersection {
     /// Where on the excluded axis (x or y) the intersection occurs.
-    pub axis: f64,
+    pub axis: f32,
     /// Where along the segment [0.0, 1.0] the intersection occurs.
-    pub t: f64,
+    pub t: f32,
 }
 
 impl MonotonicSegment {
@@ -38,7 +38,7 @@ impl MonotonicSegment {
         })
     }
 
-    pub fn sample_y(&self, y: f64) -> Option<Intersection> {
+    pub fn sample_y(&self, y: f32) -> Option<Intersection> {
         match self.source {
             MonotonicElement::LineSegment {
                 m,
@@ -69,7 +69,7 @@ impl MonotonicSegment {
         }
     }
 
-    pub fn sample_x(&self, x: f64) -> Option<Intersection> {
+    pub fn sample_x(&self, x: f32) -> Option<Intersection> {
         match self.source {
             MonotonicElement::LineSegment {
                 m,
@@ -97,7 +97,7 @@ impl MonotonicSegment {
         }
     }
 
-    pub fn sample_t(&self, t: f64) -> Option<V2> {
+    pub fn sample_t(&self, t: f32) -> Option<V2> {
         if t < 0.0 || t > 1.0 {
             return None;
         }
@@ -127,14 +127,14 @@ enum MonotonicElement {
         bounds: Bounds,
         start: V2,
         end: V2,
-        length: f64,
+        length: f32,
     },
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum Slope {
     Vertical,
-    Defined { m: f64, b: f64 },
+    Defined { m: f32, b: f32 },
 }
 
 impl<'a> TryFrom<(&'a V2, &'a V2)> for MonotonicElement {

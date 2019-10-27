@@ -91,7 +91,7 @@ impl RegionList {
 
             #[derive(Debug)]
             struct SegmentHit {
-                t: f64,
+                t: f32,
             }
 
             let mut segment_hits = BTreeSet::new();
@@ -101,14 +101,14 @@ impl RegionList {
             let iter = GridLinesIter::Bounds(bounds);
 
             for horizontal_line in iter.horizontal() {
-                if let Some(intersection) = segment.sample_y(horizontal_line as f64) {
+                if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
                     let floor = intersection.axis.floor();
                     segment_hits.insert(FloatOrd(intersection.t));
                 }
             }
 
             for vertical_line in iter.vertical() {
-                if let Some(intersection) = segment.sample_x(vertical_line as f64) {
+                if let Some(intersection) = segment.sample_x(vertical_line as f32) {
                     segment_hits.insert(FloatOrd(intersection.t));
                 }
             }
@@ -133,7 +133,7 @@ impl RegionList {
                 x: x as f32,
                 y: y as f32,
                 coverage: coverage(
-                    V2::new(x as f64, y as f64),
+                    V2::new(x as f32, y as f32),
                     SampleDepth::Super64,
                     &self.segments,
                 ) as f32,
@@ -190,7 +190,7 @@ impl RegionList {
         })
     }
 
-    fn scan_column(&self, x: f64) -> isize { x.floor() as isize }
+    fn scan_column(&self, x: f32) -> isize { x.floor() as isize }
 }
 
 #[cfg(test)]

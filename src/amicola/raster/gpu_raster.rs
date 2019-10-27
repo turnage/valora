@@ -110,31 +110,21 @@ impl RasterTarget for GpuTarget {
                         ShadeCommand::Boundary { x, y, coverage } => vec![
                             GpuVertex {
                                 vpos: [x, y],
-                                vcol: [
-                                    rgba.x as f32,
-                                    rgba.y as f32,
-                                    rgba.z as f32,
-                                    rgba.w as f32 * coverage,
-                                ],
+                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w * coverage],
                             },
                             GpuVertex {
                                 vpos: [x + 1.0, y],
-                                vcol: [
-                                    rgba.x as f32,
-                                    rgba.y as f32,
-                                    rgba.z as f32,
-                                    rgba.w as f32 * coverage,
-                                ],
+                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w * coverage],
                             },
                         ],
                         ShadeCommand::Span { start_x, end_x, y } => vec![
                             GpuVertex {
                                 vpos: [start_x, y],
-                                vcol: [rgba.x as f32, rgba.y as f32, rgba.z as f32, rgba.w as f32],
+                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w],
                             },
                             GpuVertex {
                                 vpos: [end_x, y],
-                                vcol: [rgba.x as f32, rgba.y as f32, rgba.z as f32, rgba.w as f32],
+                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w],
                             },
                         ],
                     })

@@ -19,7 +19,7 @@ impl<'a> GridLinesIter<'a> {
         }
     }
 
-    fn inclusive_iter(startf: f64, endf: f64) -> impl Iterator<Item = isize> {
+    fn inclusive_iter(startf: f32, endf: f32) -> impl Iterator<Item = isize> {
         let start = startf.floor() as isize;
         let end = endf.ceil() as isize;
 

@@ -4,8 +4,8 @@ use failure::Fail;
 use nalgebra::{base::*, Matrix};
 use std::convert::TryFrom;
 
-pub type V2 = Matrix<f64, U2, U1, ArrayStorage<f64, U2, U1>>;
-pub type V4 = Matrix<f64, U4, U1, ArrayStorage<f64, U4, U1>>;
+pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
+pub type V4 = Matrix<f32, U4, U1, ArrayStorage<f32, U4, U1>>;
 
 #[derive(Debug, Fail, PartialEq)]
 pub enum Error {

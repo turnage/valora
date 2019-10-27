@@ -25,7 +25,7 @@ pub struct Options {
 
     /// Scale of view pane.
     #[structopt(short = "s", long = "scale", default_value = "1.0")]
-    pub scale: f64,
+    pub scale: f32,
 
     /// Frame range to render from the generate scene.
     #[structopt(short = "f", long = "frames", default_value = "1")]
@@ -38,8 +38,8 @@ pub struct Options {
 
 #[derive(Debug)]
 pub struct Context<S> {
-    pub width: f64,
-    pub height: f64,
+    pub width: f32,
+    pub height: f32,
     pub seed: u64,
     pub frames: usize,
     pub frame: usize,
@@ -50,8 +50,8 @@ impl<S> From<(Options, S)> for Context<S> {
     fn from((options, state): (Options, S)) -> Self {
         Self {
             seed: options.seed,
-            width: options.width as f64,
-            height: options.height as f64,
+            width: options.width as f32,
+            height: options.height as f32,
             frames: options.frames,
             frame: 0,
             state,
@@ -141,11 +141,11 @@ pub struct Rainier<T> {
     target: T,
     current_path: Vec<V2>,
     current_shader: Shader,
-    scale: f64,
+    scale: f32,
 }
 
 impl<T> Rainier<T> {
-    fn new(target: T, scale: f64) -> Self {
+    fn new(target: T, scale: f32) -> Self {
         Self {
             target,
             current_path: vec![],
