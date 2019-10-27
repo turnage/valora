@@ -22,7 +22,7 @@ pub struct Options {
     pub width: u32,
 
     /// Height of view pane.
-    #[structopt(short = "h", long = "height", default_value = "1308")]
+    #[structopt(short = "h", long = "height", default_value = "512")]
     pub height: u32,
 
     /// Scale of view pane.
@@ -35,7 +35,7 @@ pub struct Options {
 
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
-    pub output: Option<PathBuf>,
+    pub output: PathBuf,
 }
 
 #[derive(Debug)]
@@ -121,35 +121,27 @@ pub fn run<S, C: Composer<S>>(mut composer: C) {
     let state = <C as Composer<S>>::init(&mut rng);
     let mut ctx = Context::from((options.clone(), state));
 
-    if let Some(output) = options.output.as_ref() {
-        println!("unsupported");
-    } else {
-        use luminance_glfw::{Key, WindowEvent};
+    let gpu_target = GpuTarget::with_dimensions(options.width as u32, options.height as u32);
 
-        let mut comp = Rainier::new(
-            GpuTarget::with_dimensions(options.width as u32, options.height as u32),
-            options.scale,
-        );
-        let mut frame = 0;
+    let mut comp = Rainier::new(gpu_target, options.scale);
+    let mut frame = 0;
 
-        'outer: loop {
-            ctx.frame = frame % options.frames;
-            let next_state = composer.draw(&ctx, &mut rng, &mut comp);
-            ctx.state = next_state;
-            /*comp.target.show();
+    for i in 0..(options.frames) {
+        comp.target.clear();
+        ctx.frame = frame % options.frames;
+        let next_state = composer.draw(&ctx, &mut rng, &mut comp);
+        ctx.state = next_state;
+        comp.target.flush();
 
-            let events = comp.target.events();
-            for event in events {
-                match event {
-                    WindowEvent::Close | WindowEvent::Key(Key::Escape, _, _, _) => break 'outer,
-                    _ => {
-                        println!("Event: {:?}", event);
-                    }
-                }
-            }*/
-
-            std::thread::sleep_ms(1000 / 60);
-        }
+        let mut save_path = options.output.clone();
+        save_path.push(format!("{}", ctx.seed));
+        std::fs::create_dir_all(&save_path)
+            .expect(&format!("To create save directory {:?}", save_path));
+        save_path.push(format!("{}.png", ctx.frame));
+        comp.target
+            .image()
+            .save(save_path)
+            .expect("To save output.");
     }
 }
 

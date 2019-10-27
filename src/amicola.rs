@@ -13,7 +13,9 @@ pub use self::raster::{
 };
 
 pub trait RasterTarget {
+    fn clear(&mut self);
     fn raster(&mut self, element: Element);
+    fn flush(&mut self);
 }
 
 /// The method by which the rasterizer will raster the vector path.

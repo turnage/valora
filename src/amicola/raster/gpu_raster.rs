@@ -5,23 +5,28 @@ use crate::amicola::{Element, RasterMethod, Shader};
 use glium::backend::glutin::headless::Headless;
 use glium::implement_vertex;
 use glium::index::PrimitiveType;
-use glium::texture::texture2d::Texture2d;
+use glium::texture::{texture2d::Texture2d, RawImage2d};
 use glium::uniform;
 use glium::Display;
+use glium::DrawParameters;
+use glium::Frame;
 use glium::IndexBuffer;
 use glium::Program;
 use glium::Surface;
 use glium::VertexBuffer;
-use glutin::dpi::LogicalSize;
+use glium::{Blend, BlendingFunction, LinearBlendingFactor};
+use glutin::dpi::PhysicalSize;
 use glutin::ContextBuilder;
 use glutin::EventsLoop;
+use image::ImageBuffer;
+use image::Rgba;
 use itertools::{Either, Itertools};
 use std::{convert::TryFrom, rc::Rc};
 
 #[derive(Debug, Copy, Clone)]
 pub struct GpuVertex {
     pub vpos: [f32; 2],
-    pub vcol: [f64; 4],
+    pub vcol: [f32; 4],
 }
 
 implement_vertex!(GpuVertex, vpos, vcol);
@@ -30,9 +35,9 @@ const VERTEX_SHADER: &str = include_str!("../../shaders/default.vert");
 const FRAGMENT_SHADER: &str = include_str!("../../shaders/default.frag");
 
 pub struct GpuTarget {
-    surface: Texture2d,
-    display: Display,
-    program: Program,
+    surface: Rc<Texture2d>,
+    ctx: Rc<Headless>,
+    program: Rc<Program>,
     events_loop: EventsLoop,
     width: f32,
     height: f32,
@@ -41,30 +46,48 @@ pub struct GpuTarget {
 impl GpuTarget {
     pub fn with_dimensions(width: u32, height: u32) -> Self {
         let events_loop = glium::glutin::EventsLoop::new();
-        let wb = glium::glutin::WindowBuilder::new()
-            .with_dimensions(LogicalSize {
-                width: width as f64,
-                height: height as f64,
-            })
-            .with_title("valora");
-        let cb = glium::glutin::ContextBuilder::new();
-        let display = glium::Display::new(wb, cb, &events_loop).unwrap();
+        let ctx = glium::glutin::ContextBuilder::new()
+            .with_multisampling(0)
+            .build_headless(
+                &events_loop,
+                PhysicalSize {
+                    width: width as f64,
+                    height: height as f64,
+                },
+            )
+            .expect("glutin Headless context");
+        let ctx = Rc::new(Headless::new(ctx).expect("glutin Headless backend"));
 
-        let program = Program::from_source(&display, VERTEX_SHADER, FRAGMENT_SHADER, None)
-            .expect("default shader");
+        let program = Rc::new(
+            Program::from_source(ctx.as_ref(), VERTEX_SHADER, FRAGMENT_SHADER, None)
+                .expect("default shader"),
+        );
 
         GpuTarget {
-            surface: Texture2d::empty(&display, width, height).expect("texture buffer"),
+            surface: Rc::new(
+                Texture2d::empty(ctx.as_ref(), width, height).expect("texture buffer"),
+            ),
             program,
-            display,
+            ctx,
             events_loop,
             width: width as f32,
             height: height as f32,
         }
     }
+
+    pub fn image(&self) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+        let raw: RawImage2d<u8> = self.surface.read();
+        ImageBuffer::from_raw(self.width as u32, self.height as u32, raw.data.into_owned()).unwrap()
+    }
 }
 
 impl RasterTarget for GpuTarget {
+    fn clear(&mut self) {
+        self.surface.as_surface().clear_color(1.0, 1.0, 1.0, 1.0);
+    }
+
+    fn flush(&mut self) {}
+
     fn raster(&mut self, mut element: Element) {
         match element.raster_method {
             RasterMethod::Fill => {
@@ -81,51 +104,86 @@ impl RasterTarget for GpuTarget {
                 let vertices = RegionList::from(poly)
                     .shade_commands()
                     .flat_map(|cmd| match cmd.region {
-                        Region::Boundary { x, y } => {
-                            let vert = GpuVertex {
-                                vpos: [x as f32, y as f32],
-                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w * cmd.coverage],
-                            };
-                            vec![vert, vert]
-                        }
-                        Region::Fill { start_x, end_x, y } => vec![
+                        Region::Boundary { x, y } => vec![
                             GpuVertex {
-                                vpos: [end_x as f32, y as f32],
-                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w],
+                                vpos: [x as f32, y as f32],
+                                vcol: [
+                                    rgba.x as f32,
+                                    rgba.y as f32,
+                                    rgba.z as f32,
+                                    rgba.w as f32 * cmd.coverage as f32,
+                                ],
                             },
                             GpuVertex {
+                                vpos: [(x + 1) as f32, y as f32],
+                                vcol: [
+                                    rgba.x as f32,
+                                    rgba.y as f32,
+                                    rgba.z as f32,
+                                    rgba.w as f32 * cmd.coverage as f32,
+                                ],
+                            },
+                        ],
+                        Region::Fill { start_x, end_x, y } => vec![
+                            GpuVertex {
                                 vpos: [start_x as f32, y as f32],
-                                vcol: [rgba.x, rgba.y, rgba.z, rgba.w],
+                                vcol: [rgba.x as f32, rgba.y as f32, rgba.z as f32, rgba.w as f32],
+                            },
+                            GpuVertex {
+                                vpos: [end_x as f32, y as f32],
+                                vcol: [rgba.x as f32, rgba.y as f32, rgba.z as f32, rgba.w as f32],
                             },
                         ],
                     })
                     .collect::<Vec<GpuVertex>>();
-                let vertex_buffer =
-                    VertexBuffer::new(&self.display, vertices.as_slice()).expect("vertex buffer");
+                let vertex_buffer = VertexBuffer::new(self.ctx.as_ref(), vertices.as_slice())
+                    .expect("vertex buffer");
 
                 let indices = vertices
                     .iter()
                     .enumerate()
                     .map(|(i, _)| i as u32)
                     .collect::<Vec<u32>>();
-                let index_buffer =
-                    IndexBuffer::new(&self.display, PrimitiveType::LinesList, indices.as_slice())
-                        .expect("index buffer");
+                let index_buffer = IndexBuffer::new(
+                    self.ctx.as_ref(),
+                    PrimitiveType::LinesList,
+                    indices.as_slice(),
+                )
+                .expect("index buffer");
 
-                let mut frame = self.display.draw();
-                frame
+                let w = self.width;
+                let h = self.height;
+                let program = self.program.clone();
+                self.surface
+                    .as_surface()
                     .draw(
                         &vertex_buffer,
                         &index_buffer,
-                        &self.program,
+                        program.as_ref(),
                         &uniform! {
-                            width: self.width,
-                            height: self.height
+                            width: w,
+                            height: h
                         },
-                        &Default::default(),
+                        &DrawParameters {
+                            blend: Blend {
+                                color: BlendingFunction::Addition {
+                                    source: LinearBlendingFactor::SourceAlpha,
+                                    destination: LinearBlendingFactor::OneMinusSourceAlpha,
+                                },
+                                alpha: BlendingFunction::Addition {
+                                    source: LinearBlendingFactor::One,
+                                    destination: LinearBlendingFactor::OneMinusSourceAlpha,
+                                },
+                                constant_value: (0.0, 0.0, 0.0, 0.0),
+                            },
+                            line_width: Some(1.0),
+                            multisampling: false,
+                            dithering: false,
+                            smooth: None,
+                            ..Default::default()
+                        },
                     )
                     .expect("draw");
-                frame.finish();
             }
             _ => unimplemented!(),
         };
