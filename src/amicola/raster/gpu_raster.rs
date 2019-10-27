@@ -1,6 +1,6 @@
 use crate::amicola::{
     geo::{Polygon, V4},
-    raster::regions::{Region, RegionList, ShadeCommand},
+    raster::regions::{RegionList, ShadeCommand},
     Element,
     RasterMethod,
     RasterTarget,
@@ -106,34 +106,34 @@ impl RasterTarget for GpuTarget {
 
                 let vertices = RegionList::from(poly)
                     .shade_commands()
-                    .flat_map(|cmd| match cmd.region {
-                        Region::Boundary { x, y } => vec![
+                    .flat_map(|cmd| match cmd {
+                        ShadeCommand::Boundary { x, y, coverage } => vec![
                             GpuVertex {
-                                vpos: [x as f32, y as f32],
+                                vpos: [x, y],
                                 vcol: [
                                     rgba.x as f32,
                                     rgba.y as f32,
                                     rgba.z as f32,
-                                    rgba.w as f32 * cmd.coverage as f32,
+                                    rgba.w as f32 * coverage,
                                 ],
                             },
                             GpuVertex {
-                                vpos: [(x + 1) as f32, y as f32],
+                                vpos: [x + 1.0, y],
                                 vcol: [
                                     rgba.x as f32,
                                     rgba.y as f32,
                                     rgba.z as f32,
-                                    rgba.w as f32 * cmd.coverage as f32,
+                                    rgba.w as f32 * coverage,
                                 ],
                             },
                         ],
-                        Region::Fill { start_x, end_x, y } => vec![
+                        ShadeCommand::Span { start_x, end_x, y } => vec![
                             GpuVertex {
-                                vpos: [start_x as f32, y as f32],
+                                vpos: [start_x, y],
                                 vcol: [rgba.x as f32, rgba.y as f32, rgba.z as f32, rgba.w as f32],
                             },
                             GpuVertex {
-                                vpos: [end_x as f32, y as f32],
+                                vpos: [end_x, y],
                                 vcol: [rgba.x as f32, rgba.y as f32, rgba.z as f32, rgba.w as f32],
                             },
                         ],

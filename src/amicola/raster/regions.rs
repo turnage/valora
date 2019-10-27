@@ -11,12 +11,12 @@ use std::{
 };
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Region {
+enum Region {
     Boundary {
         x: isize,
         y: isize,
     },
-    Fill {
+    Span {
         start_x: isize,
         end_x: isize,
         y: isize,
@@ -24,9 +24,9 @@ pub enum Region {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct ShadeCommand {
-    pub region: Region,
-    pub coverage: f64,
+pub enum ShadeCommand {
+    Boundary { x: f32, y: f32, coverage: f32 },
+    Span { start_x: f32, end_x: f32, y: f32 },
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -129,17 +129,19 @@ impl RegionList {
 
     pub fn shade_commands<'a>(&'a self) -> impl Iterator<Item = ShadeCommand> + 'a {
         self.regions().map(move |region| match region {
-            Region::Boundary { x, y } => ShadeCommand {
-                region: Region::Boundary { x, y },
+            Region::Boundary { x, y } => ShadeCommand::Boundary {
+                x: x as f32,
+                y: y as f32,
                 coverage: coverage(
                     V2::new(x as f64, y as f64),
                     SampleDepth::Super64,
                     &self.segments,
-                ),
+                ) as f32,
             },
-            region @ Region::Fill { .. } => ShadeCommand {
-                region,
-                coverage: 1.0,
+            Region::Span { start_x, end_x, y } => ShadeCommand::Span {
+                start_x: start_x as f32,
+                end_x: end_x as f32,
+                y: y as f32,
             },
         })
     }
@@ -155,7 +157,7 @@ impl RegionList {
                 y = hit.y;
             }
 
-            let mut fill = None;
+            let mut Span = None;
 
             let is_new_edge = last_hit
                 .as_ref()
@@ -172,7 +174,7 @@ impl RegionList {
 
             match last_hit.take() {
                 Some(last_hit) if is_new_edge && is_gap_between_hits && winding_number % 2 == 0 => {
-                    fill = Some(Region::Fill {
+                    Span = Some(Region::Span {
                         start_x: last_hit.x + 1,
                         end_x: hit.x,
                         y: hit.y,
@@ -183,7 +185,7 @@ impl RegionList {
             last_hit.replace(*hit);
 
             std::iter::successors(Some(Region::Boundary { x: hit.x, y: hit.y }), move |_| {
-                fill.take()
+                Span.take()
             })
         })
     }
@@ -239,7 +241,7 @@ mod test {
                 Region::Boundary { x: -1, y: 0 },
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 3, y: 0 },
-                Region::Fill {
+                Region::Span {
                     start_x: 1,
                     end_x: 3,
                     y: 0
@@ -247,7 +249,7 @@ mod test {
                 Region::Boundary { x: 0, y: 1 },
                 Region::Boundary { x: 1, y: 1 },
                 Region::Boundary { x: 3, y: 1 },
-                Region::Fill {
+                Region::Span {
                     start_x: 2,
                     end_x: 3,
                     y: 1
@@ -277,21 +279,21 @@ mod test {
             vec![
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 4, y: 0 },
-                Region::Fill {
+                Region::Span {
                     start_x: 1,
                     end_x: 4,
                     y: 0,
                 },
                 Region::Boundary { x: 0, y: 1 },
                 Region::Boundary { x: 3, y: 1 },
-                Region::Fill {
+                Region::Span {
                     start_x: 1,
                     end_x: 3,
                     y: 1,
                 },
                 Region::Boundary { x: 0, y: 2 },
                 Region::Boundary { x: 2, y: 2 },
-                Region::Fill {
+                Region::Span {
                     start_x: 1,
                     end_x: 2,
                     y: 2,
@@ -327,7 +329,7 @@ mod test {
                 Region::Boundary { x: 3, y: 1 },
                 Region::Boundary { x: 0, y: 2 },
                 Region::Boundary { x: 3, y: 2 },
-                Region::Fill {
+                Region::Span {
                     start_x: 1,
                     end_x: 3,
                     y: 2,
@@ -359,7 +361,7 @@ mod test {
                 Region::Boundary { x: 1, y: 3 },
                 Region::Boundary { x: 2, y: 3 },
                 Region::Boundary { x: 4, y: 3 },
-                Region::Fill {
+                Region::Span {
                     start_x: 3,
                     end_x: 4,
                     y: 3
@@ -367,7 +369,7 @@ mod test {
                 Region::Boundary { x: 5, y: 3 },
                 Region::Boundary { x: 1, y: 4 },
                 Region::Boundary { x: 5, y: 4 },
-                Region::Fill {
+                Region::Span {
                     start_x: 2,
                     end_x: 5,
                     y: 4
@@ -375,7 +377,7 @@ mod test {
                 Region::Boundary { x: 1, y: 5 },
                 Region::Boundary { x: 2, y: 5 },
                 Region::Boundary { x: 4, y: 5 },
-                Region::Fill {
+                Region::Span {
                     start_x: 3,
                     end_x: 4,
                     y: 5
@@ -412,14 +414,14 @@ mod test {
                 Region::Boundary { x: 2, y: 2 },
                 Region::Boundary { x: 3, y: 2 },
                 Region::Boundary { x: 5, y: 2 },
-                Region::Fill {
+                Region::Span {
                     start_x: 4,
                     end_x: 5,
                     y: 2
                 },
                 Region::Boundary { x: 2, y: 3 },
                 Region::Boundary { x: 5, y: 3 },
-                Region::Fill {
+                Region::Span {
                     start_x: 3,
                     end_x: 5,
                     y: 3
@@ -427,7 +429,7 @@ mod test {
                 Region::Boundary { x: 1, y: 4 },
                 Region::Boundary { x: 2, y: 4 },
                 Region::Boundary { x: 5, y: 4 },
-                Region::Fill {
+                Region::Span {
                     start_x: 3,
                     end_x: 5,
                     y: 4
@@ -471,14 +473,14 @@ mod test {
                 Region::Boundary { x: 3, y: 3 },
                 Region::Boundary { x: 4, y: 3 },
                 Region::Boundary { x: 7, y: 3 },
-                Region::Fill {
+                Region::Span {
                     start_x: 5,
                     end_x: 7,
                     y: 3
                 },
                 Region::Boundary { x: 3, y: 4 },
                 Region::Boundary { x: 7, y: 4 },
-                Region::Fill {
+                Region::Span {
                     start_x: 4,
                     end_x: 7,
                     y: 4
@@ -487,21 +489,21 @@ mod test {
                 Region::Boundary { x: 2, y: 5 },
                 Region::Boundary { x: 3, y: 5 },
                 Region::Boundary { x: 8, y: 5 },
-                Region::Fill {
+                Region::Span {
                     start_x: 4,
                     end_x: 8,
                     y: 5
                 },
                 Region::Boundary { x: 2, y: 6 },
                 Region::Boundary { x: 8, y: 6 },
-                Region::Fill {
+                Region::Span {
                     start_x: 3,
                     end_x: 8,
                     y: 6
                 },
                 Region::Boundary { x: 2, y: 7 },
                 Region::Boundary { x: 6, y: 7 },
-                Region::Fill {
+                Region::Span {
                     start_x: 3,
                     end_x: 6,
                     y: 7
@@ -546,7 +548,7 @@ mod test {
                 Boundary { x: 7, y: 4 },
                 Boundary { x: 3, y: 5 },
                 Boundary { x: 5, y: 5 },
-                Fill {
+                Span {
                     start_x: 4,
                     end_x: 5,
                     y: 5
@@ -555,21 +557,21 @@ mod test {
                 Boundary { x: 7, y: 5 },
                 Boundary { x: 8, y: 5 },
                 Boundary { x: 10, y: 5 },
-                Fill {
+                Span {
                     start_x: 9,
                     end_x: 10,
                     y: 5
                 },
                 Boundary { x: 3, y: 6 },
                 Boundary { x: 5, y: 6 },
-                Fill {
+                Span {
                     start_x: 4,
                     end_x: 5,
                     y: 6
                 },
                 Boundary { x: 8, y: 6 },
                 Boundary { x: 10, y: 6 },
-                Fill {
+                Span {
                     start_x: 9,
                     end_x: 10,
                     y: 6
