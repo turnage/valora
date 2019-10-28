@@ -2,7 +2,7 @@
 
 use crate::amicola::*;
 
-pub use crate::amicola::{Glsl, Polygon, Shader, UniformBuffer, V2, V4};
+pub use crate::amicola::{Polygon, Shader, UniformBuffer, V2, V4};
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 
@@ -42,31 +42,27 @@ pub struct Options {
     pub output: PathBuf,
 }
 
-pub struct Context<S> {
+pub struct Context {
     pub width: f32,
     pub height: f32,
     pub seed: u64,
     pub frames: usize,
     pub frame: usize,
-    pub state: S,
-    gpu_ctx: Rc<Headless>,
 }
 
-impl<S> From<(Options, S, Rc<Headless>)> for Context<S> {
-    fn from((options, state, gpu_ctx): (Options, S, Rc<Headless>)) -> Self {
+impl From<Options> for Context {
+    fn from(options: Options) -> Self {
         Self {
             seed: options.seed,
             width: options.width as f32,
             height: options.height as f32,
             frames: options.frames,
             frame: 0,
-            state,
-            gpu_ctx,
         }
     }
 }
 
-impl<S> Context<S> {
+impl Context {
     pub fn normalize(&self, p: V2) -> V2 { V2::new(p.x / self.width, p.y / self.height) }
 
     pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
@@ -80,46 +76,6 @@ impl<S> Context<S> {
         ])
         .unwrap()
     }
-
-    pub fn build_shader(&self, source: &str) -> Result<Rc<Program>> {
-        Ok(
-            Program::from_source(self.gpu_ctx.as_ref(), VERTEX_SHADER, source, None)
-                .map(|p| Rc::new(p))?,
-        )
-    }
-}
-
-pub trait Generate<S> {
-    type Output;
-
-    fn generate(&self, ctx: &Context<S>, rng: &mut StdRng) -> Self::Output;
-}
-
-impl<S, T, F: Fn(&Context<S>, &mut StdRng) -> T> Generate<S> for F {
-    type Output = T;
-
-    fn generate(&self, ctx: &Context<S>, rng: &mut StdRng) -> Self::Output { (self)(ctx, rng) }
-}
-
-pub trait Render {
-    fn render(&self, comp: &mut Sketch);
-}
-
-pub trait Composer<S> {
-    fn init(rng: &mut StdRng) -> S;
-    fn draw(&mut self, ctx: &Context<S>, rng: &mut StdRng, comp: &mut Sketch) -> S;
-}
-
-pub trait Sketch {
-    fn move_to(&mut self, dest: V2);
-
-    fn line_to(&mut self, dest: V2);
-
-    fn set_color(&mut self, color: V4);
-
-    fn set_shader(&mut self, shader: Shader);
-
-    fn fill(&mut self);
 }
 
 pub fn run<S, C: Composer<S>>(mut composer: C) {
@@ -127,7 +83,10 @@ pub fn run<S, C: Composer<S>>(mut composer: C) {
 
     let mut rng = StdRng::seed_from_u64(options.seed);
     let state = <C as Composer<S>>::init(&mut rng);
-    let gpu_target = GpuTarget::with_dimensions(options.width as u32, options.height as u32);
+    let gpu_target = GpuTarget::with_dimensions(
+        ((options.width as f32) * options.scale) as u32,
+        ((options.height as f32) * options.scale) as u32,
+    );
     let mut ctx = Context::from((options.clone(), state, gpu_target.ctx()));
 
     let mut comp = Rainier::new(gpu_target, options.scale);
@@ -152,18 +111,18 @@ pub fn run<S, C: Composer<S>>(mut composer: C) {
     }
 }
 
-pub struct Rainier<T> {
-    target: T,
+pub struct Rainier {
+    amicola: Amicola,
     current_path: Vec<V2>,
     current_shader: Shader,
     current_color: V4,
     scale: f32,
 }
 
-impl<T> Rainier<T> {
-    fn new(target: T, scale: f32) -> Self {
+impl Rainier {
+    fn new(amicola: Amicola, scale: f32) -> Self {
         Self {
-            target,
+            amicola,
             current_path: vec![],
             current_shader: Shader::Solid,
             current_color: V4::new(1.0, 1.0, 1.0, 1.0),
@@ -172,7 +131,7 @@ impl<T> Rainier<T> {
     }
 }
 
-impl<T: RasterTarget> Sketch for Rainier<T> {
+impl Sketch for Rainier {
     fn move_to(&mut self, dest: V2) { self.current_path = vec![dest * self.scale]; }
 
     fn line_to(&mut self, dest: V2) { self.current_path.push(dest * self.scale); }

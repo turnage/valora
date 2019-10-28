@@ -1,4 +1,4 @@
-pub mod gpu_raster;
+pub mod gpu;
 mod grid_lines;
 mod path;
 mod regions;
