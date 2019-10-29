@@ -6,10 +6,9 @@ pub use crate::amicola::{Polygon, Shader, UniformBuffer, V2, V4};
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 
-use derive_more::DebugCustom;
-use failure::{Error, Fail};
-use glium::backend::glutin::headless::Headless;
-use std::{convert::TryFrom, path::PathBuf, rc::Rc};
+use failure::Error;
+use image::{ImageBuffer, Rgba};
+use std::{convert::TryFrom, path::PathBuf};
 use structopt::StructOpt;
 
 type Result<T> = std::result::Result<T, Error>;
@@ -42,96 +41,150 @@ pub struct Options {
     pub output: PathBuf,
 }
 
-pub struct Context {
+#[derive(Debug, Copy, Clone)]
+pub struct World {
+    pub seed: u64,
     pub width: f32,
     pub height: f32,
-    pub seed: u64,
+    pub scale: f32,
     pub frames: usize,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Context {
+    pub world: World,
     pub frame: usize,
 }
 
-impl From<Options> for Context {
-    fn from(options: Options) -> Self {
+impl From<&Options> for Context {
+    fn from(options: &Options) -> Self {
         Self {
-            seed: options.seed,
-            width: options.width as f32,
-            height: options.height as f32,
-            frames: options.frames,
+            world: World {
+                seed: options.seed,
+                width: options.width as f32,
+                height: options.height as f32,
+                scale: options.scale,
+                frames: options.frames,
+            },
             frame: 0,
         }
     }
 }
 
 impl Context {
-    pub fn normalize(&self, p: V2) -> V2 { V2::new(p.x / self.width, p.y / self.height) }
+    pub fn normalize(&self, p: V2) -> V2 {
+        V2::new(p.x / self.world.width, p.y / self.world.height)
+    }
 
-    pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
+    pub fn center(&self) -> V2 { V2::new(self.world.width / 2.0, self.world.height / 2.0) }
 
     pub fn full_frame(&self) -> Polygon {
         Polygon::try_from(vec![
             V2::new(0.0, 0.0),
-            V2::new(self.width, 0.0),
-            V2::new(self.width, self.height),
-            V2::new(0.0, self.height),
+            V2::new(self.world.width, 0.0),
+            V2::new(self.world.width, self.world.height),
+            V2::new(0.0, self.world.height),
         ])
         .unwrap()
     }
 }
 
-pub fn run<S, C: Composer<S>>(mut composer: C) {
-    let options = Options::from_args();
+fn save_path_for_frame(mut base_path: PathBuf, seed: u64, frame: usize) -> PathBuf {
+    base_path.push(format!("{}", seed));
+    std::fs::create_dir_all(&base_path)
+        .expect(&format!("To create save directory {:?}", base_path));
+    base_path.push(format!("{}.png", frame));
+    base_path
+}
 
-    let mut rng = StdRng::seed_from_u64(options.seed);
-    let state = <C as Composer<S>>::init(&mut rng);
-    let gpu_target = GpuTarget::with_dimensions(
-        ((options.width as f32) * options.scale) as u32,
-        ((options.height as f32) * options.scale) as u32,
-    );
-    let mut ctx = Context::from((options.clone(), state, gpu_target.ctx()));
+pub struct Gpu {}
 
-    let mut comp = Rainier::new(gpu_target, options.scale);
-    let mut frame = 0;
+pub struct RenderGate {
+    amicola: Amicola,
+    default_shader: Shader,
+    width: u32,
+    height: u32,
+    save_dir: PathBuf,
+    frames: usize,
+    context: Context,
+}
 
-    for i in 0..(options.frames) {
-        comp.target.clear();
-        ctx.frame = frame % options.frames;
-        let next_state = composer.draw(&ctx, &mut rng, &mut comp);
-        ctx.state = next_state;
-        comp.target.flush();
+impl RenderGate {
+    pub fn render(&mut self, mut f: impl FnMut(&Context, &mut Composition)) -> Result<()> {
+        for frame in 0..(self.frames) {
+            let mut comp = Composition::new(self.default_shader.clone());
+            self.context.frame = frame;
+            f(&self.context, &mut comp);
 
-        let mut save_path = options.output.clone();
-        save_path.push(format!("{}", ctx.seed));
-        std::fs::create_dir_all(&save_path)
-            .expect(&format!("To create save directory {:?}", save_path));
-        save_path.push(format!("{}.png", ctx.frame));
-        comp.target
-            .image()
-            .save(save_path)
-            .expect("To save output.");
+            let buffer =
+                self.amicola
+                    .precompose(self.width, self.height, comp.elements.into_iter())?;
+            let raw: glium::texture::RawImage2d<u8> = buffer.read();
+            let image: ImageBuffer<Rgba<u8>, Vec<u8>> =
+                ImageBuffer::from_raw(self.width, self.height, raw.data.into_owned()).unwrap();
+            image.save(save_path_for_frame(
+                self.save_dir.clone(),
+                self.context.world.seed,
+                frame,
+            ))?;
+        }
+        Ok(())
     }
 }
 
-pub struct Rainier {
-    amicola: Amicola,
+pub struct Rainier {}
+
+impl Rainier {
+    pub fn run(
+        options: Options,
+        mut f: impl FnMut(&Gpu, &World, &mut StdRng, RenderGate) -> Result<()>,
+    ) -> Result<()> {
+        let context = Context::from(&options);
+        let amicola = Amicola::new()?;
+
+        let (width, height) = (
+            options.width as f32 * options.scale,
+            options.height as f32 * options.scale,
+        );
+        let mut rng = StdRng::seed_from_u64(options.seed);
+        let mut Composition = Composition::new(amicola.default_shader(width, height));
+
+        let gpu = Gpu {};
+        let gate = RenderGate {
+            width: width as u32,
+            height: height as u32,
+            default_shader: amicola.default_shader(width, height),
+            amicola,
+            save_dir: options.output,
+            frames: options.frames,
+            context: context,
+        };
+
+        f(&gpu, &context.world, &mut rng, gate)
+    }
+}
+
+pub struct Composition {
     current_path: Vec<V2>,
     current_shader: Shader,
     current_color: V4,
     scale: f32,
+    elements: Vec<Element>,
 }
 
-impl Rainier {
-    fn new(amicola: Amicola, scale: f32) -> Self {
+impl Composition {
+    fn new(default_shader: Shader) -> Self {
         Self {
-            amicola,
             current_path: vec![],
-            current_shader: Shader::Solid,
+            current_shader: default_shader,
             current_color: V4::new(1.0, 1.0, 1.0, 1.0),
-            scale,
+            scale: 1.0,
+            elements: vec![],
         }
     }
-}
 
-impl Sketch for Rainier {
+    fn set_scale(&mut self, scale: f32) { self.scale = scale; }
+
     fn move_to(&mut self, dest: V2) { self.current_path = vec![dest * self.scale]; }
 
     fn line_to(&mut self, dest: V2) { self.current_path.push(dest * self.scale); }
@@ -143,7 +196,7 @@ impl Sketch for Rainier {
     fn fill(&mut self) {
         let mut path = vec![];
         std::mem::swap(&mut self.current_path, &mut path);
-        self.target.raster(Element {
+        self.elements.push(Element {
             path,
             color: self.current_color,
             shader: self.current_shader.clone(),

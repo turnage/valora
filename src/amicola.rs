@@ -3,16 +3,14 @@
 mod geo;
 mod raster;
 
-use derive_more::DebugCustom;
-use failure::{Error, Fail};
-use glium::{uniforms::Uniforms, Program};
-use rental::*;
-use std::rc::Rc;
-use rand::random();
+use failure::Error;
+use glium::{texture::texture2d::Texture2d, uniforms::Uniforms, Program};
 use itertools::Itertools;
+use rand::random;
+use std::rc::Rc;
 
 pub use self::{
-    geo::{Error, Polygon, V2, V4},
+    geo::{Polygon, V2, V4},
     raster::{
         gpu::{Gpu, GpuCommand},
         surface::{FinalBuffer, Surface},
@@ -22,19 +20,11 @@ pub use glium::uniforms::UniformValue;
 
 type Result<T> = std::result::Result<T, Error>;
 
-mod sealed {
-    use super::*;
-
-    pub trait Seal {}
-
-    impl Seal for FragmentShader {}
-}
-
-
-pub trait Shader: sealed::Seal {
-    fn id(&self) -> u64;
-    fn program(&self) -> &Program;
-    fn uniforms(&self) -> &UniformBuffer;
+#[derive(Clone)]
+pub struct Shader {
+    id: u64,
+    program: Rc<Program>,
+    uniforms: UniformBuffer,
 }
 
 /// A context object for the amicola rasterizer.
@@ -44,58 +34,65 @@ pub struct Amicola {
 }
 
 impl Amicola {
-    pub fn new() -> Result<Self> { Ok(Amicola { 
-               next_resource_id: 0,
-        gpu: Gpu::new()? }) }
-
-    pub fn compile_shader(&self, source: &str) -> Result<Rc<Program>> {
-        Ok(Rc::new(self.gpu.build_shader(source)?)
-    }
-
-    pub fn finish_shader(&self, program: Rc<Program>, uniform_buffer: UniformBuffer) -> Result<impl Shader> {
-        Ok(FragmentShader {
-            id: random(),
-            program,
-            uniform_buffer
+    pub fn new() -> Result<Self> {
+        Ok(Amicola {
+            next_resource_id: 0,
+            gpu: Gpu::new()?,
         })
     }
 
-    pub fn precompose(&self, width: u32, height: u32, elements: impl Iterator<Item=Element>) -> Result<Rc<Texture2d>> {
+    pub fn default_shader(&self, width: f32, height: f32) -> Shader {
+        Shader {
+            id: random(),
+            program: self.gpu.default_program(),
+            uniforms: UniformBuffer {
+                uniforms: vec![
+                    (String::from("width"), UniformValue::Float(width)),
+                    (String::from("height"), UniformValue::Float(height)),
+                ],
+            },
+        }
+    }
+
+    pub fn compile_shader(&self, source: &str) -> Result<Rc<Program>> {
+        Ok(Rc::new(self.gpu.build_shader(source)?))
+    }
+
+    pub fn finish_shader(&self, program: Rc<Program>, uniforms: UniformBuffer) -> Result<Shader> {
+        Ok(Shader {
+            id: random(),
+            program,
+            uniforms,
+        })
+    }
+
+    pub fn precompose(
+        &self,
+        width: u32,
+        height: u32,
+        elements: impl Iterator<Item = Element>,
+    ) -> Result<Rc<Texture2d>> {
         let texture = self.gpu.build_texture(width, height)?;
-        for (id, batch) in elements.group_by(|(_, e)| e.shader) {
-            let batch = batch.peekable();
+        for (id, batch) in &elements.group_by(|e| e.shader.id) {
+            let mut batch = batch.peekable();
             let first = if let Some(first) = batch.peek() {
-                first
+                first.shader.clone()
             } else {
                 println!("This is possible??");
                 continue;
             };
 
-            let (vertices, indices) = self.gpu.build_buffers(batch)?;
-            self.draw_to_texture(GpuCommand {
-                vertices,
+            let (indices, vertices) = self.gpu.build_buffers(batch)?;
+            self.gpu.draw_to_texture(GpuCommand {
                 indices,
+                vertices,
                 texture: &texture,
-                program: first.shader.progam(),
-                uniforms: first.shader.uniforms()
+                program: first.program.as_ref(),
+                uniforms: &first.uniforms,
             })?;
-
-            texture
         }
+        Ok(Rc::new(texture))
     }
-}
-
-/// A fragment shader which can be used to shade paths.
-struct FragmentShader {
-    id: u64,
-    program: Rc<Program>,
-    uniform_buffer: UniformBuffer,
-}
-
-impl Shader for FragmentShader {
-    fn id(&self) -> u64 { self.id }
-    fn program(&self) -> &Program { self.progam.as_ref() }
-    fn uniforms(&self) -> &UniformBuffer { &self.uniform_buffer }
 }
 
 /// The method by which the rasterizer will raster the vector path.
@@ -130,10 +127,9 @@ impl Uniforms for UniformBuffer {
 }
 
 /// A rasterable element in a composition.
-#[derive(Debug)]
 pub struct Element {
     pub path: Vec<V2>,
     pub color: V4,
     pub raster_method: RasterMethod,
-    pub shader: Rc<dyn Shader>,
+    pub shader: Shader,
 }

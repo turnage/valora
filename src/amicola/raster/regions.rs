@@ -6,7 +6,7 @@ use float_ord::FloatOrd;
 use itertools::Itertools;
 use std::{
     cmp::Ordering,
-    collections::{BTreeSet, HashSet},
+    collections::BTreeSet,
     hash::{Hash, Hasher},
 };
 

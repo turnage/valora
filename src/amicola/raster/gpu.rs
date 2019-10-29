@@ -1,35 +1,26 @@
 use crate::amicola::{
-    geo::{Polygon, V4},
+    geo::Polygon,
     raster::regions::{RegionList, ShadeCommand},
     Element,
-    Glsl,
     RasterMethod,
-    RasterTarget,
     Result,
-    Shader,
     UniformBuffer,
 };
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
     index::PrimitiveType,
-    texture::{texture2d::Texture2d, MipmapsOption, RawImage2d, UncompressedFloatFormat},
-    uniform,
-    uniforms::UniformValue,
+    texture::{texture2d::Texture2d, MipmapsOption, UncompressedFloatFormat},
     Blend,
     BlendingFunction,
-    Display,
     DrawParameters,
-    Frame,
     IndexBuffer,
     LinearBlendingFactor,
     Program,
     Surface,
     VertexBuffer,
 };
-use glutin::{dpi::PhysicalSize, ContextBuilder, EventsLoop};
-use image::{ImageBuffer, Rgba};
-use itertools::{Either, Itertools};
+use glutin::dpi::PhysicalSize;
 use std::{convert::TryFrom, rc::Rc};
 
 #[derive(Debug, Copy, Clone)]
@@ -46,9 +37,6 @@ const FRAGMENT_SHADER: &str = include_str!("../../shaders/default.frag");
 pub struct Gpu {
     ctx: Rc<Headless>,
     program: Rc<Program>,
-    events_loop: EventsLoop,
-    width: f32,
-    height: f32,
 }
 
 pub struct GpuCommand<'a> {
@@ -56,7 +44,7 @@ pub struct GpuCommand<'a> {
     pub indices: IndexBuffer<u32>,
     pub texture: &'a Texture2d,
     pub program: &'a Program,
-    pub uniform: &'a UniformBuffer,
+    pub uniforms: &'a UniformBuffer,
 }
 
 impl Gpu {
@@ -80,18 +68,14 @@ impl Gpu {
             None,
         )?);
 
-        (GpuTarget {
-            program,
-            ctx,
-            events_loop,
-            width: width as f32,
-            height: height as f32,
-        })
+        Ok(Gpu { program, ctx })
     }
 
-    pub fn build_texture(width: u32, height: u32) -> Result<Texture2d> {
+    pub fn default_program(&self) -> Rc<Program> { self.program.clone() }
+
+    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
         Ok(Texture2d::empty_with_format(
-            &self.gpu_ctx.as_ref(),
+            self.ctx.as_ref(),
             UncompressedFloatFormat::F32F32F32F32,
             MipmapsOption::NoMipmap,
             width,
@@ -101,7 +85,7 @@ impl Gpu {
 
     pub fn build_shader(&self, source: &str) -> Result<Program> {
         Ok(Program::from_source(
-            self.gpu_ctx.as_ref(),
+            self.ctx.as_ref(),
             VERTEX_SHADER,
             source,
             None,
@@ -110,8 +94,8 @@ impl Gpu {
 
     pub fn draw_to_texture(&self, cmd: GpuCommand) -> Result<()> {
         Ok(cmd.texture.as_surface().draw(
-            &cmd.vertex_buffer,
-            &cmd.index_buffer,
+            &cmd.vertices,
+            &cmd.indices,
             cmd.program,
             cmd.uniforms,
             &DrawParameters {
@@ -186,6 +170,7 @@ impl Gpu {
                                     },
                                 ],
                             })
+                            .collect::<Vec<GpuVertex>>()
                     }
                     _ => unimplemented!(),
                 }
@@ -205,6 +190,6 @@ impl Gpu {
             indices.as_slice(),
         )?;
 
-        Ok((vertex_buffer, index_buffer))
+        Ok((index_buffer, vertex_buffer))
     }
 }
