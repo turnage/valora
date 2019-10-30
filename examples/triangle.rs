@@ -45,6 +45,7 @@ impl Ellipse {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct NgonIter {
     phase: f32,
     r: f32,
@@ -84,6 +85,15 @@ impl Iterator for NgonIter {
     }
 }
 
+impl Draw for NgonIter {
+    fn draw(&self, comp: &mut Composition) {
+        for v in *self {
+            comp.line_to(v);
+        }
+        comp.fill();
+    }
+}
+
 fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
     let mut min = V2::new(std::f32::MAX, std::f32::MAX);
     let mut max = V2::new(std::f32::MIN, std::f32::MIN);
@@ -105,117 +115,33 @@ fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
     (min + max) / 2.0
 }
 
-#[derive(Clone)]
-pub struct Splotch {
-    poly: Polygon,
-}
-
-impl Splotch {
-    fn warped<'a, S>(&'a self) -> impl Generate<S, Output = Splotch> + 'a {
-        move |ctx: &Context<S>, rng: &mut StdRng| {
-            let offset = rng.gen_range(0.0, 1.0);
-            let c = centroid(self.poly.vertices().iter());
-            let dist = Normal::new(0.0, ctx.width as f64 / 100.0);
-            let phase_dist = Normal::new(0.0, std::f64::consts::PI / 2.0);
-            Self {
-                poly: Polygon::try_from(
-                    self.poly
-                        .vertices()
-                        .iter()
-                        .map(|v| {
-                            let offset = dist.sample(rng);
-                            let circle =
-                                Ellipse::circle(c, ((v - c).norm() as f64 + offset) as f32);
-                            let phase = circle.circumphase(v) as f64;
-                            let phase_offset = phase + phase_dist.sample(rng);
-                            circle.circumpoint(phase_offset as f32)
-                        })
-                        .collect::<Vec<V2>>(),
-                )
-                .unwrap(),
-            }
-        }
-    }
-
-    fn subdivided<'a, S>(&'a self) -> impl Generate<S, Output = Splotch> + 'a {
-        move |ctx: &Context<S>, rng: &mut StdRng| {
-            let original_vertices = self.poly.vertices();
-            let mut vertices: Vec<V2> = original_vertices
-                .iter()
-                .tuple_windows::<(_, _)>()
-                .flat_map(|(v1, v2)| {
-                    let mut next = Some((v1 + v2) / 2.0);
-                    std::iter::successors(Some(*v1), move |_| next.take())
-                })
-                .collect();
-            let wrap_around =
-                (original_vertices.first().unwrap() + original_vertices.last().unwrap()) / 2.0;
-            vertices.push(wrap_around);
-
-            Self {
-                poly: Polygon::try_from(vertices).unwrap(),
-            }
-        }
-    }
-}
-
-impl Render for Splotch {
-    fn render(&self, comp: &mut Sketch) {
-        for v in self.poly.vertices() {
-            comp.line_to(*v);
-        }
-        comp.fill();
-    }
-}
-
 const NOISE_SHADER: &str = include_str!("../src/shaders/poke.frag");
 
-#[derive(Default)]
-pub struct Paint {
-    shader: Option<Rc<Program>>,
+fn main() {
+    let options = Options::from_args();
+    run(options, |gpu, world, mut rng, mut render_gate| {
+        let noise_shader_builder = gpu.build_shader(NOISE_SHADER).expect("to compile glsl");
+        let noise_shader = noise_shader_builder.build().expect("to build noise shader");
+        render_gate.render_frames(|ctx, mut comp| {
+            comp.set_color(V4::new(1.0, 1.0, 0.7, 1.0));
+            for v in world.full_frame().vertices() {
+                comp.line_to(*v);
+            }
+            comp.fill();
+
+            let center = world.center();
+            comp.set_color(V4::new(1.0, 0.0, 0.0, 0.5));
+            println!("Enqueing triangles for render....");
+            for i in 0..100 {
+                let y_off = (i as f32 / 100.0) * 100.0;
+                let x_off = i as f32 % 100.0;
+                let triangle =
+                    NgonIter::new(0.0, 30.0, V2::new(center.x + x_off, center.y + y_off), 3);
+                //comp.set_shader(noise_shader.clone());
+                comp.draw(triangle);
+            }
+            println!("Enqued; render begins now");
+        })
+    })
+    .expect("to run composition");
 }
-
-impl Composer<()> for Paint {
-    fn init(rng: &mut StdRng) -> () { () }
-
-    fn draw(&mut self, ctx: &Context<()>, rng: &mut StdRng, comp: &mut Sketch) -> () {
-        if self.shader.is_none() {
-            self.shader = Some(ctx.build_shader(NOISE_SHADER).expect("hnhe"));
-        }
-
-        comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
-        comp.set_shader(Shader::Solid);
-        for v in ctx.full_frame().vertices() {
-            comp.line_to(*v);
-        }
-        comp.fill();
-
-        let mut sub_rng = rng.clone();
-        let base = Splotch {
-            poly: Polygon::try_from(
-                vec![
-                    V2::new(3.0, 5.0),
-                    V2::new(5.0, 9.0),
-                    V2::new(7.0, 2.0),
-                    V2::new(9.0, 9.0),
-                    V2::new(11.0, 5.0),
-                ]
-                .into_iter()
-                .map(|v| v * 80.0)
-                .collect::<Vec<V2>>(),
-            )
-            .unwrap(),
-        };
-
-        comp.set_color(V4::new(1.0, 0.0, 0.0, 1.0));
-        comp.set_shader(Shader::Glsl(Glsl {
-            program: self.shader.as_ref().unwrap().clone(),
-            uniforms: UniformBuffer::default(),
-        }));
-        base.render(comp);
-
-        ()
-    }
-}
-
-fn main() { run::<(), _>(Paint::default()) }

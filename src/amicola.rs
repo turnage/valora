@@ -54,11 +54,11 @@ impl Amicola {
         }
     }
 
-    pub fn compile_shader(&self, source: &str) -> Result<Rc<Program>> {
+    pub fn compile_glsl(&self, source: &str) -> Result<Rc<Program>> {
         Ok(Rc::new(self.gpu.build_shader(source)?))
     }
 
-    pub fn finish_shader(&self, program: Rc<Program>, uniforms: UniformBuffer) -> Result<Shader> {
+    pub fn build_shader(&self, program: Rc<Program>, uniforms: UniformBuffer) -> Result<Shader> {
         Ok(Shader {
             id: random(),
             program,
@@ -75,12 +75,20 @@ impl Amicola {
         let texture = self.gpu.build_texture(width, height)?;
         for (id, batch) in &elements.group_by(|e| e.shader.id) {
             let mut batch = batch.peekable();
-            let first = if let Some(first) = batch.peek() {
+            let mut first = if let Some(first) = batch.peek() {
                 first.shader.clone()
             } else {
                 println!("This is possible??");
                 continue;
             };
+
+            // TODO: reconcile conflicts between user uniforms and the defaults
+            first
+                .uniforms
+                .push(String::from("width"), UniformValue::Float(width as f32));
+            first
+                .uniforms
+                .push(String::from("height"), UniformValue::Float(height as f32));
 
             let (indices, vertices) = self.gpu.build_buffers(batch)?;
             self.gpu.draw_to_texture(GpuCommand {
