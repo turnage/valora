@@ -115,7 +115,7 @@ fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
     (min + max) / 2.0
 }
 
-const NOISE_SHADER: &str = include_str!("../src/shaders/poke.frag");
+const NOISE_SHADER: &str = include_str!("poke.frag");
 
 fn main() {
     let options = Options::from_args();

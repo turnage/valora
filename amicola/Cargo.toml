@@ -1,0 +1,15 @@
+[package]
+name = "amicola"
+version = "0.1.0"
+authors = ["Payton Turnage <paytonturnage@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+failure = "0.1.5"
+failure_derive = "0.1.5"
+itertools = "0.8.0"
+nalgebra = "0.18.0"
+float-ord = "0.2.0"
+
+[dev-dependencies]
+pretty_assertions = "0.6.1"

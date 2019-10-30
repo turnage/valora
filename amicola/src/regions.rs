@@ -1,7 +1,6 @@
 //! Raster region search and enumeration.
 
-use super::{grid_lines::*, path::*, sampling::*};
-use crate::amicola::geo::*;
+use crate::{geo::*, grid_lines::*, path::*, sampling::*};
 use float_ord::FloatOrd;
 use itertools::Itertools;
 use std::{
@@ -386,7 +385,7 @@ mod test {
                 Region::Boundary { x: 2, y: 6 },
                 Region::Boundary { x: 3, y: 6 },
                 Region::Boundary { x: 4, y: 6 },
-                Region::Boundary { x: 3, y: 7 }
+                Region::Boundary { x: 4, y: 7 }
             ]
         );
     }

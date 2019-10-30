@@ -4,28 +4,13 @@ version = "0.1.0"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 
+[workspace]
+members = ["amicola", "rainier"]
+
 [dependencies]
-num-traits = "0.2.8"
-nalgebra = "0.18.0"
-geo = "0.12.2"
-failure = "0.1.5"
-failure_derive = "0.1.5"
-image = "0.22.3"
-rayon = "1.1.0"
-derive_more = { git = "https://github.com/JelteF/derive_more.git" }
-rand = "0.7.0"
-structopt = "0.3.0"
-palette = "0.4.1"
-log = { version = "0.4", features = ["max_level_trace", "release_max_level_warn"] }
-itertools = "0.8.0"
-float-ord = "0.2.0"
-luminance = "0.37.1"
-luminance-glfw = "0.11.0"
-luminance-derive = "0.5.0"
-luminance-windowing = "0.8.0"
-glium = "0.25.1"
-glutin = "0.21.1"
-rental = "0.5.5"
+amicola = { path = "amicola" }
+rainier = { path = "rainier" }
 
 [dev-dependencies]
-pretty_assertions = "0.6.1"
+itertools = "0.8.0"
+nalgebra = "0.18.0"

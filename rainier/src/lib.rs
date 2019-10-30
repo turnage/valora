@@ -1,12 +1,15 @@
 //! Tools for composing generative fine art.
 
-use crate::amicola::*;
+mod gpu;
 
-pub use crate::amicola::{Polygon, Shader, UniformBuffer, V2, V4};
+pub use self::gpu::{Shader, UniformBuffer};
+pub use amicola::{Polygon, V2, V4};
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
 
+use self::gpu::*;
+use amicola::*;
 use failure::Error;
 use image::{ImageBuffer, Rgba};
 use std::{convert::TryFrom, path::PathBuf, rc::Rc};
@@ -96,34 +99,31 @@ pub trait Draw {
     fn draw(&self, comp: &mut Composition);
 }
 
-pub struct ShaderBuilder<'a> {
+pub struct GpuHandle<'a> {
     gpu: &'a Gpu,
+}
+
+impl<'a> GpuHandle<'a> {
+    pub fn build_shader(&self, glsl: &str) -> Result<ShaderBuilder> {
+        Ok(ShaderBuilder {
+            gpu_handle: &self,
+            program: self.gpu.compile_glsl(glsl)?,
+        })
+    }
+}
+
+pub struct ShaderBuilder<'a, 'b> {
+    gpu_handle: &'a GpuHandle<'b>,
     program: Rc<Program>,
 }
 
-impl<'a> ShaderBuilder<'a> {
+impl<'a, 'b> ShaderBuilder<'a, 'b> {
     // TODO: Take uniform trait bound here
     pub fn build(&self) -> Result<Shader> {
-        self.gpu
-            .amicola
+        self.gpu_handle
+            .gpu
             .build_shader(self.program.clone(), UniformBuffer::default())
     }
-}
-
-pub struct Gpu {
-    amicola: Amicola,
-    default_shader: Shader,
-}
-
-impl Gpu {
-    pub fn build_shader(&self, glsl: &str) -> Result<ShaderBuilder> {
-        Ok(ShaderBuilder {
-            gpu: &self,
-            program: self.amicola.compile_glsl(glsl)?,
-        })
-    }
-
-    pub fn default_shader(&self) -> Shader { self.default_shader.clone() }
 }
 
 pub struct RenderGate<'a> {
@@ -140,16 +140,18 @@ impl<'a> RenderGate<'a> {
         &mut self,
         mut f: impl FnMut(&FrameContext, &mut Composition),
     ) -> Result<()> {
+        let default_shader = self
+            .gpu
+            .default_shader(self.width as f32, self.height as f32);
         for frame in 0..(self.frames) {
-            let mut comp = Composition::new(self.gpu.default_shader());
+            let mut comp = Composition::new(default_shader.clone());
             comp.set_scale(self.world.scale);
             f(&FrameContext { frame }, &mut comp);
 
             println!("Rendering to texture");
-            let buffer =
-                self.gpu
-                    .amicola
-                    .precompose(self.width, self.height, comp.elements.into_iter())?;
+            let buffer = self
+                .gpu
+                .precompose(self.width, self.height, comp.elements.into_iter())?;
             println!("Reading to ram...");
 
             let raw: glium::texture::RawImage2d<u8> = buffer.read();
@@ -170,10 +172,9 @@ impl<'a> RenderGate<'a> {
 
 pub fn run(
     options: Options,
-    mut f: impl FnMut(&Gpu, &World, &mut StdRng, RenderGate) -> Result<()>,
+    mut f: impl FnMut(&GpuHandle, &World, &mut StdRng, RenderGate) -> Result<()>,
 ) -> Result<()> {
     let world = World::from(&options);
-    let amicola = Amicola::new()?;
 
     let (width, height) = (
         options.width as f32 * options.scale,
@@ -181,11 +182,7 @@ pub fn run(
     );
     let mut rng = StdRng::seed_from_u64(options.seed);
 
-    let gpu = Gpu {
-        default_shader: amicola.default_shader(width, height),
-        amicola,
-    };
-
+    let gpu = Gpu::new()?;
     let gate = RenderGate {
         gpu: &gpu,
         world,
@@ -195,7 +192,9 @@ pub fn run(
         frames: options.frames,
     };
 
-    f(&gpu, &world, &mut rng, gate)
+    let gpu_handle = GpuHandle { gpu: &gpu };
+
+    f(&gpu_handle, &world, &mut rng, gate)
 }
 
 pub struct Composition {

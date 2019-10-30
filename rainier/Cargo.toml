@@ -1,0 +1,16 @@
+[package]
+name = "rainier"
+version = "0.1.0"
+authors = ["Payton Turnage <paytonturnage@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+amicola = { path = "../amicola" }
+glium = "0.25.1"
+glutin = "0.21.1"
+structopt = "0.3.0"
+rand = "0.7.0"
+itertools = "0.8.0"
+failure = "0.1.5"
+failure_derive = "0.1.5"
+image = "0.22.3"
