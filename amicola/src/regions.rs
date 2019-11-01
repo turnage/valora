@@ -126,16 +126,16 @@ impl RegionList {
         self.segments = path;
     }
 
-    pub fn shade_commands<'a>(&'a self) -> impl Iterator<Item = ShadeCommand> + 'a {
+    pub fn shade_commands<'a>(
+        &'a self,
+        sample_depth: SampleDepth,
+    ) -> impl Iterator<Item = ShadeCommand> + 'a {
         self.regions().map(move |region| match region {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
                 x: x as f32,
                 y: y as f32,
-                coverage: coverage(
-                    V2::new(x as f32, y as f32),
-                    SampleDepth::Super64,
-                    &self.segments,
-                ) as f32,
+                coverage: coverage(V2::new(x as f32, y as f32), sample_depth, &self.segments)
+                    as f32,
             },
             Region::Span { start_x, end_x, y } => ShadeCommand::Span {
                 start_x: start_x as f32,

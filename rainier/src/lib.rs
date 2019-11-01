@@ -3,7 +3,7 @@
 mod gpu;
 
 pub use self::gpu::{Shader, UniformBuffer};
-pub use amicola::{Polygon, V2, V4};
+pub use amicola::{Polygon, SampleDepth, V2, V4};
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
@@ -12,7 +12,10 @@ use self::gpu::*;
 use amicola::*;
 use failure::Error;
 use image::{ImageBuffer, Rgba};
+use nalgebra::{base::*, Matrix};
 use std::{convert::TryFrom, path::PathBuf, rc::Rc};
+
+pub type V3 = Matrix<f32, U3, U1, ArrayStorage<f32, U3, U1>>;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -24,11 +27,11 @@ pub struct Options {
     pub seed: u64,
 
     /// Width of view pane.
-    #[structopt(short = "w", long = "width", default_value = "1024")]
+    #[structopt(short = "w", long = "width", default_value = "512")]
     pub width: u32,
 
     /// Height of view pane.
-    #[structopt(short = "h", long = "height", default_value = "512")]
+    #[structopt(short = "h", long = "height", default_value = "650")]
     pub height: u32,
 
     /// Scale of view pane.
@@ -202,6 +205,7 @@ pub struct Composition {
     current_shader: Shader,
     current_color: V4,
     scale: f32,
+    current_sample_depth: SampleDepth,
     elements: Vec<Element>,
 }
 
@@ -212,11 +216,16 @@ impl Composition {
             current_shader: default_shader,
             current_color: V4::new(1.0, 1.0, 1.0, 1.0),
             scale: 1.0,
+            current_sample_depth: SampleDepth::Single,
             elements: vec![],
         }
     }
 
     pub fn draw(&mut self, element: impl Draw) { element.draw(self); }
+
+    pub fn set_sample_depth(&mut self, sample_depth: SampleDepth) {
+        self.current_sample_depth = sample_depth;
+    }
 
     pub fn set_scale(&mut self, scale: f32) { self.scale = scale; }
 
@@ -231,11 +240,14 @@ impl Composition {
     pub fn fill(&mut self) {
         let mut path = vec![];
         std::mem::swap(&mut self.current_path, &mut path);
+
+        let sample_depth = self.current_sample_depth;
         self.elements.push(Element {
             path,
             color: self.current_color,
             shader: self.current_shader.clone(),
             raster_method: RasterMethod::Fill,
+            sample_depth,
         });
     }
 }

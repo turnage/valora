@@ -1,5 +1,5 @@
 use crate::Result;
-use amicola::{Polygon, RasterMethod, RegionList, ShadeCommand, V2, V4};
+use amicola::{Polygon, RasterMethod, RegionList, SampleDepth, ShadeCommand, V2, V4};
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
@@ -63,6 +63,7 @@ pub struct Element {
     pub color: V4,
     pub raster_method: RasterMethod,
     pub shader: Shader,
+    pub sample_depth: SampleDepth,
 }
 
 pub struct Gpu {
@@ -226,7 +227,7 @@ impl Gpu {
                         };
 
                         RegionList::from(poly)
-                            .shade_commands()
+                            .shade_commands(element.sample_depth)
                             .flat_map(|cmd| match cmd {
                                 ShadeCommand::Boundary { x, y, coverage } => {
                                     let rgba = {

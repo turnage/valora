@@ -8,6 +8,7 @@ mod sampling;
 
 pub use self::geo::{Polygon, V2, V4};
 pub use regions::{RegionList, ShadeCommand};
+pub use sampling::SampleDepth;
 
 /// The method by which the rasterizer will raster the vector path.
 #[derive(Debug, Clone, Copy)]
