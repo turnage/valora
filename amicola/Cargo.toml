@@ -10,6 +10,11 @@ failure_derive = "0.1.5"
 itertools = "0.8.0"
 nalgebra = "0.18.0"
 float-ord = "0.2.0"
+log = "0.4.8"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"
+pretty_env_logger = "0.3.1"
+
+[features]
+release_max_level_off = []

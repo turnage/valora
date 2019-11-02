@@ -3,6 +3,7 @@
 use crate::{geo::*, grid_lines::*, path::*, sampling::*};
 use float_ord::FloatOrd;
 use itertools::Itertools;
+use log::trace;
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
@@ -32,6 +33,7 @@ pub enum ShadeCommand {
 struct Hit {
     x: isize,
     y: isize,
+    subpixel_y: f32,
     segment_id: usize,
 }
 
@@ -118,7 +120,12 @@ impl RegionList {
                 .filter_map(|(t0, t1)| segment.sample_t((t0.0 + t1.0) / 2.0))
             {
                 let (x, y) = (hit_point.x.floor() as isize, hit_point.y.floor() as isize);
-                let hit = Hit { x, y, segment_id };
+                let hit = Hit {
+                    x,
+                    y,
+                    subpixel_y: hit_point.y,
+                    segment_id,
+                };
                 self.hits.insert(hit);
             }
         }
@@ -158,11 +165,24 @@ impl RegionList {
 
             let mut Span = None;
 
+            trace!("Considering new hit:");
+            trace!("Last hit: {:?}", last_hit);
+            trace!("New hit: {:?}", hit);
+            trace!("Winding number: {:?}", winding_number);
+
             let is_new_edge = last_hit
                 .as_ref()
-                .map(|last_hit: &Hit| last_hit.segment_id != hit.segment_id)
+                .map(
+                    |last_hit: &Hit| match last_hit.segment_id != hit.segment_id {
+                        true => self.segments[hit.segment_id]
+                            .sample_y(last_hit.subpixel_y)
+                            .is_some(),
+                        false => false,
+                    },
+                )
                 .unwrap_or(true);
             if is_new_edge {
+                trace!("Incrementing winding number; now: {:?}", winding_number);
                 winding_number += 1;
             }
 
@@ -583,6 +603,119 @@ mod test {
                 Boundary { x: 5, y: 8 },
                 Boundary { x: 8, y: 8 },
                 Boundary { x: 9, y: 8 }
+            ]
+        );
+    }
+
+    #[test]
+    fn low_res_circle() {
+        use pretty_env_logger;
+        use Region::*;
+
+        pretty_env_logger::init();
+
+        let circle = Polygon::try_from(vec![
+            V2::new(5., 0.),
+            V2::new(0.67, 2.5),
+            V2::new(0.67, 7.5),
+            V2::new(5., 10.),
+            V2::new(9.33, 7.5),
+            V2::new(9.33, 2.5),
+        ])
+        .expect("circle");
+
+        let regions = RegionList::from(circle);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 3, y: 0 },
+                Boundary { x: 4, y: 0 },
+                Boundary { x: 5, y: 0 },
+                Boundary { x: 6, y: 0 },
+                //
+                Boundary { x: 1, y: 1 },
+                Boundary { x: 2, y: 1 },
+                Boundary { x: 3, y: 1 },
+                Boundary { x: 6, y: 1 },
+                Span {
+                    start_x: 4,
+                    end_x: 6,
+                    y: 1
+                },
+                Boundary { x: 7, y: 1 },
+                Boundary { x: 8, y: 1 },
+                //
+                Boundary { x: 0, y: 2 },
+                Boundary { x: 1, y: 2 },
+                Boundary { x: 8, y: 2 },
+                Span {
+                    start_x: 2,
+                    end_x: 8,
+                    y: 2,
+                },
+                Boundary { x: 9, y: 2 },
+                //
+                Boundary { x: 0, y: 3 },
+                Boundary { x: 9, y: 3 },
+                Span {
+                    start_x: 1,
+                    end_x: 9,
+                    y: 3,
+                },
+                //
+                Boundary { x: 0, y: 4 },
+                Boundary { x: 9, y: 4 },
+                Span {
+                    start_x: 1,
+                    end_x: 9,
+                    y: 4,
+                },
+                //
+                Boundary { x: 0, y: 5 },
+                Boundary { x: 9, y: 5 },
+                Span {
+                    start_x: 1,
+                    end_x: 9,
+                    y: 5,
+                },
+                //
+                Boundary { x: 0, y: 6 },
+                Boundary { x: 9, y: 6 },
+                Span {
+                    start_x: 1,
+                    end_x: 9,
+                    y: 6,
+                },
+                //
+                Boundary { x: 0, y: 7 },
+                Boundary { x: 1, y: 7 },
+                Boundary { x: 8, y: 7 },
+                Span {
+                    start_x: 2,
+                    end_x: 8,
+                    y: 7,
+                },
+                Boundary { x: 9, y: 7 },
+                //
+                Boundary { x: 1, y: 8 },
+                Boundary { x: 2, y: 8 },
+                Boundary { x: 3, y: 8 },
+                Boundary { x: 6, y: 8 },
+                Span {
+                    start_x: 4,
+                    end_x: 6,
+                    y: 8,
+                },
+                Boundary { x: 7, y: 8 },
+                Boundary { x: 8, y: 8 },
+                //
+                Boundary { x: 3, y: 9 },
+                Boundary { x: 4, y: 9 },
+                Boundary { x: 5, y: 9 },
+                Boundary { x: 6, y: 9 },
             ]
         );
     }
