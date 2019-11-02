@@ -609,10 +609,7 @@ mod test {
 
     #[test]
     fn low_res_circle() {
-        use pretty_env_logger;
         use Region::*;
-
-        pretty_env_logger::init();
 
         let circle = Polygon::try_from(vec![
             V2::new(5., 0.),
@@ -716,6 +713,39 @@ mod test {
                 Boundary { x: 4, y: 9 },
                 Boundary { x: 5, y: 9 },
                 Boundary { x: 6, y: 9 },
+            ]
+        );
+    }
+
+    #[test]
+    fn subpixel_adjacency() {
+        use Region::*;
+
+        let subpixel_adjacency = Polygon::try_from(vec![
+            V2::new(0., 0.),
+            V2::new(0.25, 0.25),
+            V2::new(0.5, 0.5),
+            V2::new(0.75, 0.75),
+            V2::new(1.0, 1.0),
+            V2::new(5.0, 1.0),
+            V2::new(5.0, 0.0),
+        ])
+        .expect("subpixel_adjacency");
+
+        let regions = RegionList::from(subpixel_adjacency);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 5, y: 0 },
+                Span {
+                    start_x: 1,
+                    end_x: 5,
+                    y: 0
+                }
             ]
         );
     }
