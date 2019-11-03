@@ -1,5 +1,5 @@
 use crate::Result;
-use amicola::{Polygon, RasterMethod, RegionList, SampleDepth, ShadeCommand, V2, V4};
+use amicola::{fill_path, Method, Path, SampleDepth, ShadeCommand, V2, V4};
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
@@ -18,7 +18,7 @@ use glium::{
 use glutin::dpi::PhysicalSize;
 use itertools::Itertools;
 use rand::random;
-use std::{convert::TryFrom, rc::Rc};
+use std::rc::Rc;
 
 #[derive(Debug, Copy, Clone)]
 pub struct GpuVertex {
@@ -61,7 +61,7 @@ impl Uniforms for UniformBuffer {
 pub struct Element {
     pub path: Vec<V2>,
     pub color: V4,
-    pub raster_method: RasterMethod,
+    pub raster_method: Method,
     pub shader: Shader,
     pub sample_depth: SampleDepth,
 }
@@ -219,46 +219,37 @@ impl Gpu {
                     element.color.w,
                 ];
                 match element.raster_method {
-                    RasterMethod::Fill => {
-                        let poly = match Polygon::try_from(element.path) {
-                            Ok(poly) => poly,
-                            // An unclosed path has no fill.
-                            _ => return vec![],
-                        };
-
-                        RegionList::from(poly)
-                            .shade_commands(element.sample_depth)
-                            .flat_map(|cmd| match cmd {
-                                ShadeCommand::Boundary { x, y, coverage } => {
-                                    let rgba = {
-                                        let mut copy = rgba;
-                                        copy[3] *= coverage;
-                                        copy
-                                    };
-                                    vec![
-                                        GpuVertex {
-                                            vpos: [x, y],
-                                            vcol: rgba,
-                                        },
-                                        GpuVertex {
-                                            vpos: [x + 1.0, y],
-                                            vcol: rgba,
-                                        },
-                                    ]
-                                }
-                                ShadeCommand::Span { start_x, end_x, y } => vec![
+                    Method::Fill => fill_path(&Path::from(element.path), element.sample_depth)
+                        .flat_map(|cmd| match cmd {
+                            ShadeCommand::Boundary { x, y, coverage } => {
+                                let rgba = {
+                                    let mut copy = rgba;
+                                    copy[3] *= coverage;
+                                    copy
+                                };
+                                vec![
                                     GpuVertex {
-                                        vpos: [start_x, y],
+                                        vpos: [x as f32, y as f32],
                                         vcol: rgba,
                                     },
                                     GpuVertex {
-                                        vpos: [end_x, y],
+                                        vpos: [x as f32 + 1.0, y as f32],
                                         vcol: rgba,
                                     },
-                                ],
-                            })
-                            .collect::<Vec<GpuVertex>>()
-                    }
+                                ]
+                            }
+                            ShadeCommand::Span { x, y } => vec![
+                                GpuVertex {
+                                    vpos: [x.start as f32, y as f32],
+                                    vcol: rgba,
+                                },
+                                GpuVertex {
+                                    vpos: [x.end as f32, y as f32],
+                                    vcol: rgba,
+                                },
+                            ],
+                        })
+                        .collect::<Vec<GpuVertex>>(),
                     _ => unimplemented!(),
                 }
             })

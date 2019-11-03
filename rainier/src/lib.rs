@@ -3,7 +3,7 @@
 mod gpu;
 
 pub use self::gpu::{Shader, UniformBuffer};
-pub use amicola::{Polygon, SampleDepth, V2, V4};
+pub use amicola::{Path, SampleDepth, V2, V4};
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
@@ -13,7 +13,7 @@ use amicola::*;
 use failure::Error;
 use image::{ImageBuffer, Rgba};
 use nalgebra::{base::*, Matrix};
-use std::{convert::TryFrom, path::PathBuf, rc::Rc};
+use std::{path::PathBuf, rc::Rc};
 
 pub type V3 = Matrix<f32, U3, U1, ArrayStorage<f32, U3, U1>>;
 
@@ -79,14 +79,13 @@ impl World {
 
     pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
 
-    pub fn full_frame(&self) -> Polygon {
-        Polygon::try_from(vec![
+    pub fn full_frame(&self) -> Path {
+        Path::from(vec![
             V2::new(0.0, 0.0),
             V2::new(self.width, 0.0),
             V2::new(self.width, self.height),
             V2::new(0.0, self.height),
         ])
-        .unwrap()
     }
 }
 
@@ -246,7 +245,7 @@ impl Composition {
             path,
             color: self.current_color,
             shader: self.current_shader.clone(),
-            raster_method: RasterMethod::Fill,
+            raster_method: Method::Fill,
             sample_depth,
         });
     }

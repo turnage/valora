@@ -1,8 +1,11 @@
 [package]
 name = "amicola"
 version = "0.1.0"
-authors = ["Payton Turnage <paytonturnage@gmail.com>"]
+authors = ["Payton Turnage <pt@paytonturnage.com>"]
 edition = "2018"
+license = "MIT"
+homepage = "https://github.com/turnage/valora/amicola"
+description = "A rasterizer for fine art"
 
 [dependencies]
 failure = "0.1.5"

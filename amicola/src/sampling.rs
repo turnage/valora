@@ -2,6 +2,7 @@
 
 use crate::{geo::*, path::*};
 
+/// Super sampling depths for the hammersley pattern.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SampleDepth {
     Single,

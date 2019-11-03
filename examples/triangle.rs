@@ -213,15 +213,18 @@ fn main() {
             comp.fill();
 
             let c = world.center();
-            comp.set_sample_depth(SampleDepth::Super64);
+            comp.set_sample_depth(SampleDepth::Super4);
 
             for i in (0..100).rev() {
-                comp.draw(NgonIter::new(0., i as f32 * 5., c, 100));
-                if i % 2 == 0 {
-                    comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
+                comp.draw(NgonIter::new(0., i as f32 * 20., c, 100));
+                let x = std::f32::consts::PI * (i as f32 / 100.0);
+                let t = if i % 2 == 0 {
+                    x
                 } else {
-                    comp.set_color(V4::new(0.0, 0.0, 0.0, 1.0));
-                }
+                    std::f32::consts::PI - x - 1.
+                };
+                let c = palette.sample(t);
+                comp.set_color(V4::new(c.x, c.y, c.z, 1.0));
                 comp.fill();
             }
 

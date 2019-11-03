@@ -24,10 +24,17 @@ enum Region {
     },
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+/// A command to shade a pixel.
+#[derive(Clone, Debug, PartialEq)]
 pub enum ShadeCommand {
-    Boundary { x: f32, y: f32, coverage: f32 },
-    Span { start_x: f32, end_x: f32, y: f32 },
+    /// A command to shade a pixel at the boundary of path's raster area.
+    /// Coverage indicates what percentage of the pixel is covered by the
+    /// raster area. This usually maps to the alpha channel.
+    Boundary { x: isize, y: isize, coverage: f32 },
+    /// A command to shade a span of the framebuffer. Spans are completely
+    /// covered in the raster area, so the alpha channel value for spans
+    /// is usually 1.0.
+    Span { x: Range<isize>, y: isize },
 }
 
 #[derive(Debug, Clone)]
@@ -70,8 +77,8 @@ pub struct RegionList {
     segments: Vec<MonotonicSegment>,
 }
 
-impl From<Polygon> for RegionList {
-    fn from(poly: Polygon) -> Self {
+impl From<&Path> for RegionList {
+    fn from(poly: &Path) -> Self {
         let mut list = RegionList::default();
 
         list.push(poly);
@@ -81,9 +88,9 @@ impl From<Polygon> for RegionList {
 }
 
 impl RegionList {
-    fn push(&mut self, poly: Polygon) {
+    fn push(&mut self, poly: &Path) {
         let path: Vec<MonotonicSegment> = poly
-            .edges()
+            .edges_wrapped()
             .map(MonotonicSegment::try_from)
             .filter_map(Result::ok)
             .collect();
@@ -143,30 +150,26 @@ impl RegionList {
         self.segments = path;
     }
 
-    pub fn shade_commands<'a>(
-        &'a self,
-        sample_depth: SampleDepth,
-    ) -> impl Iterator<Item = ShadeCommand> + 'a {
-        self.regions().map(move |region| match region {
+    pub fn shade_commands(self, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
+        let segments = self.segments;
+        Self::regions(self.hits).map(move |region| match region {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
-                x: x as f32,
-                y: y as f32,
-                coverage: coverage(V2::new(x as f32, y as f32), sample_depth, &self.segments)
-                    as f32,
+                x: x,
+                y: y,
+                coverage: coverage(V2::new(x as f32, y as f32), sample_depth, &segments),
             },
             Region::Span { start_x, end_x, y } => ShadeCommand::Span {
-                start_x: start_x as f32,
-                end_x: end_x as f32,
-                y: y as f32,
+                x: start_x..end_x,
+                y: y,
             },
         })
     }
 
-    fn regions<'a>(&'a self) -> impl Iterator<Item = Region> + 'a {
+    fn regions(hits: BTreeSet<Hit>) -> impl Iterator<Item = Region> {
         let mut y = 0;
         let mut last_hit = None;
         let mut winding_number = 0;
-        self.hits.iter().flat_map(move |hit| {
+        hits.into_iter().flat_map(move |hit| {
             if hit.y != y {
                 last_hit = None;
                 winding_number = 0;
@@ -187,18 +190,14 @@ impl RegionList {
 
             let is_new_edge = last_hit
                 .as_ref()
-                .map(
-                    |last_hit: &Hit| match last_hit.segment_id != hit.segment_id {
-                        true => {
-                            is_gap_between_hits
-                                || last_hit.y_range.contains(&hit.y_range.start)
-                                || last_hit.y_range.contains(&hit.y_range.end)
-                                || hit.y_range.contains(&last_hit.y_range.start)
-                                || hit.y_range.contains(&last_hit.y_range.end)
-                        }
-                        false => false,
-                    },
-                )
+                .map(|last_hit: &Hit| {
+                    last_hit.segment_id != hit.segment_id
+                        && (is_gap_between_hits
+                            || last_hit.y_range.contains(&hit.y_range.start)
+                            || last_hit.y_range.contains(&hit.y_range.end)
+                            || hit.y_range.contains(&last_hit.y_range.start)
+                            || hit.y_range.contains(&last_hit.y_range.end))
+                })
                 .unwrap_or(true);
             if is_new_edge {
                 winding_number += 1;
@@ -232,12 +231,11 @@ mod test {
 
     #[test]
     fn small_triangle_boundaries() {
-        let triangle = Polygon::try_from(vec![
+        let triangle = Path::from(vec![
             V2::new(0.0, 0.0),
             V2::new(0.0, 2.0),
             V2::new(2.0, 0.0),
-        ])
-        .expect("triangle");
+        ]);
 
         let regions = RegionList::from(triangle);
 
@@ -255,12 +253,11 @@ mod test {
 
     #[test]
     fn small_triangle_off_screen_to_left() {
-        let triangle = Polygon::try_from(vec![
+        let triangle = Path::from(vec![
             V2::new(-1.0, 0.0),
             V2::new(3.0, 0.0),
             V2::new(3.0, 3.0),
-        ])
-        .expect("triangle");
+        ]);
 
         let regions = RegionList::from(triangle);
 
@@ -294,12 +291,11 @@ mod test {
 
     #[test]
     fn triangle_regions() {
-        let triangle = Polygon::try_from(vec![
+        let triangle = Path::from(vec![
             V2::new(0.0, 0.0),
             V2::new(0.0, 5.0),
             V2::new(5.0, 0.0),
-        ])
-        .expect("triangle");
+        ]);
 
         let regions = RegionList::from(triangle);
 
@@ -338,12 +334,11 @@ mod test {
 
     #[test]
     fn inverted_triangle_regions() {
-        let triangle = Polygon::try_from(vec![
+        let triangle = Path::from(vec![
             V2::new(0.0, 3.0),
             V2::new(4.0, 3.0),
             V2::new(2.0, 0.0),
-        ])
-        .expect("triangle");
+        ]);
 
         let regions = RegionList::from(triangle);
 
@@ -371,13 +366,12 @@ mod test {
 
     #[test]
     fn quadrilateral_regions() {
-        let quad = Polygon::try_from(vec![
+        let quad = Path::from(vec![
             V2::new(3.0, 2.0),
             V2::new(6.0, 4.0),
             V2::new(4.0, 7.0),
             V2::new(1.0, 5.0),
-        ])
-        .expect("quad");
+        ]);
 
         let regions = RegionList::from(quad);
 
@@ -424,13 +418,12 @@ mod test {
 
     #[test]
     fn irregular_regions() {
-        let irregular = Polygon::try_from(vec![
+        let irregular = Path::from(vec![
             V2::new(6.18, 5.22),
             V2::new(5.06, 1.07),
             V2::new(2.33, 2.75),
             V2::new(1.69, 6.31),
-        ])
-        .expect("irregular");
+        ]);
 
         let regions = RegionList::from(irregular);
 
@@ -480,13 +473,12 @@ mod test {
 
     #[test]
     fn irregular_regions_2() {
-        let irregular = Polygon::try_from(vec![
+        let irregular = Path::from(vec![
             V2::new(8.83, 7.46),
             V2::new(7.23, 1.53),
             V2::new(3.33, 3.93),
             V2::new(2.42, 9.02),
-        ])
-        .expect("irregular");
+        ]);
 
         let regions = RegionList::from(irregular);
 
@@ -555,14 +547,13 @@ mod test {
     fn self_intersecting_pyramid() {
         use Region::*;
 
-        let self_intersecting = Polygon::try_from(vec![
+        let self_intersecting = Path::from(vec![
             V2::new(3.0, 5.0),
             V2::new(5.0, 9.0),
             V2::new(7.0, 2.0),
             V2::new(9.0, 9.0),
             V2::new(11.0, 5.0),
-        ])
-        .expect("self_intersecting");
+        ]);
 
         pretty_env_logger::init();
 
@@ -625,15 +616,14 @@ mod test {
     fn low_res_circle() {
         use Region::*;
 
-        let circle = Polygon::try_from(vec![
+        let circle = Path::from(vec![
             V2::new(5., 0.),
             V2::new(0.67, 2.5),
             V2::new(0.67, 7.5),
             V2::new(5., 10.),
             V2::new(9.33, 7.5),
             V2::new(9.33, 2.5),
-        ])
-        .expect("circle");
+        ]);
 
         let regions = RegionList::from(circle);
 
@@ -735,7 +725,7 @@ mod test {
     fn subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = Polygon::try_from(vec![
+        let subpixel_adjacency = Path::from(vec![
             V2::new(0., 0.),
             V2::new(0.25, 0.25),
             V2::new(0.5, 0.5),
@@ -743,8 +733,7 @@ mod test {
             V2::new(1.0, 1.0),
             V2::new(5.0, 1.0),
             V2::new(5.0, 0.0),
-        ])
-        .expect("subpixel_adjacency");
+        ]);
 
         let regions = RegionList::from(subpixel_adjacency);
 
@@ -768,7 +757,7 @@ mod test {
     fn double_ended_subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = Polygon::try_from(vec![
+        let subpixel_adjacency = Path::from(vec![
             V2::new(0., 0.),
             V2::new(0.25, 0.25),
             V2::new(0.5, 0.5),
@@ -779,8 +768,7 @@ mod test {
             V2::new(4.5, 0.5),
             V2::new(4.75, 0.25),
             V2::new(5.0, 0.0),
-        ])
-        .expect("subpixel_adjacency");
+        ]);
 
         let regions = RegionList::from(subpixel_adjacency);
 
@@ -804,7 +792,7 @@ mod test {
     fn complex_subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = Polygon::try_from(vec![
+        let subpixel_adjacency = Path::from(vec![
             V2::new(0., 0.),
             V2::new(1.0, 0.1),
             V2::new(2.0, 1.0),
@@ -812,8 +800,7 @@ mod test {
             V2::new(4.0, 0.5),
             V2::new(5.0, 1.0),
             V2::new(5.0, 0.0),
-        ])
-        .expect("subpixel_adjacency");
+        ]);
 
         let regions = RegionList::from(subpixel_adjacency);
 
