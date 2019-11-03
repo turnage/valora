@@ -8,6 +8,7 @@ use std::{
     cmp::Ordering,
     collections::BTreeSet,
     hash::{Hash, Hasher},
+    ops::Range,
 };
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -29,11 +30,11 @@ pub enum ShadeCommand {
     Span { start_x: f32, end_x: f32, y: f32 },
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 struct Hit {
     x: isize,
     y: isize,
-    subpixel_y: f32,
+    y_range: Range<f32>,
     segment_id: usize,
 }
 
@@ -114,16 +115,26 @@ impl RegionList {
                 }
             }
 
-            for hit_point in segment_hits
+            for (y_range, hit_point) in segment_hits
                 .into_iter()
                 .tuple_windows::<(_, _)>()
-                .filter_map(|(t0, t1)| segment.sample_t((t0.0 + t1.0) / 2.0))
+                .filter_map(|(t0, t1)| {
+                    let t0 = segment.sample_t(t0.0)?;
+                    let t1 = segment.sample_t(t1.0)?;
+                    Some((
+                        Range {
+                            start: t0.y,
+                            end: t1.y,
+                        },
+                        (t0 + t1) / 2.,
+                    ))
+                })
             {
                 let (x, y) = (hit_point.x.floor() as isize, hit_point.y.floor() as isize);
                 let hit = Hit {
                     x,
                     y,
-                    subpixel_y: hit_point.y,
+                    y_range,
                     segment_id,
                 };
                 self.hits.insert(hit);
@@ -170,26 +181,30 @@ impl RegionList {
             trace!("New hit: {:?}", hit);
             trace!("Winding number: {:?}", winding_number);
 
+            let is_gap_between_hits = last_hit
+                .as_ref()
+                .map(|last_hit: &Hit| (last_hit.x - hit.x).abs() > 1)
+                .unwrap_or(false);
+
             let is_new_edge = last_hit
                 .as_ref()
                 .map(
                     |last_hit: &Hit| match last_hit.segment_id != hit.segment_id {
-                        true => self.segments[hit.segment_id]
-                            .sample_y(last_hit.subpixel_y)
-                            .is_some(),
+                        true => {
+                            is_gap_between_hits
+                                || last_hit.y_range.contains(&hit.y_range.start)
+                                || last_hit.y_range.contains(&hit.y_range.end)
+                                || hit.y_range.contains(&last_hit.y_range.start)
+                                || hit.y_range.contains(&last_hit.y_range.end)
+                        }
                         false => false,
                     },
                 )
                 .unwrap_or(true);
             if is_new_edge {
-                trace!("Incrementing winding number; now: {:?}", winding_number);
                 winding_number += 1;
+                trace!("Incrementing winding number; now: {:?}\n\n", winding_number);
             }
-
-            let is_gap_between_hits = last_hit
-                .as_ref()
-                .map(|last_hit: &Hit| (last_hit.x - hit.x).abs() > 1)
-                .unwrap_or(false);
 
             match last_hit.take() {
                 Some(last_hit) if is_new_edge && is_gap_between_hits && winding_number % 2 == 0 => {
@@ -201,7 +216,7 @@ impl RegionList {
                 }
                 _ => {}
             };
-            last_hit.replace(*hit);
+            last_hit.replace(hit.clone());
 
             std::iter::successors(Some(Region::Boundary { x: hit.x, y: hit.y }), move |_| {
                 Span.take()
@@ -552,6 +567,8 @@ mod test {
         ])
         .expect("self_intersecting");
 
+        pretty_env_logger::init();
+
         let regions = RegionList::from(self_intersecting);
 
         println!("Regions: {:#?}", regions);
@@ -746,6 +763,78 @@ mod test {
                     end_x: 5,
                     y: 0
                 }
+            ]
+        );
+    }
+
+    #[test]
+    fn double_ended_subpixel_adjacency() {
+        use Region::*;
+
+        let subpixel_adjacency = Polygon::try_from(vec![
+            V2::new(0., 0.),
+            V2::new(0.25, 0.25),
+            V2::new(0.5, 0.5),
+            V2::new(0.75, 0.75),
+            V2::new(1.0, 1.0),
+            V2::new(4.0, 1.0),
+            V2::new(4.25, 0.75),
+            V2::new(4.5, 0.5),
+            V2::new(4.75, 0.25),
+            V2::new(5.0, 0.0),
+        ])
+        .expect("subpixel_adjacency");
+
+        let regions = RegionList::from(subpixel_adjacency);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 4, y: 0 },
+                Span {
+                    start_x: 1,
+                    end_x: 4,
+                    y: 0
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn complex_subpixel_adjacency() {
+        use Region::*;
+
+        let subpixel_adjacency = Polygon::try_from(vec![
+            V2::new(0., 0.),
+            V2::new(1.0, 0.1),
+            V2::new(2.0, 1.0),
+            V2::new(3.0, 1.0),
+            V2::new(4.0, 0.5),
+            V2::new(5.0, 1.0),
+            V2::new(5.0, 0.0),
+        ])
+        .expect("subpixel_adjacency");
+
+        let regions = RegionList::from(subpixel_adjacency);
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.regions().collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 1, y: 0 },
+                Boundary { x: 3, y: 0 },
+                Span {
+                    start_x: 2,
+                    end_x: 3,
+                    y: 0
+                },
+                Boundary { x: 4, y: 0 },
+                Boundary { x: 5, y: 0 },
             ]
         );
     }
