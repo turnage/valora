@@ -107,12 +107,6 @@ impl MonotonicSegment {
         }
     }
 
-    pub fn bookends(&self) -> (V2, V2) {
-        match self.source {
-            MonotonicElement::LineSegment { start, end, .. } => (start, end),
-        }
-    }
-
     pub fn bounds(&self) -> &Bounds {
         match &self.source {
             MonotonicElement::LineSegment { bounds, .. } => bounds,

@@ -150,7 +150,7 @@ impl Gpu {
         elements: impl Iterator<Item = Element>,
     ) -> Result<Rc<Texture2d>> {
         let texture = self.build_texture(width, height)?;
-        for (id, batch) in &elements.group_by(|e| e.shader.id) {
+        for (_id, batch) in &elements.group_by(|e| e.shader.id) {
             let mut batch = batch.peekable();
             let mut first = if let Some(first) = batch.peek() {
                 first.shader.clone()
@@ -208,7 +208,7 @@ impl Gpu {
 
     fn build_buffers(
         &self,
-        mut elements: impl Iterator<Item = Element>,
+        elements: impl Iterator<Item = Element>,
     ) -> Result<(IndexBuffer<u32>, VertexBuffer<GpuVertex>)> {
         let vertices = elements
             .flat_map(|element| {

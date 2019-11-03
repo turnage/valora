@@ -104,7 +104,6 @@ impl RegionList {
 
             for horizontal_line in iter.horizontal() {
                 if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
-                    let floor = intersection.axis.floor();
                     segment_hits.insert(FloatOrd(intersection.t));
                 }
             }
@@ -174,7 +173,7 @@ impl RegionList {
                 y = hit.y;
             }
 
-            let mut Span = None;
+            let mut span = None;
 
             trace!("Considering new hit:");
             trace!("Last hit: {:?}", last_hit);
@@ -208,7 +207,7 @@ impl RegionList {
 
             match last_hit.take() {
                 Some(last_hit) if is_new_edge && is_gap_between_hits && winding_number % 2 == 0 => {
-                    Span = Some(Region::Span {
+                    span = Some(Region::Span {
                         start_x: last_hit.x + 1,
                         end_x: hit.x,
                         y: hit.y,
@@ -219,12 +218,10 @@ impl RegionList {
             last_hit.replace(hit.clone());
 
             std::iter::successors(Some(Region::Boundary { x: hit.x, y: hit.y }), move |_| {
-                Span.take()
+                span.take()
             })
         })
     }
-
-    fn scan_column(&self, x: f32) -> isize { x.floor() as isize }
 }
 
 #[cfg(test)]
