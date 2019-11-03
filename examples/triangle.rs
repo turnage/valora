@@ -89,16 +89,10 @@ impl Iterator for NgonIter {
 
 impl Draw for NgonIter {
     fn draw(&self, comp: &mut Composition) {
-        for v in *self {
+        for (i, v) in (*self).enumerate() {
             comp.line_to(v);
         }
-        comp.fill();
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum TileFocus {
-    Center,
 }
 
 pub struct GridIter {
@@ -109,19 +103,16 @@ pub struct GridIter {
 impl GridIter {
     pub fn new(cols: usize, rows: usize) -> Self { Self { cols, rows } }
 
-    pub fn by_tile(
-        &self,
-        region_width: f32,
-        region_height: f32,
-        tile_focus: TileFocus,
-    ) -> impl Iterator<Item = V2> {
+    pub fn tiles(&self, region_width: f32, region_height: f32) -> impl Iterator<Item = Rect> {
         let tile_width = region_width / (self.cols as f32);
         let tile_height = region_height / (self.rows as f32);
-        iproduct!(0..(self.cols), 0..(self.rows)).map(move |(i, j)| match tile_focus {
-            TileFocus::Center => {
-                let x = (i as f32) * tile_width + (tile_width / 2.0);
-                let y = (j as f32) * tile_height + (tile_height / 2.0);
-                V2::new(x, y)
+        iproduct!(0..(self.cols), 0..(self.rows)).map(move |(i, j)| {
+            let x = (i as f32) * tile_width;
+            let y = (j as f32) * tile_height;
+            Rect {
+                bottom_left: V2::new(x, y),
+                width: tile_width,
+                height: tile_height,
             }
         })
     }
@@ -163,6 +154,40 @@ fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
     (min + max) / 2.0
 }
 
+pub struct Rect {
+    bottom_left: V2,
+    width: f32,
+    height: f32,
+}
+
+impl Rect {
+    pub fn center(&self) -> V2 {
+        V2::new(
+            self.bottom_left.x + self.width / 2.,
+            self.bottom_left.y + self.height / 2.,
+        )
+    }
+}
+
+impl Draw for Rect {
+    fn draw(&self, comp: &mut Composition) {
+        comp.move_to(self.bottom_left);
+        for v in [
+            V2::new(self.bottom_left.x + self.width, self.bottom_left.y),
+            V2::new(
+                self.bottom_left.x + self.width,
+                self.bottom_left.y + self.height,
+            ),
+            V2::new(self.bottom_left.x, self.bottom_left.y + self.height),
+        ]
+        .iter()
+        .copied()
+        {
+            comp.line_to(v);
+        }
+    }
+}
+
 const NOISE_SHADER: &str = include_str!("noise.frag");
 
 fn main() {
@@ -181,36 +206,24 @@ fn main() {
             V3::new(0.0, 0.25, 0.25),
         );
         render_gate.render_frames(|ctx, mut comp| {
-            comp.set_color(V4::new(1.0, 1.0, 0.7, 1.0));
+            comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
             for v in world.full_frame().vertices() {
                 comp.line_to(*v);
             }
             comp.fill();
 
+            let c = world.center();
             comp.set_sample_depth(SampleDepth::Super64);
-            let triangles = GridIter::new(50, 50)
-                .by_tile(world.width * 1.5, world.height * 1.2, TileFocus::Center)
-                .map(|p| {
-                    let c = palette.sample(
-                        (p.x + 40.0 + (fbm.get([p.x as f64, p.y as f64]) * 30.0) as f32) / 80.0,
-                    );
-                    (
-                        V4::new(c.x, c.y, c.z, 1.0),
-                        NgonIter::triangle(0.0, 25.0, V2::new(p.x, p.y - 18.0 * c.x)),
-                    )
-                })
-                .for_each(|(c, t)| {
-                    comp.set_color(c);
-                    comp.draw(t);
-                });
 
-            comp.set_sample_depth(SampleDepth::Single);
-            comp.set_color(V4::new(1.0, 1.0, 1.0, 0.07));
-            comp.set_shader(noise_shader.clone());
-            for v in world.full_frame().vertices() {
-                comp.line_to(*v);
+            for i in (0..100).rev() {
+                comp.draw(NgonIter::new(0., i as f32 * 5., c, 100));
+                if i % 2 == 0 {
+                    comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
+                } else {
+                    comp.set_color(V4::new(0.0, 0.0, 0.0, 1.0));
+                }
+                comp.fill();
             }
-            comp.fill();
 
             println!("Enqued; render begins now");
         })
