@@ -10,6 +10,8 @@ members = ["amicola", "rainier"]
 [dependencies]
 amicola = { path = "amicola" }
 rainier = { path = "rainier" }
+qpine = { path = "qpine" }
+formo = { path = "formo" }
 
 [dev-dependencies]
 itertools = "0.8.0"
