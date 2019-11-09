@@ -1,12 +1,13 @@
 //! A rasterizer for fine art.
 
+mod ext;
 mod geo;
 mod grid_lines;
 mod path;
 mod regions;
 mod sampling;
 
-pub use self::geo::{Path, V2, V4};
+pub use self::geo::{Path, PathSegment, V2, V4};
 pub use regions::ShadeCommand;
 pub use sampling::SampleDepth;
 

@@ -3,7 +3,7 @@
 mod gpu;
 
 pub use self::gpu::{Shader, UniformBuffer};
-pub use amicola::{Path, SampleDepth, V2, V4};
+pub use amicola::{Path, PathSegment, SampleDepth, V2, V4};
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
@@ -80,12 +80,14 @@ impl World {
     pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
 
     pub fn full_frame(&self) -> Path {
-        Path::from(vec![
-            V2::new(0.0, 0.0),
-            V2::new(self.width, 0.0),
-            V2::new(self.width, self.height),
-            V2::new(0.0, self.height),
-        ])
+        vec![
+            PathSegment::MoveTo(V2::new(0.0, 0.0)),
+            PathSegment::LineTo(V2::new(self.width, 0.0)),
+            PathSegment::LineTo(V2::new(self.width, self.height)),
+            PathSegment::LineTo(V2::new(0.0, self.height)),
+        ]
+        .into_iter()
+        .collect()
     }
 }
 
@@ -200,7 +202,7 @@ pub fn run(
 }
 
 pub struct Composition {
-    current_path: Vec<V2>,
+    current_path: Vec<PathSegment>,
     current_shader: Shader,
     current_color: V4,
     scale: f32,
@@ -228,9 +230,14 @@ impl Composition {
 
     pub fn set_scale(&mut self, scale: f32) { self.scale = scale; }
 
-    pub fn move_to(&mut self, dest: V2) { self.current_path = vec![dest * self.scale]; }
+    pub fn move_to(&mut self, dest: V2) {
+        self.current_path = vec![PathSegment::MoveTo(dest * self.scale)];
+    }
 
-    pub fn line_to(&mut self, dest: V2) { self.current_path.push(dest * self.scale); }
+    pub fn line_to(&mut self, dest: V2) {
+        self.current_path
+            .push(PathSegment::LineTo(dest * self.scale));
+    }
 
     pub fn set_color(&mut self, color: V4) { self.current_color = color; }
 

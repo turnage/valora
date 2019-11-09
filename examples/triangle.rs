@@ -213,20 +213,12 @@ fn main() {
             comp.fill();
 
             let c = world.center();
-            comp.set_sample_depth(SampleDepth::Super4);
+            comp.set_sample_depth(SampleDepth::Super64);
 
-            for i in (0..100).rev() {
-                comp.draw(NgonIter::new(0., i as f32 * 20., c, 100));
-                let x = std::f32::consts::PI * (i as f32 / 100.0);
-                let t = if i % 2 == 0 {
-                    x
-                } else {
-                    std::f32::consts::PI - x - 1.
-                };
-                let c = palette.sample(t);
-                comp.set_color(V4::new(c.x, c.y, c.z, 1.0));
-                comp.fill();
-            }
+            comp.set_shader(noise_shader.clone());
+            comp.draw(NgonIter::new(0., 300., c, 10000));
+            comp.set_color(V4::new(1., 0., 0., 1.));
+            comp.fill();
 
             println!("Enqued; render begins now");
         })

@@ -89,11 +89,8 @@ impl From<&Path> for RegionList {
 
 impl RegionList {
     fn push(&mut self, poly: &Path) {
-        let path: Vec<MonotonicSegment> = poly
-            .edges_wrapped()
-            .map(MonotonicSegment::try_from)
-            .filter_map(Result::ok)
-            .collect();
+        let path: Vec<MonotonicSegment> =
+            poly.links().flat_map(MonotonicSegment::from_link).collect();
 
         for (segment_id, segment) in path.iter().enumerate() {
             let bounds = segment.bounds();
