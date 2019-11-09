@@ -1,6 +1,12 @@
 //! Raster region search and enumeration.
 
-use crate::{geo::*, grid_lines::*, path::*, sampling::*};
+use crate::{
+    grid_lines::*,
+    monotonics::{MonotonicCurve, MonotonicSegment},
+    path::Path,
+    sampling::*,
+    V2,
+};
 use float_ord::FloatOrd;
 use itertools::Itertools;
 use log::trace;

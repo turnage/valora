@@ -1,15 +1,21 @@
 //! A rasterizer for fine art.
 
+mod bounds;
 mod ext;
-mod geo;
 mod grid_lines;
+mod monotonics;
 mod path;
 mod regions;
 mod sampling;
 
-pub use self::geo::{Path, PathSegment, V2, V4};
+pub use self::path::{Path, PathSegment};
 pub use regions::ShadeCommand;
 pub use sampling::SampleDepth;
+
+use nalgebra::{base::*, Matrix};
+
+pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
+pub type V4 = Matrix<f32, U4, U1, ArrayStorage<f32, U4, U1>>;
 
 use regions::RegionList;
 

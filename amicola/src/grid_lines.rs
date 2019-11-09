@@ -1,6 +1,6 @@
 //! Descriptions of a raster grid.
 
-use crate::path::*;
+use crate::bounds::Bounds;
 
 pub enum GridLinesIter<'a> {
     Bounds(&'a Bounds),

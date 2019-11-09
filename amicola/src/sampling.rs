@@ -1,6 +1,9 @@
 //! Super sampling patterns.
 
-use crate::{geo::*, path::*};
+use crate::{
+    monotonics::{MonotonicCurve, MonotonicSegment},
+    V2,
+};
 
 /// Super sampling depths for the hammersley pattern.
 #[derive(Debug, Clone, Copy, PartialEq)]

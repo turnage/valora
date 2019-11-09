@@ -1,0 +1,1 @@
+//! Quadratic Bezier segments.
