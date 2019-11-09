@@ -3,7 +3,7 @@
 use crate::{
     grid_lines::*,
     monotonics::{MonotonicCurve, MonotonicSegment},
-    path::Path,
+    path::{Path, PathSegment},
     sampling::*,
     V2,
 };
@@ -234,18 +234,20 @@ mod test {
 
     #[test]
     fn small_triangle_boundaries() {
-        let triangle = Path::from(vec![
-            V2::new(0.0, 0.0),
-            V2::new(0.0, 2.0),
-            V2::new(2.0, 0.0),
-        ]);
+        let triangle = vec![
+            PathSegment::LineTo(V2::new(0.0, 0.0)),
+            PathSegment::LineTo(V2::new(0.0, 2.0)),
+            PathSegment::LineTo(V2::new(2.0, 0.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(triangle);
+        let regions = RegionList::from(&triangle);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 1, y: 0 },
@@ -256,18 +258,20 @@ mod test {
 
     #[test]
     fn small_triangle_off_screen_to_left() {
-        let triangle = Path::from(vec![
-            V2::new(-1.0, 0.0),
-            V2::new(3.0, 0.0),
-            V2::new(3.0, 3.0),
-        ]);
+        let triangle = vec![
+            PathSegment::LineTo(V2::new(-1.0, 0.0)),
+            PathSegment::LineTo(V2::new(3.0, 0.0)),
+            PathSegment::LineTo(V2::new(3.0, 3.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(triangle);
+        let regions = RegionList::from(&triangle);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: -1, y: 0 },
                 Region::Boundary { x: 0, y: 0 },
@@ -294,18 +298,20 @@ mod test {
 
     #[test]
     fn triangle_regions() {
-        let triangle = Path::from(vec![
-            V2::new(0.0, 0.0),
-            V2::new(0.0, 5.0),
-            V2::new(5.0, 0.0),
-        ]);
+        let triangle = vec![
+            PathSegment::LineTo(V2::new(0.0, 0.0)),
+            PathSegment::LineTo(V2::new(0.0, 5.0)),
+            PathSegment::LineTo(V2::new(5.0, 0.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(triangle);
+        let regions = RegionList::from(&triangle);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 4, y: 0 },
@@ -337,18 +343,20 @@ mod test {
 
     #[test]
     fn inverted_triangle_regions() {
-        let triangle = Path::from(vec![
-            V2::new(0.0, 3.0),
-            V2::new(4.0, 3.0),
-            V2::new(2.0, 0.0),
-        ]);
+        let triangle = vec![
+            PathSegment::LineTo(V2::new(0.0, 3.0)),
+            PathSegment::LineTo(V2::new(4.0, 3.0)),
+            PathSegment::LineTo(V2::new(2.0, 0.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(triangle);
+        let regions = RegionList::from(&triangle);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 1, y: 0 },
                 Region::Boundary { x: 2, y: 0 },
@@ -369,19 +377,21 @@ mod test {
 
     #[test]
     fn quadrilateral_regions() {
-        let quad = Path::from(vec![
-            V2::new(3.0, 2.0),
-            V2::new(6.0, 4.0),
-            V2::new(4.0, 7.0),
-            V2::new(1.0, 5.0),
-        ]);
+        let quad = vec![
+            PathSegment::LineTo(V2::new(3.0, 2.0)),
+            PathSegment::LineTo(V2::new(6.0, 4.0)),
+            PathSegment::LineTo(V2::new(4.0, 7.0)),
+            PathSegment::LineTo(V2::new(1.0, 5.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(quad);
+        let regions = RegionList::from(&quad);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 2, y: 2 },
                 Region::Boundary { x: 3, y: 2 },
@@ -421,19 +431,21 @@ mod test {
 
     #[test]
     fn irregular_regions() {
-        let irregular = Path::from(vec![
-            V2::new(6.18, 5.22),
-            V2::new(5.06, 1.07),
-            V2::new(2.33, 2.75),
-            V2::new(1.69, 6.31),
-        ]);
+        let irregular = vec![
+            PathSegment::LineTo(V2::new(6.18, 5.22)),
+            PathSegment::LineTo(V2::new(5.06, 1.07)),
+            PathSegment::LineTo(V2::new(2.33, 2.75)),
+            PathSegment::LineTo(V2::new(1.69, 6.31)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(irregular);
+        let regions = RegionList::from(&irregular);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 3, y: 1 },
                 Region::Boundary { x: 4, y: 1 },
@@ -476,19 +488,21 @@ mod test {
 
     #[test]
     fn irregular_regions_2() {
-        let irregular = Path::from(vec![
-            V2::new(8.83, 7.46),
-            V2::new(7.23, 1.53),
-            V2::new(3.33, 3.93),
-            V2::new(2.42, 9.02),
-        ]);
+        let irregular = vec![
+            PathSegment::LineTo(V2::new(8.83, 7.46)),
+            PathSegment::LineTo(V2::new(7.23, 1.53)),
+            PathSegment::LineTo(V2::new(3.33, 3.93)),
+            PathSegment::LineTo(V2::new(2.42, 9.02)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(irregular);
+        let regions = RegionList::from(&irregular);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 6, y: 1 },
                 Region::Boundary { x: 7, y: 1 },
@@ -550,22 +564,24 @@ mod test {
     fn self_intersecting_pyramid() {
         use Region::*;
 
-        let self_intersecting = Path::from(vec![
-            V2::new(3.0, 5.0),
-            V2::new(5.0, 9.0),
-            V2::new(7.0, 2.0),
-            V2::new(9.0, 9.0),
-            V2::new(11.0, 5.0),
-        ]);
+        let self_intersecting = vec![
+            PathSegment::LineTo(V2::new(3.0, 5.0)),
+            PathSegment::LineTo(V2::new(5.0, 9.0)),
+            PathSegment::LineTo(V2::new(7.0, 2.0)),
+            PathSegment::LineTo(V2::new(9.0, 9.0)),
+            PathSegment::LineTo(V2::new(11.0, 5.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
         pretty_env_logger::init();
 
-        let regions = RegionList::from(self_intersecting);
+        let regions = RegionList::from(&self_intersecting);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 6, y: 2 },
                 Boundary { x: 7, y: 2 },
@@ -619,21 +635,23 @@ mod test {
     fn low_res_circle() {
         use Region::*;
 
-        let circle = Path::from(vec![
-            V2::new(5., 0.),
-            V2::new(0.67, 2.5),
-            V2::new(0.67, 7.5),
-            V2::new(5., 10.),
-            V2::new(9.33, 7.5),
-            V2::new(9.33, 2.5),
-        ]);
+        let circle = vec![
+            PathSegment::LineTo(V2::new(5., 0.)),
+            PathSegment::LineTo(V2::new(0.67, 2.5)),
+            PathSegment::LineTo(V2::new(0.67, 7.5)),
+            PathSegment::LineTo(V2::new(5., 10.)),
+            PathSegment::LineTo(V2::new(9.33, 7.5)),
+            PathSegment::LineTo(V2::new(9.33, 2.5)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(circle);
+        let regions = RegionList::from(&circle);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 3, y: 0 },
                 Boundary { x: 4, y: 0 },
@@ -728,22 +746,24 @@ mod test {
     fn subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = Path::from(vec![
-            V2::new(0., 0.),
-            V2::new(0.25, 0.25),
-            V2::new(0.5, 0.5),
-            V2::new(0.75, 0.75),
-            V2::new(1.0, 1.0),
-            V2::new(5.0, 1.0),
-            V2::new(5.0, 0.0),
-        ]);
+        let subpixel_adjacency = vec![
+            PathSegment::LineTo(V2::new(0., 0.)),
+            PathSegment::LineTo(V2::new(0.25, 0.25)),
+            PathSegment::LineTo(V2::new(0.5, 0.5)),
+            PathSegment::LineTo(V2::new(0.75, 0.75)),
+            PathSegment::LineTo(V2::new(1.0, 1.0)),
+            PathSegment::LineTo(V2::new(5.0, 1.0)),
+            PathSegment::LineTo(V2::new(5.0, 0.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(subpixel_adjacency);
+        let regions = RegionList::from(&subpixel_adjacency);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 5, y: 0 },
@@ -760,25 +780,27 @@ mod test {
     fn double_ended_subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = Path::from(vec![
-            V2::new(0., 0.),
-            V2::new(0.25, 0.25),
-            V2::new(0.5, 0.5),
-            V2::new(0.75, 0.75),
-            V2::new(1.0, 1.0),
-            V2::new(4.0, 1.0),
-            V2::new(4.25, 0.75),
-            V2::new(4.5, 0.5),
-            V2::new(4.75, 0.25),
-            V2::new(5.0, 0.0),
-        ]);
+        let subpixel_adjacency = vec![
+            PathSegment::LineTo(V2::new(0., 0.)),
+            PathSegment::LineTo(V2::new(0.25, 0.25)),
+            PathSegment::LineTo(V2::new(0.5, 0.5)),
+            PathSegment::LineTo(V2::new(0.75, 0.75)),
+            PathSegment::LineTo(V2::new(1.0, 1.0)),
+            PathSegment::LineTo(V2::new(4.0, 1.0)),
+            PathSegment::LineTo(V2::new(4.25, 0.75)),
+            PathSegment::LineTo(V2::new(4.5, 0.5)),
+            PathSegment::LineTo(V2::new(4.75, 0.25)),
+            PathSegment::LineTo(V2::new(5.0, 0.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(subpixel_adjacency);
+        let regions = RegionList::from(&subpixel_adjacency);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 4, y: 0 },
@@ -795,22 +817,24 @@ mod test {
     fn complex_subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = Path::from(vec![
-            V2::new(0., 0.),
-            V2::new(1.0, 0.1),
-            V2::new(2.0, 1.0),
-            V2::new(3.0, 1.0),
-            V2::new(4.0, 0.5),
-            V2::new(5.0, 1.0),
-            V2::new(5.0, 0.0),
-        ]);
+        let subpixel_adjacency = vec![
+            PathSegment::LineTo(V2::new(0., 0.)),
+            PathSegment::LineTo(V2::new(1.0, 0.1)),
+            PathSegment::LineTo(V2::new(2.0, 1.0)),
+            PathSegment::LineTo(V2::new(3.0, 1.0)),
+            PathSegment::LineTo(V2::new(4.0, 0.5)),
+            PathSegment::LineTo(V2::new(5.0, 1.0)),
+            PathSegment::LineTo(V2::new(5.0, 0.0)),
+        ]
+        .into_iter()
+        .collect::<Path>();
 
-        let regions = RegionList::from(subpixel_adjacency);
+        let regions = RegionList::from(&subpixel_adjacency);
 
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            regions.regions().collect::<Vec<Region>>(),
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 1, y: 0 },

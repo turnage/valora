@@ -3,7 +3,7 @@
 use super::*;
 use crate::ext;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct LineSegment {
     m: Slope,
     bounds: Bounds,
@@ -112,7 +112,7 @@ mod test {
     fn line_segment_new_valid() {
         assert_eq!(
             LineSegment::new_rasterable(V2::new(3.0, 1.0), V2::new(4.0, 2.0)),
-            Ok(Some(LineSegment {
+            Some(LineSegment {
                 m: Slope::Defined { m: 1.0, b: -2.0 },
                 bounds: Bounds {
                     left: 3.0,
@@ -123,7 +123,7 @@ mod test {
                 start: V2::new(3.0, 1.0),
                 end: V2::new(4.0, 2.0),
                 length: 1.4142135623730951,
-            }))
+            })
         );
     }
 
@@ -131,7 +131,7 @@ mod test {
     fn line_segment_new_valid_steep_slope() {
         assert_eq!(
             LineSegment::new_rasterable(V2::new(3.0, 1.0), V2::new(4.0, 3.0)),
-            Ok(Some(LineSegment {
+            Some(LineSegment {
                 m: Slope::Defined { m: 2.0, b: -5.0 },
                 bounds: Bounds {
                     left: 3.0,
@@ -142,7 +142,7 @@ mod test {
                 start: V2::new(3.0, 1.0),
                 end: V2::new(4.0, 3.0),
                 length: 2.23606797749979,
-            }))
+            })
         );
     }
 
@@ -155,8 +155,9 @@ mod test {
     }
 
     #[test]
-    fn monotonic_segment_sample_line_segment() -> Result<(), Error> {
-        let segment = MonotonicSegment::new((&V2::new(3.0, 1.0), &V2::new(4.0, 2.0)))?;
+    fn sample() {
+        let segment =
+            LineSegment::new_rasterable(V2::new(3.0, 1.0), V2::new(4.0, 2.0)).expect("segment");
         assert_eq!(
             segment.sample_y(1.0),
             Some(Intersection { axis: 3.0, t: 0.0 })
@@ -170,15 +171,13 @@ mod test {
             Some(Intersection { axis: 4.0, t: 1.0 })
         );
         assert_eq!(segment.sample_y(2.1), None);
-
-        Ok(())
     }
 
     #[test]
     fn line_segment_new_triangle_edges() {
         assert_eq!(
             LineSegment::new_rasterable(V2::new(0.0, 0.0), V2::new(0.0, 100.0)),
-            Ok(Some(LineSegment {
+            Some(LineSegment {
                 m: Slope::Vertical,
                 bounds: Bounds {
                     left: 0.0,
@@ -189,12 +188,12 @@ mod test {
                 start: V2::new(0.0, 0.0),
                 end: V2::new(0.0, 100.0),
                 length: 100.0,
-            }))
+            })
         );
 
         assert_eq!(
             LineSegment::new_rasterable(V2::new(0.0, 100.0), V2::new(100.0, 0.0)),
-            Ok(Some(LineSegment {
+            Some(LineSegment {
                 m: Slope::Defined { m: -1.0, b: 100.0 },
                 bounds: Bounds {
                     left: 0.0,
@@ -205,7 +204,7 @@ mod test {
                 start: V2::new(0.0, 100.0),
                 end: V2::new(100.0, 0.0),
                 length: 141.4213562373095,
-            }))
+            })
         );
 
         assert_eq!(
