@@ -2,8 +2,8 @@
 
 use crate::{
     grid_lines::*,
-    monotonics::{MonotonicCurve, MonotonicSegment},
-    path::{Path, PathSegment},
+    monotonics::{self, Curve},
+    path::Path,
     sampling::*,
     V2,
 };
@@ -80,7 +80,7 @@ impl Hash for Hit {
 #[derive(Debug, Default)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
-    segments: Vec<MonotonicSegment>,
+    segments: Vec<monotonics::Segment>,
 }
 
 impl From<&Path> for RegionList {
@@ -95,8 +95,10 @@ impl From<&Path> for RegionList {
 
 impl RegionList {
     fn push(&mut self, poly: &Path) {
-        let path: Vec<MonotonicSegment> =
-            poly.links().flat_map(MonotonicSegment::from_link).collect();
+        let path: Vec<monotonics::Segment> = poly
+            .links()
+            .flat_map(monotonics::Segment::from_link)
+            .collect();
 
         for (segment_id, segment) in path.iter().enumerate() {
             let bounds = segment.bounds();
@@ -229,15 +231,16 @@ impl RegionList {
 #[cfg(test)]
 mod test {
     use super::*;
+    use path::Segment;
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
 
     #[test]
     fn small_triangle_boundaries() {
         let triangle = vec![
-            PathSegment::LineTo(V2::new(0.0, 0.0)),
-            PathSegment::LineTo(V2::new(0.0, 2.0)),
-            PathSegment::LineTo(V2::new(2.0, 0.0)),
+            Segment::LineTo(V2::new(0.0, 0.0)),
+            Segment::LineTo(V2::new(0.0, 2.0)),
+            Segment::LineTo(V2::new(2.0, 0.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -259,9 +262,9 @@ mod test {
     #[test]
     fn small_triangle_off_screen_to_left() {
         let triangle = vec![
-            PathSegment::LineTo(V2::new(-1.0, 0.0)),
-            PathSegment::LineTo(V2::new(3.0, 0.0)),
-            PathSegment::LineTo(V2::new(3.0, 3.0)),
+            Segment::LineTo(V2::new(-1.0, 0.0)),
+            Segment::LineTo(V2::new(3.0, 0.0)),
+            Segment::LineTo(V2::new(3.0, 3.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -299,9 +302,9 @@ mod test {
     #[test]
     fn triangle_regions() {
         let triangle = vec![
-            PathSegment::LineTo(V2::new(0.0, 0.0)),
-            PathSegment::LineTo(V2::new(0.0, 5.0)),
-            PathSegment::LineTo(V2::new(5.0, 0.0)),
+            Segment::LineTo(V2::new(0.0, 0.0)),
+            Segment::LineTo(V2::new(0.0, 5.0)),
+            Segment::LineTo(V2::new(5.0, 0.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -344,9 +347,9 @@ mod test {
     #[test]
     fn inverted_triangle_regions() {
         let triangle = vec![
-            PathSegment::LineTo(V2::new(0.0, 3.0)),
-            PathSegment::LineTo(V2::new(4.0, 3.0)),
-            PathSegment::LineTo(V2::new(2.0, 0.0)),
+            Segment::LineTo(V2::new(0.0, 3.0)),
+            Segment::LineTo(V2::new(4.0, 3.0)),
+            Segment::LineTo(V2::new(2.0, 0.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -378,10 +381,10 @@ mod test {
     #[test]
     fn quadrilateral_regions() {
         let quad = vec![
-            PathSegment::LineTo(V2::new(3.0, 2.0)),
-            PathSegment::LineTo(V2::new(6.0, 4.0)),
-            PathSegment::LineTo(V2::new(4.0, 7.0)),
-            PathSegment::LineTo(V2::new(1.0, 5.0)),
+            Segment::LineTo(V2::new(3.0, 2.0)),
+            Segment::LineTo(V2::new(6.0, 4.0)),
+            Segment::LineTo(V2::new(4.0, 7.0)),
+            Segment::LineTo(V2::new(1.0, 5.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -432,10 +435,10 @@ mod test {
     #[test]
     fn irregular_regions() {
         let irregular = vec![
-            PathSegment::LineTo(V2::new(6.18, 5.22)),
-            PathSegment::LineTo(V2::new(5.06, 1.07)),
-            PathSegment::LineTo(V2::new(2.33, 2.75)),
-            PathSegment::LineTo(V2::new(1.69, 6.31)),
+            Segment::LineTo(V2::new(6.18, 5.22)),
+            Segment::LineTo(V2::new(5.06, 1.07)),
+            Segment::LineTo(V2::new(2.33, 2.75)),
+            Segment::LineTo(V2::new(1.69, 6.31)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -489,10 +492,10 @@ mod test {
     #[test]
     fn irregular_regions_2() {
         let irregular = vec![
-            PathSegment::LineTo(V2::new(8.83, 7.46)),
-            PathSegment::LineTo(V2::new(7.23, 1.53)),
-            PathSegment::LineTo(V2::new(3.33, 3.93)),
-            PathSegment::LineTo(V2::new(2.42, 9.02)),
+            Segment::LineTo(V2::new(8.83, 7.46)),
+            Segment::LineTo(V2::new(7.23, 1.53)),
+            Segment::LineTo(V2::new(3.33, 3.93)),
+            Segment::LineTo(V2::new(2.42, 9.02)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -565,11 +568,11 @@ mod test {
         use Region::*;
 
         let self_intersecting = vec![
-            PathSegment::LineTo(V2::new(3.0, 5.0)),
-            PathSegment::LineTo(V2::new(5.0, 9.0)),
-            PathSegment::LineTo(V2::new(7.0, 2.0)),
-            PathSegment::LineTo(V2::new(9.0, 9.0)),
-            PathSegment::LineTo(V2::new(11.0, 5.0)),
+            Segment::LineTo(V2::new(3.0, 5.0)),
+            Segment::LineTo(V2::new(5.0, 9.0)),
+            Segment::LineTo(V2::new(7.0, 2.0)),
+            Segment::LineTo(V2::new(9.0, 9.0)),
+            Segment::LineTo(V2::new(11.0, 5.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -636,12 +639,12 @@ mod test {
         use Region::*;
 
         let circle = vec![
-            PathSegment::LineTo(V2::new(5., 0.)),
-            PathSegment::LineTo(V2::new(0.67, 2.5)),
-            PathSegment::LineTo(V2::new(0.67, 7.5)),
-            PathSegment::LineTo(V2::new(5., 10.)),
-            PathSegment::LineTo(V2::new(9.33, 7.5)),
-            PathSegment::LineTo(V2::new(9.33, 2.5)),
+            Segment::LineTo(V2::new(5., 0.)),
+            Segment::LineTo(V2::new(0.67, 2.5)),
+            Segment::LineTo(V2::new(0.67, 7.5)),
+            Segment::LineTo(V2::new(5., 10.)),
+            Segment::LineTo(V2::new(9.33, 7.5)),
+            Segment::LineTo(V2::new(9.33, 2.5)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -747,13 +750,13 @@ mod test {
         use Region::*;
 
         let subpixel_adjacency = vec![
-            PathSegment::LineTo(V2::new(0., 0.)),
-            PathSegment::LineTo(V2::new(0.25, 0.25)),
-            PathSegment::LineTo(V2::new(0.5, 0.5)),
-            PathSegment::LineTo(V2::new(0.75, 0.75)),
-            PathSegment::LineTo(V2::new(1.0, 1.0)),
-            PathSegment::LineTo(V2::new(5.0, 1.0)),
-            PathSegment::LineTo(V2::new(5.0, 0.0)),
+            Segment::LineTo(V2::new(0., 0.)),
+            Segment::LineTo(V2::new(0.25, 0.25)),
+            Segment::LineTo(V2::new(0.5, 0.5)),
+            Segment::LineTo(V2::new(0.75, 0.75)),
+            Segment::LineTo(V2::new(1.0, 1.0)),
+            Segment::LineTo(V2::new(5.0, 1.0)),
+            Segment::LineTo(V2::new(5.0, 0.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -781,16 +784,16 @@ mod test {
         use Region::*;
 
         let subpixel_adjacency = vec![
-            PathSegment::LineTo(V2::new(0., 0.)),
-            PathSegment::LineTo(V2::new(0.25, 0.25)),
-            PathSegment::LineTo(V2::new(0.5, 0.5)),
-            PathSegment::LineTo(V2::new(0.75, 0.75)),
-            PathSegment::LineTo(V2::new(1.0, 1.0)),
-            PathSegment::LineTo(V2::new(4.0, 1.0)),
-            PathSegment::LineTo(V2::new(4.25, 0.75)),
-            PathSegment::LineTo(V2::new(4.5, 0.5)),
-            PathSegment::LineTo(V2::new(4.75, 0.25)),
-            PathSegment::LineTo(V2::new(5.0, 0.0)),
+            Segment::LineTo(V2::new(0., 0.)),
+            Segment::LineTo(V2::new(0.25, 0.25)),
+            Segment::LineTo(V2::new(0.5, 0.5)),
+            Segment::LineTo(V2::new(0.75, 0.75)),
+            Segment::LineTo(V2::new(1.0, 1.0)),
+            Segment::LineTo(V2::new(4.0, 1.0)),
+            Segment::LineTo(V2::new(4.25, 0.75)),
+            Segment::LineTo(V2::new(4.5, 0.5)),
+            Segment::LineTo(V2::new(4.75, 0.25)),
+            Segment::LineTo(V2::new(5.0, 0.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -818,13 +821,13 @@ mod test {
         use Region::*;
 
         let subpixel_adjacency = vec![
-            PathSegment::LineTo(V2::new(0., 0.)),
-            PathSegment::LineTo(V2::new(1.0, 0.1)),
-            PathSegment::LineTo(V2::new(2.0, 1.0)),
-            PathSegment::LineTo(V2::new(3.0, 1.0)),
-            PathSegment::LineTo(V2::new(4.0, 0.5)),
-            PathSegment::LineTo(V2::new(5.0, 1.0)),
-            PathSegment::LineTo(V2::new(5.0, 0.0)),
+            Segment::LineTo(V2::new(0., 0.)),
+            Segment::LineTo(V2::new(1.0, 0.1)),
+            Segment::LineTo(V2::new(2.0, 1.0)),
+            Segment::LineTo(V2::new(3.0, 1.0)),
+            Segment::LineTo(V2::new(4.0, 0.5)),
+            Segment::LineTo(V2::new(5.0, 1.0)),
+            Segment::LineTo(V2::new(5.0, 0.0)),
         ]
         .into_iter()
         .collect::<Path>();

@@ -1,7 +1,7 @@
 //! Super sampling patterns.
 
 use crate::{
-    monotonics::{MonotonicCurve, MonotonicSegment},
+    monotonics::{Curve, Segment},
     V2,
 };
 
@@ -29,7 +29,7 @@ impl Into<u64> for SampleDepth {
     }
 }
 
-pub fn coverage<'a>(offset: V2, depth: SampleDepth, path: &[MonotonicSegment]) -> f32 {
+pub fn coverage<'a>(offset: V2, depth: SampleDepth, path: &[Segment]) -> f32 {
     let mut hits = 0;
     for command in hammersley(depth).map(|cmd| cmd + offset) {
         let mut pass_count = 0;

@@ -1,5 +1,5 @@
 use crate::Result;
-use amicola::{fill_path, Method, PathSegment, SampleDepth, ShadeCommand, V4};
+use amicola::{fill_path, Method, Segment, SampleDepth, ShadeCommand, V4};
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
@@ -59,7 +59,7 @@ impl Uniforms for UniformBuffer {
 
 /// A rasterable element in a composition.
 pub struct Element {
-    pub path: Vec<PathSegment>,
+    pub path: Vec<Segment>,
     pub color: V4,
     pub raster_method: Method,
     pub shader: Shader,

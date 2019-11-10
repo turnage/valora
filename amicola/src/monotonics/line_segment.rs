@@ -53,7 +53,7 @@ impl LineSegment {
     }
 }
 
-impl MonotonicCurve for LineSegment {
+impl Curve for LineSegment {
     fn sample_y(&self, y: f32) -> Option<Intersection> {
         if self.bounds.bottom <= y && y <= self.bounds.top {
             match self.m {

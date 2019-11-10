@@ -8,7 +8,7 @@ mod path;
 mod regions;
 mod sampling;
 
-pub use self::path::{Path, PathSegment};
+pub use self::path::{Path, Segment};
 pub use regions::ShadeCommand;
 pub use sampling::SampleDepth;
 

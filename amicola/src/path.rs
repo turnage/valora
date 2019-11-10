@@ -4,7 +4,7 @@ use crate::{V2, V4};
 use std::iter::FromIterator;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum PathSegment {
+pub enum Segment {
     MoveTo(V2),
     LineTo(V2),
 }
@@ -12,11 +12,11 @@ pub enum PathSegment {
 /// A path is an input to the rasterizer, a series of vertices.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Path {
-    segments: Vec<PathSegment>,
+    segments: Vec<Segment>,
 }
 
 impl Path {
-    pub fn links<'a>(&'a self) -> impl Iterator<Item = (PathSegment, PathSegment)> + 'a {
+    pub fn links<'a>(&'a self) -> impl Iterator<Item = (Segment, Segment)> + 'a {
         self.segments
             .iter()
             .copied()
@@ -24,8 +24,8 @@ impl Path {
     }
 }
 
-impl FromIterator<PathSegment> for Path {
-    fn from_iter<T: IntoIterator<Item = PathSegment>>(iter: T) -> Self {
+impl FromIterator<Segment> for Path {
+    fn from_iter<T: IntoIterator<Item = Segment>>(iter: T) -> Self {
         Self {
             segments: iter.into_iter().collect(),
         }

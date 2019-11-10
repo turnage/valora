@@ -3,25 +3,29 @@
 mod line_segment;
 
 use self::line_segment::LineSegment;
-use crate::{bounds::Bounds, path::PathSegment, V2};
+use crate::{
+    bounds::Bounds,
+    path::{self, Path},
+    V2,
+};
 use enum_dispatch::enum_dispatch;
 
 #[enum_dispatch]
 #[derive(Debug)]
-pub enum MonotonicSegment {
+pub enum Segment {
     LineSegment(LineSegment),
 }
 
-impl MonotonicSegment {
-    pub fn from_link(link: (PathSegment, PathSegment)) -> Vec<MonotonicSegment> {
+impl Segment {
+    pub fn from_link(link: (path::Segment, path::Segment)) -> Vec<Segment> {
         match link {
-            (PathSegment::MoveTo(start), PathSegment::LineTo(end))
-            | (PathSegment::LineTo(start), PathSegment::LineTo(end)) => {
+            (path::Segment::MoveTo(start), path::Segment::LineTo(end))
+            | (path::Segment::LineTo(start), path::Segment::LineTo(end)) => {
                 LineSegment::new_rasterable(start, end)
                     .map(|ls| vec![Self::from(ls)])
                     .unwrap_or_default()
             }
-            (_, PathSegment::MoveTo(_)) => vec![],
+            (_, path::Segment::MoveTo(_)) => vec![],
         }
     }
 }
@@ -35,8 +39,8 @@ pub struct Intersection {
 }
 
 /// A trait for monotonic curves.
-#[enum_dispatch(MonotonicSegment)]
-pub trait MonotonicCurve {
+#[enum_dispatch(Segment)]
+pub trait Curve {
     /// Returns the point at `t` on the curve, if it is defined. Curves are defined on
     /// the domain `[0, 1]` only.
     fn sample_t(&self, t: f32) -> Option<V2>;
