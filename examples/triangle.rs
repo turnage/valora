@@ -211,10 +211,16 @@ fn main() {
             comp.fill();
 
             let c = world.center();
-            comp.set_sample_depth(SampleDepth::Single);
+            comp.set_sample_depth(SampleDepth::Super64);
+
+            comp.move_to(V2::new(0., 0.));
+            comp.quadratic_to(V2::new(200., 500.), V2::new(400., 400.));
+            //comp.line_to(V2::new(400., 400.));
+            comp.line_to(V2::new(400., 0.));
+            comp.line_to(V2::new(0., 0.));
 
             //comp.set_shader(noise_shader.clone());
-            comp.draw(NgonIter::new(0., 300., c, 10));
+            //comp.draw(NgonIter::new(0., 300., c, 10));
             comp.set_color(V4::new(1., 0., 0., 1.));
             comp.fill();
 

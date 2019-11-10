@@ -242,6 +242,10 @@ impl Composition {
         self.current_path.push(Segment::LineTo(dest * self.scale));
     }
 
+    pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
+        self.current_path.push(Segment::QuadraticTo { ctrl, end });
+    }
+
     pub fn set_color(&mut self, color: V4) { self.current_color = color; }
 
     pub fn set_shader(&mut self, shader: Shader) { self.current_shader = shader; }

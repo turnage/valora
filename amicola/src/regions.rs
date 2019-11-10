@@ -106,6 +106,8 @@ impl From<Vec<monotonics::Segment>> for RegionList {
         let mut hits = BTreeSet::new();
 
         for (segment_id, segment) in segments.iter().enumerate() {
+            trace!("Considering segment: {:#?}", segment);
+
             let bounds = segment.bounds();
 
             #[derive(Debug)]
@@ -895,6 +897,80 @@ mod test {
                 },
                 Boundary { x: 4, y: 0 },
                 Boundary { x: 5, y: 0 },
+            ]
+        );
+    }
+
+    #[test]
+    fn simple_quadratic() {
+        use Region::*;
+
+        let simple_quadratic = vec![
+            Segment::MoveTo(V2::new(0., 0.)),
+            Segment::QuadraticTo {
+                ctrl: V2::new(3., 3.),
+                end: V2::new(2., 0.),
+            },
+        ]
+        .into_iter()
+        .collect::<Path>();
+
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_quadratic));
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 1, y: 0 },
+                Boundary { x: 2, y: 0 },
+                Boundary { x: 1, y: 1 },
+                Boundary { x: 2, y: 1 },
+            ]
+        );
+    }
+
+    #[test]
+    fn quadratic_triangle() {
+        use Region::*;
+
+        pretty_env_logger::init();
+
+        let simple_quadratic = vec![
+            Segment::MoveTo(V2::new(0., 0.)),
+            Segment::QuadraticTo {
+                ctrl: V2::new(0., 4.),
+                end: V2::new(2., 2.),
+            },
+            Segment::LineTo(V2::new(2., 0.)),
+        ]
+        .into_iter()
+        .collect::<Path>();
+
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_quadratic));
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 2, y: 0 },
+                Span {
+                    start_x: 1,
+                    end_x: 2,
+                    y: 0
+                },
+                Boundary { x: 0, y: 1 },
+                Boundary { x: 2, y: 1 },
+                Span {
+                    start_x: 1,
+                    end_x: 2,
+                    y: 1
+                },
+                Boundary { x: 0, y: 2 },
+                Boundary { x: 1, y: 2 },
             ]
         );
     }

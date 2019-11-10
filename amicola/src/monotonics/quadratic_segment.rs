@@ -24,7 +24,10 @@ pub struct QuadraticBezier {
 impl From<QuadraticBezier2<f32>> for QuadraticBezier {
     fn from(inner: QuadraticBezier2<f32>) -> Self {
         let (left, right) = inner.x_bounds();
+        let (left, right) = (inner.evaluate(left).x, inner.evaluate(right).x);
+
         let (bottom, top) = inner.y_bounds();
+        let (bottom, top) = (inner.evaluate(bottom).y, inner.evaluate(top).y);
         Self {
             bounds: Bounds {
                 left,
