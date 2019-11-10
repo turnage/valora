@@ -2,7 +2,7 @@
 
 use crate::{
     grid_lines::*,
-    monotonics::{self, Curve, Monotonicity},
+    monotonics::{self, Curve},
     sampling::*,
     V2,
 };
@@ -79,14 +79,14 @@ impl Hash for Hit {
 #[derive(Debug, Default)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
-    segments: Vec<(Monotonicity, monotonics::Segment)>,
+    segments: Vec<monotonics::Segment>,
 }
 
-impl From<Vec<(Monotonicity, monotonics::Segment)>> for RegionList {
-    fn from(segments: Vec<(Monotonicity, monotonics::Segment)>) -> Self {
+impl From<Vec<monotonics::Segment>> for RegionList {
+    fn from(segments: Vec<monotonics::Segment>) -> Self {
         let mut hits = BTreeSet::new();
 
-        for (segment_id, (monotonicity, segment)) in segments.iter().enumerate() {
+        for (segment_id, segment) in segments.iter().enumerate() {
             let bounds = segment.bounds();
 
             #[derive(Debug)]
@@ -100,19 +100,15 @@ impl From<Vec<(Monotonicity, monotonics::Segment)>> for RegionList {
 
             let iter = GridLinesIter::Bounds(bounds);
 
-            if *monotonicity == Monotonicity::OnX || *monotonicity == Monotonicity::OnXAndY {
-                for horizontal_line in iter.horizontal() {
-                    if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
-                        segment_hits.insert(FloatOrd(intersection.t));
-                    }
+            for horizontal_line in iter.horizontal() {
+                if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
+                    segment_hits.insert(FloatOrd(intersection.t));
                 }
             }
 
-            if *monotonicity == Monotonicity::OnY || *monotonicity == Monotonicity::OnXAndY {
-                for vertical_line in iter.vertical() {
-                    if let Some(intersection) = segment.sample_x(vertical_line as f32) {
-                        segment_hits.insert(FloatOrd(intersection.t));
-                    }
+            for vertical_line in iter.vertical() {
+                if let Some(intersection) = segment.sample_x(vertical_line as f32) {
+                    segment_hits.insert(FloatOrd(intersection.t));
                 }
             }
 
@@ -153,11 +149,7 @@ impl RegionList {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
                 x: x,
                 y: y,
-                coverage: coverage(
-                    V2::new(x as f32, y as f32),
-                    sample_depth,
-                    segments.iter().map(|(_, s)| s),
-                ),
+                coverage: coverage(V2::new(x as f32, y as f32), sample_depth, segments.iter()),
             },
             Region::Span { start_x, end_x, y } => ShadeCommand::Span {
                 x: start_x..end_x,

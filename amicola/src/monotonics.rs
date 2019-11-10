@@ -1,6 +1,7 @@
 //! Module for working with paths and path segments.
 
 mod line_segment;
+mod quadratic_segment;
 
 use self::line_segment::LineSegment;
 use crate::{
@@ -10,17 +11,10 @@ use crate::{
 };
 use enum_dispatch::enum_dispatch;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Monotonicity {
-    OnY,
-    OnX,
-    OnXAndY,
-}
-
 pub struct RasterSegmentSet;
 
 impl RasterSegmentSet {
-    pub fn build_from_path(path: &Path) -> Vec<(Monotonicity, Segment)> {
+    pub fn build_from_path(path: &Path) -> Vec<Segment> {
         let mut segments = vec![];
 
         for link in path.links() {
@@ -28,7 +22,7 @@ impl RasterSegmentSet {
                 (path::Segment::MoveTo(start), path::Segment::LineTo(end))
                 | (path::Segment::LineTo(start), path::Segment::LineTo(end)) => {
                     if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
-                        segments.push((Monotonicity::OnXAndY, Segment::from(line_segment)));
+                        segments.push(Segment::from(line_segment));
                     }
                 }
                 (_, path::Segment::MoveTo(_)) => {}
