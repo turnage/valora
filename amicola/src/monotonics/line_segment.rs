@@ -25,7 +25,7 @@ impl LineSegment {
         }
 
         let (left, right) = ext::min_max_by(start, end, |p| p.x);
-        let (top, bottom) = ext::min_max(start.y, end.y);
+        let (bottom, top) = ext::min_max(start.y, end.y);
         let dx = right.x - left.x;
         let dy = right.y - left.y;
         let m = dy / dx;

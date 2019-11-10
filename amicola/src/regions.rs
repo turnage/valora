@@ -76,6 +76,25 @@ impl Hash for Hit {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+struct ApproxFloatOrd(f32);
+
+impl PartialOrd for ApproxFloatOrd {
+    fn partial_cmp(&self, other: &ApproxFloatOrd) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl Ord for ApproxFloatOrd {
+    fn cmp(&self, ApproxFloatOrd(other): &ApproxFloatOrd) -> Ordering {
+        if (self.0 - other).abs() < std::f32::EPSILON {
+            Ordering::Equal
+        } else {
+            FloatOrd(self.0).cmp(&FloatOrd(*other))
+        }
+    }
+}
+
+impl Eq for ApproxFloatOrd {}
+
 #[derive(Debug, Default)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
@@ -95,22 +114,28 @@ impl From<Vec<monotonics::Segment>> for RegionList {
             }
 
             let mut segment_hits = BTreeSet::new();
-            segment_hits.insert(FloatOrd(0.0));
-            segment_hits.insert(FloatOrd(1.0));
+            segment_hits.insert(ApproxFloatOrd(0.0));
+            segment_hits.insert(ApproxFloatOrd(1.0));
 
             let iter = GridLinesIter::Bounds(bounds);
 
             for horizontal_line in iter.horizontal() {
                 if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
-                    segment_hits.insert(FloatOrd(intersection.t));
+                    segment_hits.insert(ApproxFloatOrd(intersection.t));
                 }
             }
 
             for vertical_line in iter.vertical() {
                 if let Some(intersection) = segment.sample_x(vertical_line as f32) {
-                    segment_hits.insert(FloatOrd(intersection.t));
+                    segment_hits.insert(ApproxFloatOrd(intersection.t));
                 }
             }
+
+            trace!(
+                "For segment {:?}; got hits: {:#?}",
+                segment_id,
+                segment_hits.iter().map(|t| t.0).collect::<Vec<f32>>()
+            );
 
             for (y_range, hit_point) in segment_hits
                 .into_iter()
@@ -181,15 +206,42 @@ impl RegionList {
                 .map(|last_hit: &Hit| (last_hit.x - hit.x).abs() > 1)
                 .unwrap_or(false);
 
+            trace!("gap between hits: {:?}", is_gap_between_hits);
+            if let Some(last_hit) = last_hit.as_ref() {
+                trace!(
+                    "last contains start {:?}",
+                    last_hit.y_range.contains(&hit.y_range.start)
+                );
+                trace!(
+                    "last contains end {:?}",
+                    last_hit
+                        .y_range
+                        .contains(&(hit.y_range.end - std::f32::EPSILON))
+                );
+                trace!(
+                    "contains last start {:?}",
+                    hit.y_range.contains(&last_hit.y_range.start)
+                );
+                trace!(
+                    "contains last end {:?}",
+                    hit.y_range
+                        .contains(&(last_hit.y_range.end - std::f32::EPSILON))
+                );
+            }
+
             let is_new_edge = last_hit
                 .as_ref()
                 .map(|last_hit: &Hit| {
                     last_hit.segment_id != hit.segment_id
                         && (is_gap_between_hits
                             || last_hit.y_range.contains(&hit.y_range.start)
-                            || last_hit.y_range.contains(&hit.y_range.end)
+                            || last_hit
+                                .y_range
+                                .contains(&(hit.y_range.end - std::f32::EPSILON))
                             || hit.y_range.contains(&last_hit.y_range.start)
-                            || hit.y_range.contains(&last_hit.y_range.end))
+                            || hit
+                                .y_range
+                                .contains(&(last_hit.y_range.end - std::f32::EPSILON)))
                 })
                 .unwrap_or(true);
             if is_new_edge {
@@ -254,6 +306,7 @@ mod test {
             Segment::LineTo(V2::new(-1.0, 0.0)),
             Segment::LineTo(V2::new(3.0, 0.0)),
             Segment::LineTo(V2::new(3.0, 3.0)),
+            Segment::LineTo(V2::new(-1.0, 0.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -339,6 +392,7 @@ mod test {
             Segment::LineTo(V2::new(0.0, 3.0)),
             Segment::LineTo(V2::new(4.0, 3.0)),
             Segment::LineTo(V2::new(2.0, 0.0)),
+            Segment::LineTo(V2::new(0.0, 3.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -370,10 +424,11 @@ mod test {
     #[test]
     fn quadrilateral_regions() {
         let quad = vec![
-            Segment::LineTo(V2::new(3.0, 2.0)),
+            Segment::MoveTo(V2::new(3.0, 2.0)),
             Segment::LineTo(V2::new(6.0, 4.0)),
             Segment::LineTo(V2::new(4.0, 7.0)),
             Segment::LineTo(V2::new(1.0, 5.0)),
+            Segment::LineTo(V2::new(3.0, 2.0)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -415,8 +470,7 @@ mod test {
                 Region::Boundary { x: 5, y: 5 },
                 Region::Boundary { x: 2, y: 6 },
                 Region::Boundary { x: 3, y: 6 },
-                Region::Boundary { x: 4, y: 6 },
-                Region::Boundary { x: 4, y: 7 }
+                Region::Boundary { x: 4, y: 6 }
             ]
         );
     }
@@ -428,6 +482,7 @@ mod test {
             Segment::LineTo(V2::new(5.06, 1.07)),
             Segment::LineTo(V2::new(2.33, 2.75)),
             Segment::LineTo(V2::new(1.69, 6.31)),
+            Segment::LineTo(V2::new(6.18, 5.22)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -485,6 +540,7 @@ mod test {
             Segment::LineTo(V2::new(7.23, 1.53)),
             Segment::LineTo(V2::new(3.33, 3.93)),
             Segment::LineTo(V2::new(2.42, 9.02)),
+            Segment::LineTo(V2::new(8.83, 7.46)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -562,11 +618,10 @@ mod test {
             Segment::LineTo(V2::new(7.0, 2.0)),
             Segment::LineTo(V2::new(9.0, 9.0)),
             Segment::LineTo(V2::new(11.0, 5.0)),
+            Segment::LineTo(V2::new(3.0, 5.0)),
         ]
         .into_iter()
         .collect::<Path>();
-
-        pretty_env_logger::init();
 
         let regions = RegionList::from(RasterSegmentSet::build_from_path(&self_intersecting));
 
@@ -634,6 +689,7 @@ mod test {
             Segment::LineTo(V2::new(5., 10.)),
             Segment::LineTo(V2::new(9.33, 7.5)),
             Segment::LineTo(V2::new(9.33, 2.5)),
+            Segment::LineTo(V2::new(5., 0.)),
         ]
         .into_iter()
         .collect::<Path>();
@@ -810,13 +866,14 @@ mod test {
         use Region::*;
 
         let subpixel_adjacency = vec![
-            Segment::LineTo(V2::new(0., 0.)),
+            Segment::MoveTo(V2::new(0., 0.)),
             Segment::LineTo(V2::new(1.0, 0.1)),
             Segment::LineTo(V2::new(2.0, 1.0)),
             Segment::LineTo(V2::new(3.0, 1.0)),
             Segment::LineTo(V2::new(4.0, 0.5)),
             Segment::LineTo(V2::new(5.0, 1.0)),
             Segment::LineTo(V2::new(5.0, 0.0)),
+            Segment::LineTo(V2::new(0., 0.)),
         ]
         .into_iter()
         .collect::<Path>();

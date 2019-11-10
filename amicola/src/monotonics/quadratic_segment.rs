@@ -6,7 +6,7 @@ use roots::{find_roots_quadratic, Roots};
 use std::ops::Range;
 use vek::{bezier::repr_c::QuadraticBezier2, vec::repr_c::vec2::Vec2};
 
-const EXCLUSIVE_DOMAIN: Range<f32> = 0.0001..1.0;
+const EXCLUSIVE_DOMAIN: Range<f32> = (0. + std::f32::EPSILON)..1.0;
 
 #[derive(Debug)]
 pub enum CreateQuadraticResult {
