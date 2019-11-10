@@ -207,16 +207,14 @@ fn main() {
         );
         render_gate.render_frames(|ctx, mut comp| {
             comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
-            for v in world.full_frame().vertices() {
-                comp.line_to(*v);
-            }
+            comp.draw(world.full_frame());
             comp.fill();
 
             let c = world.center();
-            comp.set_sample_depth(SampleDepth::Super64);
+            comp.set_sample_depth(SampleDepth::Single);
 
-            comp.set_shader(noise_shader.clone());
-            comp.draw(NgonIter::new(0., 300., c, 10000));
+            //comp.set_shader(noise_shader.clone());
+            comp.draw(NgonIter::new(0., 300., c, 10));
             comp.set_color(V4::new(1., 0., 0., 1.));
             comp.fill();
 

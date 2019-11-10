@@ -103,6 +103,10 @@ pub trait Draw {
     fn draw(&self, comp: &mut Composition);
 }
 
+impl Draw for Path {
+    fn draw(&self, comp: &mut Composition) { comp.append_path_segments(self.segments().copied()) }
+}
+
 pub struct GpuHandle<'a> {
     gpu: &'a Gpu,
 }
@@ -254,5 +258,9 @@ impl Composition {
             raster_method: Method::Fill,
             sample_depth,
         });
+    }
+
+    pub(crate) fn append_path_segments(&mut self, path_segments: impl Iterator<Item = Segment>) {
+        self.current_path.extend(path_segments);
     }
 }

@@ -7,6 +7,17 @@ use std::iter::FromIterator;
 pub enum Segment {
     MoveTo(V2),
     LineTo(V2),
+    QuadraticTo { ctrl: V2, end: V2 },
+}
+
+impl Segment {
+    fn end(&self) -> V2 {
+        match *self {
+            Segment::MoveTo(p) => p,
+            Segment::LineTo(p) => p,
+            Segment::QuadraticTo { end, .. } => end,
+        }
+    }
 }
 
 /// A path is an input to the rasterizer, a series of vertices.
@@ -15,12 +26,33 @@ pub struct Path {
     segments: Vec<Segment>,
 }
 
+#[derive(Debug)]
+pub(crate) struct PathLink {
+    pub position: V2,
+    pub segment: Segment,
+}
+
 impl Path {
-    pub fn links<'a>(&'a self) -> impl Iterator<Item = (Segment, Segment)> + 'a {
-        self.segments
-            .iter()
-            .copied()
-            .zip(self.segments.iter().skip(1).copied())
+    pub fn segments<'a>(&'a self) -> impl Iterator<Item = &'a Segment> + 'a { self.segments.iter() }
+
+    // TODO: Make link iterator ergonomic.
+    pub(crate) fn links<'a>(&'a self) -> impl Iterator<Item = PathLink> + 'a {
+        let mut start_position = self
+            .segments
+            .first()
+            .map(Segment::end)
+            .unwrap_or(V2::new(0., 0.));
+
+        std::iter::once(Segment::MoveTo(start_position))
+            .chain(self.segments.iter().skip(1).copied())
+            .map(move |segment| PathLink {
+                position: {
+                    let position = start_position;
+                    start_position = segment.end();
+                    position
+                },
+                segment,
+            })
     }
 }
 

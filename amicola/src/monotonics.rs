@@ -3,10 +3,13 @@
 mod line_segment;
 mod quadratic_segment;
 
-use self::line_segment::LineSegment;
+use self::{
+    line_segment::LineSegment,
+    quadratic_segment::{CreateQuadraticResult, QuadraticBezier},
+};
 use crate::{
     bounds::Bounds,
-    path::{self, Path},
+    path::{self, Path, PathLink},
     V2,
 };
 use enum_dispatch::enum_dispatch;
@@ -17,15 +20,30 @@ impl RasterSegmentSet {
     pub fn build_from_path(path: &Path) -> Vec<Segment> {
         let mut segments = vec![];
 
-        for link in path.links() {
-            match link {
-                (path::Segment::MoveTo(start), path::Segment::LineTo(end))
-                | (path::Segment::LineTo(start), path::Segment::LineTo(end)) => {
+        for PathLink {
+            position: start,
+            segment,
+        } in path.links()
+        {
+            match segment {
+                path::Segment::LineTo(end) => {
                     if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
                         segments.push(Segment::from(line_segment));
                     }
                 }
-                (_, path::Segment::MoveTo(_)) => {}
+                path::Segment::QuadraticTo { ctrl, end } => {
+                    match QuadraticBezier::new(start, ctrl, end) {
+                        CreateQuadraticResult::IsLineSegment { start, end } => {
+                            if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
+                                segments.push(Segment::from(line_segment));
+                            }
+                        }
+                        CreateQuadraticResult::Quadratic(qs) => {
+                            segments.extend(qs.into_iter().map(Segment::from));
+                        }
+                    }
+                }
+                path::Segment::MoveTo(_) => {}
             }
         }
 
@@ -37,6 +55,7 @@ impl RasterSegmentSet {
 #[derive(Debug)]
 pub enum Segment {
     LineSegment(LineSegment),
+    QuadraticSegment(QuadraticBezier),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
