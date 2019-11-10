@@ -1,6 +1,6 @@
 //! Geometry primitives.
 
-use crate::{V2, V4};
+use crate::V2;
 use std::iter::FromIterator;
 
 #[derive(Debug, PartialEq, Clone, Copy)]

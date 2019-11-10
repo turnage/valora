@@ -29,11 +29,16 @@ impl Into<u64> for SampleDepth {
     }
 }
 
-pub fn coverage<'a>(offset: V2, depth: SampleDepth, path: &[Segment]) -> f32 {
+pub fn coverage<'a>(
+    offset: V2,
+    depth: SampleDepth,
+    path: impl Iterator<Item = &'a Segment> + Clone,
+) -> f32 {
+    // TODO: Sample vertically as well?
     let mut hits = 0;
     for command in hammersley(depth).map(|cmd| cmd + offset) {
         let mut pass_count = 0;
-        for segment in path {
+        for segment in path.clone() {
             if let Some(x) = segment.sample_y(command.y).map(|i| i.axis) {
                 if x <= command.x {
                     pass_count += 1;

@@ -17,12 +17,13 @@ use nalgebra::{base::*, Matrix};
 pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
 pub type V4 = Matrix<f32, U4, U1, ArrayStorage<f32, U4, U1>>;
 
+use self::monotonics::RasterSegmentSet;
 use regions::RegionList;
 
 /// Generates commands to shade the area inside the path. The path is automatically closed by
 /// assuming an edge from the last to the first vertex.
 pub fn fill_path(path: &Path, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
-    RegionList::from(path).shade_commands(sample_depth)
+    RegionList::from(RasterSegmentSet::build_from_path(path)).shade_commands(sample_depth)
 }
 
 /// The method by which the rasterizer will rasterize the vector path.

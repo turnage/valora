@@ -2,8 +2,7 @@
 
 use crate::{
     grid_lines::*,
-    monotonics::{self, Curve},
-    path::Path,
+    monotonics::{self, Curve, Monotonicity},
     sampling::*,
     V2,
 };
@@ -80,27 +79,14 @@ impl Hash for Hit {
 #[derive(Debug, Default)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
-    segments: Vec<monotonics::Segment>,
+    segments: Vec<(Monotonicity, monotonics::Segment)>,
 }
 
-impl From<&Path> for RegionList {
-    fn from(poly: &Path) -> Self {
-        let mut list = RegionList::default();
+impl From<Vec<(Monotonicity, monotonics::Segment)>> for RegionList {
+    fn from(segments: Vec<(Monotonicity, monotonics::Segment)>) -> Self {
+        let mut hits = BTreeSet::new();
 
-        list.push(poly);
-
-        list
-    }
-}
-
-impl RegionList {
-    fn push(&mut self, poly: &Path) {
-        let path: Vec<monotonics::Segment> = poly
-            .links()
-            .flat_map(monotonics::Segment::from_link)
-            .collect();
-
-        for (segment_id, segment) in path.iter().enumerate() {
+        for (segment_id, (monotonicity, segment)) in segments.iter().enumerate() {
             let bounds = segment.bounds();
 
             #[derive(Debug)]
@@ -114,15 +100,19 @@ impl RegionList {
 
             let iter = GridLinesIter::Bounds(bounds);
 
-            for horizontal_line in iter.horizontal() {
-                if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
-                    segment_hits.insert(FloatOrd(intersection.t));
+            if *monotonicity == Monotonicity::OnX || *monotonicity == Monotonicity::OnXAndY {
+                for horizontal_line in iter.horizontal() {
+                    if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
+                        segment_hits.insert(FloatOrd(intersection.t));
+                    }
                 }
             }
 
-            for vertical_line in iter.vertical() {
-                if let Some(intersection) = segment.sample_x(vertical_line as f32) {
-                    segment_hits.insert(FloatOrd(intersection.t));
+            if *monotonicity == Monotonicity::OnY || *monotonicity == Monotonicity::OnXAndY {
+                for vertical_line in iter.vertical() {
+                    if let Some(intersection) = segment.sample_x(vertical_line as f32) {
+                        segment_hits.insert(FloatOrd(intersection.t));
+                    }
                 }
             }
 
@@ -148,20 +138,26 @@ impl RegionList {
                     y_range,
                     segment_id,
                 };
-                self.hits.insert(hit);
+                hits.insert(hit);
             }
         }
 
-        self.segments = path;
+        Self { segments, hits }
     }
+}
 
+impl RegionList {
     pub fn shade_commands(self, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
         let segments = self.segments;
         Self::regions(self.hits).map(move |region| match region {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
                 x: x,
                 y: y,
-                coverage: coverage(V2::new(x as f32, y as f32), sample_depth, &segments),
+                coverage: coverage(
+                    V2::new(x as f32, y as f32),
+                    sample_depth,
+                    segments.iter().map(|(_, s)| s),
+                ),
             },
             Region::Span { start_x, end_x, y } => ShadeCommand::Span {
                 x: start_x..end_x,
@@ -231,7 +227,8 @@ impl RegionList {
 #[cfg(test)]
 mod test {
     use super::*;
-    use path::Segment;
+    use crate::path::{Path, Segment};
+    use monotonics::RasterSegmentSet;
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
 
@@ -245,7 +242,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&triangle);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
 
         println!("Regions: {:#?}", regions);
 
@@ -269,7 +266,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&triangle);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
 
         println!("Regions: {:#?}", regions);
 
@@ -309,7 +306,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&triangle);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
 
         println!("Regions: {:#?}", regions);
 
@@ -354,7 +351,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&triangle);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
 
         println!("Regions: {:#?}", regions);
 
@@ -389,7 +386,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&quad);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&quad));
 
         println!("Regions: {:#?}", regions);
 
@@ -443,7 +440,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&irregular);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&irregular));
 
         println!("Regions: {:#?}", regions);
 
@@ -500,7 +497,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&irregular);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&irregular));
 
         println!("Regions: {:#?}", regions);
 
@@ -579,7 +576,7 @@ mod test {
 
         pretty_env_logger::init();
 
-        let regions = RegionList::from(&self_intersecting);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&self_intersecting));
 
         println!("Regions: {:#?}", regions);
 
@@ -649,7 +646,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&circle);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&circle));
 
         println!("Regions: {:#?}", regions);
 
@@ -761,7 +758,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&subpixel_adjacency);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&subpixel_adjacency));
 
         println!("Regions: {:#?}", regions);
 
@@ -798,7 +795,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&subpixel_adjacency);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&subpixel_adjacency));
 
         println!("Regions: {:#?}", regions);
 
@@ -832,7 +829,7 @@ mod test {
         .into_iter()
         .collect::<Path>();
 
-        let regions = RegionList::from(&subpixel_adjacency);
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&subpixel_adjacency));
 
         println!("Regions: {:#?}", regions);
 

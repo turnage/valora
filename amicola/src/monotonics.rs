@@ -10,24 +10,39 @@ use crate::{
 };
 use enum_dispatch::enum_dispatch;
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Monotonicity {
+    OnY,
+    OnX,
+    OnXAndY,
+}
+
+pub struct RasterSegmentSet;
+
+impl RasterSegmentSet {
+    pub fn build_from_path(path: &Path) -> Vec<(Monotonicity, Segment)> {
+        let mut segments = vec![];
+
+        for link in path.links() {
+            match link {
+                (path::Segment::MoveTo(start), path::Segment::LineTo(end))
+                | (path::Segment::LineTo(start), path::Segment::LineTo(end)) => {
+                    if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
+                        segments.push((Monotonicity::OnXAndY, Segment::from(line_segment)));
+                    }
+                }
+                (_, path::Segment::MoveTo(_)) => {}
+            }
+        }
+
+        segments
+    }
+}
+
 #[enum_dispatch]
 #[derive(Debug)]
 pub enum Segment {
     LineSegment(LineSegment),
-}
-
-impl Segment {
-    pub fn from_link(link: (path::Segment, path::Segment)) -> Vec<Segment> {
-        match link {
-            (path::Segment::MoveTo(start), path::Segment::LineTo(end))
-            | (path::Segment::LineTo(start), path::Segment::LineTo(end)) => {
-                LineSegment::new_rasterable(start, end)
-                    .map(|ls| vec![Self::from(ls)])
-                    .unwrap_or_default()
-            }
-            (_, path::Segment::MoveTo(_)) => vec![],
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
