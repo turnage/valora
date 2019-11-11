@@ -1,6 +1,7 @@
 //! Raster region search and enumeration.
 
 use crate::{
+    ext,
     grid_lines::*,
     monotonics::{self, Curve},
     sampling::*,
@@ -77,23 +78,26 @@ impl Hash for Hit {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-struct ApproxFloatOrd(f32);
-
-impl PartialOrd for ApproxFloatOrd {
-    fn partial_cmp(&self, other: &ApproxFloatOrd) -> Option<Ordering> { Some(self.cmp(other)) }
+struct RawHit {
+    position: V2,
+    t: f32,
 }
 
-impl Ord for ApproxFloatOrd {
-    fn cmp(&self, ApproxFloatOrd(other): &ApproxFloatOrd) -> Ordering {
-        if (self.0 - other).abs() < std::f32::EPSILON {
+impl PartialOrd for RawHit {
+    fn partial_cmp(&self, other: &RawHit) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl Ord for RawHit {
+    fn cmp(&self, RawHit { t: other, .. }: &RawHit) -> Ordering {
+        if (self.t - *other).abs() <= std::f32::EPSILON * 10. {
             Ordering::Equal
         } else {
-            FloatOrd(self.0).cmp(&FloatOrd(*other))
+            FloatOrd(self.t).cmp(&FloatOrd(*other))
         }
     }
 }
 
-impl Eq for ApproxFloatOrd {}
+impl Eq for RawHit {}
 
 #[derive(Debug, Default)]
 pub struct RegionList {
@@ -110,47 +114,55 @@ impl From<Vec<monotonics::Segment>> for RegionList {
 
             let bounds = segment.bounds();
 
-            #[derive(Debug)]
-            struct SegmentHit {
-                t: f32,
-            }
-
             let mut segment_hits = BTreeSet::new();
-            segment_hits.insert(ApproxFloatOrd(0.0));
-            segment_hits.insert(ApproxFloatOrd(1.0));
+            let (start, end) = segment.bookends();
+            segment_hits.insert(RawHit {
+                t: 0.0,
+                position: start,
+            });
+            segment_hits.insert(RawHit {
+                t: 1.0,
+                position: end,
+            });
 
             let iter = GridLinesIter::Bounds(bounds);
 
             for horizontal_line in iter.horizontal() {
-                if let Some(intersection) = segment.sample_y(horizontal_line as f32) {
-                    segment_hits.insert(ApproxFloatOrd(intersection.t));
+                let y = horizontal_line as f32;
+                if let Some(intersection) = segment.sample_y(y) {
+                    segment_hits.insert(RawHit {
+                        position: V2::new(intersection.axis, y),
+                        t: intersection.t,
+                    });
                 }
             }
 
             for vertical_line in iter.vertical() {
-                if let Some(intersection) = segment.sample_x(vertical_line as f32) {
-                    segment_hits.insert(ApproxFloatOrd(intersection.t));
+                let x = vertical_line as f32;
+                if let Some(intersection) = segment.sample_x(x) {
+                    segment_hits.insert(RawHit {
+                        position: V2::new(x, intersection.axis),
+                        t: intersection.t,
+                    });
                 }
             }
 
             trace!(
-                "For segment {:?}; got hits: {:#?}",
+                "For segment {:?}; got raw hits: {:#?}",
                 segment_id,
-                segment_hits.iter().map(|t| t.0).collect::<Vec<f32>>()
+                segment_hits.iter().map(|hit| hit.t).collect::<Vec<f32>>()
             );
 
             for (y_range, hit_point) in segment_hits
                 .into_iter()
                 .tuple_windows::<(_, _)>()
-                .filter_map(|(t0, t1)| {
-                    let t0 = segment.sample_t(t0.0)?;
-                    let t1 = segment.sample_t(t1.0)?;
+                .filter_map(|(raw_hit1, raw_hit2)| {
+                    trace!("\tJoining {:?} and {:?}", raw_hit1, raw_hit2);
+
+                    let (start, end) = ext::min_max(raw_hit1.position.y, raw_hit2.position.y);
                     Some((
-                        Range {
-                            start: t0.y,
-                            end: t1.y,
-                        },
-                        (t0 + t1) / 2.,
+                        Range { start, end },
+                        (raw_hit1.position + raw_hit2.position) / 2.,
                     ))
                 })
             {
@@ -161,6 +173,7 @@ impl From<Vec<monotonics::Segment>> for RegionList {
                     y_range,
                     segment_id,
                 };
+                trace!("\tJoined hit: {:#?}", hit);
                 hits.insert(hit);
             }
         }
@@ -258,6 +271,7 @@ impl RegionList {
                         end_x: hit.x,
                         y: hit.y,
                     });
+                    trace!("\tEmitting span: {:?}", span);
                 }
                 _ => {}
             };
@@ -935,8 +949,6 @@ mod test {
     fn quadratic_triangle() {
         use Region::*;
 
-        pretty_env_logger::init();
-
         let simple_quadratic = vec![
             Segment::MoveTo(V2::new(0., 0.)),
             Segment::QuadraticTo {
@@ -971,6 +983,212 @@ mod test {
                 },
                 Boundary { x: 0, y: 2 },
                 Boundary { x: 1, y: 2 },
+            ]
+        );
+    }
+
+    #[test]
+    fn cubic_triangle() {
+        use Region::*;
+
+        pretty_env_logger::init();
+
+        let simple_cubic = vec![
+            Segment::MoveTo(V2::new(0., 0.)),
+            Segment::QuadraticTo {
+                ctrl: V2::new(0., 4.),
+                end: V2::new(2., 2.),
+            },
+            Segment::CubicTo {
+                ctrl0: V2::new(2.5, 1.5),
+                ctrl1: V2::new(1.5, 0.5),
+                end: V2::new(2., 0.),
+            },
+        ]
+        .into_iter()
+        .collect::<Path>();
+
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_cubic));
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 1, y: 0 },
+                Boundary { x: 0, y: 1 },
+                Boundary { x: 2, y: 1 },
+                Span {
+                    start_x: 1,
+                    end_x: 2,
+                    y: 1
+                },
+                Boundary { x: 0, y: 2 },
+                Boundary { x: 1, y: 2 },
+            ]
+        );
+    }
+
+    #[test]
+    fn cubic_blob() {
+        use Region::*;
+
+        let simple_cubic = vec![
+            Segment::MoveTo(V2::new(0., 0.)),
+            Segment::QuadraticTo {
+                ctrl: V2::new(0., 20.),
+                end: V2::new(14., 16.),
+            },
+            Segment::CubicTo {
+                ctrl0: V2::new(20., 12.),
+                ctrl1: V2::new(8., 4.),
+                end: V2::new(14., 0.),
+            },
+        ]
+        .into_iter()
+        .collect::<Path>();
+
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_cubic));
+
+        println!("Regions: {:#?}", regions);
+
+        assert_eq!(
+            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 12, y: 0 },
+                Span {
+                    start_x: 1,
+                    end_x: 12,
+                    y: 0
+                },
+                Boundary { x: 13, y: 0 },
+                Boundary { x: 0, y: 1 },
+                Boundary { x: 12, y: 1 },
+                Span {
+                    start_x: 1,
+                    end_x: 12,
+                    y: 1,
+                },
+                Boundary { x: 0, y: 2 },
+                Boundary { x: 12, y: 2 },
+                Span {
+                    start_x: 1,
+                    end_x: 12,
+                    y: 2,
+                },
+                Boundary { x: 0, y: 3 },
+                Boundary { x: 12, y: 3 },
+                Span {
+                    start_x: 1,
+                    end_x: 12,
+                    y: 3,
+                },
+                Boundary { x: 0, y: 4 },
+                Boundary { x: 12, y: 4 },
+                Span {
+                    start_x: 1,
+                    end_x: 12,
+                    y: 4,
+                },
+                Boundary { x: 0, y: 5 },
+                Boundary { x: 12, y: 5 },
+                Span {
+                    start_x: 1,
+                    end_x: 12,
+                    y: 5,
+                },
+                Boundary { x: 0, y: 6 },
+                Boundary { x: 13, y: 6 },
+                Span {
+                    start_x: 1,
+                    end_x: 13,
+                    y: 6,
+                },
+                Boundary { x: 0, y: 7 },
+                Boundary { x: 12, y: 7 },
+                Span {
+                    start_x: 1,
+                    end_x: 12,
+                    y: 7,
+                },
+                Boundary { x: 13, y: 7 },
+                Boundary { x: 0, y: 8 },
+                Boundary { x: 1, y: 8 },
+                Boundary { x: 13, y: 8 },
+                Span {
+                    start_x: 2,
+                    end_x: 13,
+                    y: 8,
+                },
+                Boundary { x: 1, y: 9 },
+                Boundary { x: 14, y: 9 },
+                Span {
+                    start_x: 2,
+                    end_x: 14,
+                    y: 9,
+                },
+                Boundary { x: 1, y: 10 },
+                Boundary { x: 14, y: 10 },
+                Span {
+                    start_x: 2,
+                    end_x: 14,
+                    y: 10,
+                },
+                Boundary { x: 15, y: 10 },
+                Boundary { x: 1, y: 11 },
+                Boundary { x: 2, y: 11 },
+                Boundary { x: 15, y: 11 },
+                Span {
+                    start_x: 3,
+                    end_x: 15,
+                    y: 11,
+                },
+                Boundary { x: 2, y: 12 },
+                Boundary { x: 15, y: 12 },
+                Span {
+                    start_x: 3,
+                    end_x: 15,
+                    y: 12,
+                },
+                Boundary { x: 2, y: 13 },
+                Boundary { x: 3, y: 13 },
+                Boundary { x: 15, y: 13 },
+                Span {
+                    start_x: 4,
+                    end_x: 15,
+                    y: 13,
+                },
+                Boundary { x: 3, y: 14 },
+                Boundary { x: 4, y: 14 },
+                Boundary { x: 15, y: 14 },
+                Span {
+                    start_x: 5,
+                    end_x: 15,
+                    y: 14,
+                },
+                Boundary { x: 4, y: 15 },
+                Boundary { x: 5, y: 15 },
+                Boundary { x: 6, y: 15 },
+                Boundary { x: 14, y: 15 },
+                Span {
+                    start_x: 7,
+                    end_x: 14,
+                    y: 15,
+                },
+                Boundary { x: 15, y: 15 },
+                Boundary { x: 6, y: 16 },
+                Boundary { x: 7, y: 16 },
+                Boundary { x: 8, y: 16 },
+                Boundary { x: 9, y: 16 },
+                Boundary { x: 11, y: 16 },
+                Span {
+                    start_x: 10,
+                    end_x: 11,
+                    y: 16,
+                },
+                Boundary { x: 13, y: 16 },
             ]
         );
     }

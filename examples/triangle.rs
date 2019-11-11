@@ -214,9 +214,8 @@ fn main() {
             comp.set_sample_depth(SampleDepth::Super64);
 
             comp.move_to(V2::new(0., 0.));
-            comp.quadratic_to(V2::new(200., 500.), V2::new(400., 400.));
-            //comp.line_to(V2::new(400., 400.));
-            comp.line_to(V2::new(400., 0.));
+            comp.quadratic_to(V2::new(0., 10.), V2::new(7., 8.));
+            comp.cubic_to(V2::new(10., 6.), V2::new(4., 2.), V2::new(7., 0.));
             comp.line_to(V2::new(0., 0.));
 
             //comp.set_shader(noise_shader.clone());

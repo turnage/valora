@@ -243,7 +243,18 @@ impl Composition {
     }
 
     pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
-        self.current_path.push(Segment::QuadraticTo { ctrl, end });
+        self.current_path.push(Segment::QuadraticTo {
+            ctrl: ctrl * self.scale,
+            end: end * self.scale,
+        });
+    }
+
+    pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
+        self.current_path.push(Segment::CubicTo {
+            ctrl0: ctrl0 * self.scale,
+            ctrl1: ctrl1 * self.scale,
+            end: end * self.scale,
+        });
     }
 
     pub fn set_color(&mut self, color: V4) { self.current_color = color; }

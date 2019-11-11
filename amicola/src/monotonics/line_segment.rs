@@ -102,6 +102,8 @@ impl Curve for LineSegment {
     }
 
     fn bounds(&self) -> &Bounds { &self.bounds }
+
+    fn bookends(&self) -> (V2, V2) { (self.start, self.end) }
 }
 
 #[cfg(test)]

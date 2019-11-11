@@ -18,6 +18,7 @@ enum_dispatch = "0.2.0"
 derive_more = "0.15.0"
 vek = "0.9.10"
 roots = "0.0.5"
+arrayvec = "0.5.1"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

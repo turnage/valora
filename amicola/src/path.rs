@@ -8,6 +8,7 @@ pub enum Segment {
     MoveTo(V2),
     LineTo(V2),
     QuadraticTo { ctrl: V2, end: V2 },
+    CubicTo { ctrl0: V2, ctrl1: V2, end: V2 },
 }
 
 impl Segment {
@@ -16,6 +17,7 @@ impl Segment {
             Segment::MoveTo(p) => p,
             Segment::LineTo(p) => p,
             Segment::QuadraticTo { end, .. } => end,
+            Segment::CubicTo { end, .. } => end,
         }
     }
 }

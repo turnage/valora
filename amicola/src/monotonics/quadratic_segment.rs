@@ -88,16 +88,16 @@ impl Curve for QuadraticBezier {
         let coef_pow_2 = c0 - 2. * c1 + c2;
         let coef_pow_1 = 2. * c1 - 2. * c0;
         let coef_pow_0 = c0 - y;
-        match find_roots_quadratic(coef_pow_2, coef_pow_1, coef_pow_0) {
-            Roots::One([t]) | Roots::Two([t, _]) => {
-                Some(t.abs()).filter(|t| EXCLUSIVE_DOMAIN.contains(t))
-            }
-            _ => None,
-        }
-        .map(|t| Intersection {
-            axis: self.inner.evaluate(t).x,
-            t,
-        })
+        find_roots_quadratic(coef_pow_2, coef_pow_1, coef_pow_0)
+            .as_ref()
+            .iter()
+            .filter(|t| EXCLUSIVE_DOMAIN.contains(t))
+            .copied()
+            .next()
+            .map(|t| Intersection {
+                axis: self.inner.evaluate(t).x,
+                t,
+            })
     }
 
     fn sample_x(&self, x: f32) -> Option<Intersection> {
@@ -119,4 +119,9 @@ impl Curve for QuadraticBezier {
     }
 
     fn bounds(&self) -> &Bounds { &self.bounds }
+
+    fn bookends(&self) -> (V2, V2) {
+        let (start, _, end) = self.inner.into_tuple();
+        (V2::new(start.x, start.y), V2::new(end.x, end.y))
+    }
 }

@@ -1,9 +1,11 @@
 //! Module for working with paths and path segments.
 
+mod cubic_segment;
 mod line_segment;
 mod quadratic_segment;
 
 use self::{
+    cubic_segment::{CreateCubicResult, CubicBezier},
     line_segment::LineSegment,
     quadratic_segment::{CreateQuadraticResult, QuadraticBezier},
 };
@@ -43,6 +45,18 @@ impl RasterSegmentSet {
                         }
                     }
                 }
+                path::Segment::CubicTo { ctrl0, ctrl1, end } => {
+                    match CubicBezier::new(start, ctrl0, ctrl1, end) {
+                        CreateCubicResult::IsLineSegment { start, end } => {
+                            if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
+                                segments.push(Segment::from(line_segment));
+                            }
+                        }
+                        CreateCubicResult::Cubic(cs) => {
+                            segments.extend(cs.into_iter().map(Segment::from));
+                        }
+                    }
+                }
                 path::Segment::MoveTo(_) => {}
             }
         }
@@ -56,6 +70,7 @@ impl RasterSegmentSet {
 pub enum Segment {
     LineSegment(LineSegment),
     QuadraticSegment(QuadraticBezier),
+    CubicSegment(CubicBezier),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -81,4 +96,7 @@ pub trait Curve {
 
     /// Returns a bounding box for the curve.
     fn bounds(&self) -> &Bounds;
+
+    /// Returns the start and end of the curve.
+    fn bookends(&self) -> (V2, V2);
 }
