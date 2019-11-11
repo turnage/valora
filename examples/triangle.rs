@@ -206,16 +206,17 @@ fn main() {
             V3::new(0.0, 0.25, 0.25),
         );
         render_gate.render_frames(|ctx, mut comp| {
-            comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
-            comp.draw(world.full_frame());
-            comp.fill();
+            //comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
+            //comp.draw(world.full_frame());
+            //comp.fill();
 
             let c = world.center();
             comp.set_sample_depth(SampleDepth::Super64);
 
             comp.move_to(V2::new(0., 0.));
-            comp.quadratic_to(V2::new(0., 10.), V2::new(7., 8.));
-            comp.cubic_to(V2::new(10., 6.), V2::new(4., 2.), V2::new(7., 0.));
+            comp.line_to(V2::new(0., 6.));
+            comp.line_to(V2::new(4., 6.));
+            comp.cubic_to(V2::new(6., 3.), V2::new(2., 3.), V2::new(4., 0.));
             comp.line_to(V2::new(0., 0.));
 
             //comp.set_shader(noise_shader.clone());

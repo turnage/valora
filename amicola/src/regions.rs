@@ -109,6 +109,8 @@ impl From<Vec<monotonics::Segment>> for RegionList {
     fn from(segments: Vec<monotonics::Segment>) -> Self {
         let mut hits = BTreeSet::new();
 
+        println!("Segments: {:#?}", segments);
+
         for (segment_id, segment) in segments.iter().enumerate() {
             trace!("Considering segment: {:#?}", segment);
 

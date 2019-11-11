@@ -111,22 +111,6 @@ impl Curve for CubicBezier {
         let coef_pow_1 = 3. * c1 - 3. * c0;
         let coef_pow_0 = c0 - y;
 
-        trace!(
-            "(3 * {:?}) - {:?} + (3 * {:?}) + {:?} = {:?}",
-            c1,
-            c0,
-            c2,
-            c3,
-            coef_pow_3
-        );
-        trace!("control points: {:?}", self.inner.into_tuple());
-        trace!(
-            "Coefs: {:?}, {:?}, {:?}, {:?}",
-            coef_pow_3,
-            coef_pow_2,
-            coef_pow_1,
-            coef_pow_0
-        );
         let roots = find_roots_cubic(coef_pow_3, coef_pow_2, coef_pow_1, coef_pow_0);
         let result = roots
             .as_ref()
@@ -138,11 +122,6 @@ impl Curve for CubicBezier {
                 axis: self.inner.evaluate(t).x,
                 t,
             });
-        trace!(
-            "For cubic segment, found intersection for y {:?}: {:#?}",
-            y,
-            roots
-        );
         result
     }
 
@@ -158,7 +137,6 @@ impl Curve for CubicBezier {
             .as_ref()
             .iter()
             .copied()
-            .map(f32::abs)
             .filter(|t| EXCLUSIVE_DOMAIN.contains(&t))
             .next()
             .map(|t| Intersection {
