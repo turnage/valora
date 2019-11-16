@@ -198,6 +198,19 @@ impl<D: Draw> Draw for Filled<D> {
     }
 }
 
+pub struct Stroked<D> {
+    element: D,
+    thickness: f32,
+}
+
+impl<D: Draw> Draw for Stroked<D> {
+    fn draw(&self, comp: &mut Composition) {
+        self.element.draw(comp);
+        comp.set_stroke_thickness(self.thickness);
+        comp.stroke();
+    }
+}
+
 fn triangle_fan(
     fbm: &Fbm,
     palette: &CosineColours,
@@ -262,7 +275,12 @@ fn main() {
 
             let c = world.center();
             let r = 10.;
-            for i in 0..1000 {
+            comp.set_color(V4::new(1., 0., 0., 1.));
+            comp.draw(Stroked {
+                element: NgonIter::triangle(0., 50., c),
+                thickness: 5.,
+            });
+            /*for i in 0..1000 {
                 triangle_fan(
                     &fbm,
                     &palette,
@@ -275,7 +293,7 @@ fn main() {
                     rng,
                     comp,
                 );
-            }
+            }*/
 
             println!("Enqued; render begins now");
         })

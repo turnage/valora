@@ -7,6 +7,7 @@ mod monotonics;
 mod path;
 mod regions;
 mod sampling;
+mod stroker;
 
 pub use self::path::{Path, Segment};
 pub use regions::ShadeCommand;
@@ -24,6 +25,28 @@ use regions::RegionList;
 /// assuming an edge from the last to the first vertex.
 pub fn fill_path(path: &Path, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
     RegionList::from(RasterSegmentSet::build_from_path(path)).shade_commands(sample_depth)
+}
+
+pub fn stroke_path(
+    path: &Path,
+    thickness: f32,
+    sample_depth: SampleDepth,
+) -> impl Iterator<Item = ShadeCommand> {
+    RegionList::from(stroker::stroke_path(path, thickness)).shade_commands(sample_depth)
+}
+
+pub fn raster_path(
+    path: &Path,
+    method: Method,
+    sample_depth: SampleDepth,
+) -> impl Iterator<Item = ShadeCommand> {
+    match method {
+        Method::Fill => {
+            Box::new(fill_path(path, sample_depth)) as Box<dyn Iterator<Item = ShadeCommand>>
+        }
+        Method::Stroke(thickness) => Box::new(stroke_path(path, thickness, sample_depth))
+            as Box<dyn Iterator<Item = ShadeCommand>>,
+    }
 }
 
 /// The method by which the rasterizer will rasterize the vector path.

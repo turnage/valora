@@ -61,6 +61,14 @@ impl LineSegment {
             normal,
         })
     }
+
+    pub fn translate(&self, dir: V2, amount: f32) -> Self {
+        let new_start = self.start + dir * amount;
+        Self::new_rasterable(new_start, new_start + self.dir * self.length)
+            .expect("Contructing line from translation of line.")
+    }
+
+    pub fn normal(&self) -> V2 { self.normal }
 }
 
 impl Curve for LineSegment {

@@ -207,22 +207,24 @@ pub fn run(
 }
 
 pub struct Composition {
-    current_path: Vec<Segment>,
-    current_shader: Shader,
-    current_color: V4,
+    path: Vec<Segment>,
+    shader: Shader,
+    color: V4,
+    stroke_thickness: f32,
     scale: f32,
-    current_sample_depth: SampleDepth,
+    sample_depth: SampleDepth,
     elements: Vec<Element>,
 }
 
 impl Composition {
     fn new(default_shader: Shader) -> Self {
         Self {
-            current_path: vec![],
-            current_shader: default_shader,
-            current_color: V4::new(1.0, 1.0, 1.0, 1.0),
-            scale: 1.0,
-            current_sample_depth: SampleDepth::Single,
+            path: vec![],
+            shader: default_shader,
+            color: V4::new(1.0, 1.0, 1.0, 1.0),
+            scale: 1.,
+            stroke_thickness: 1.,
+            sample_depth: SampleDepth::Single,
             elements: vec![],
         }
     }
@@ -230,53 +232,57 @@ impl Composition {
     pub fn draw(&mut self, element: impl Draw) { element.draw(self); }
 
     pub fn set_sample_depth(&mut self, sample_depth: SampleDepth) {
-        self.current_sample_depth = sample_depth;
+        self.sample_depth = sample_depth;
     }
 
     pub fn set_scale(&mut self, scale: f32) { self.scale = scale; }
 
-    pub fn move_to(&mut self, dest: V2) {
-        self.current_path = vec![Segment::MoveTo(dest * self.scale)];
-    }
+    pub fn move_to(&mut self, dest: V2) { self.path = vec![Segment::MoveTo(dest * self.scale)]; }
 
-    pub fn line_to(&mut self, dest: V2) {
-        self.current_path.push(Segment::LineTo(dest * self.scale));
-    }
+    pub fn line_to(&mut self, dest: V2) { self.path.push(Segment::LineTo(dest * self.scale)); }
 
     pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
-        self.current_path.push(Segment::QuadraticTo {
+        self.path.push(Segment::QuadraticTo {
             ctrl: ctrl * self.scale,
             end: end * self.scale,
         });
     }
 
     pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
-        self.current_path.push(Segment::CubicTo {
+        self.path.push(Segment::CubicTo {
             ctrl0: ctrl0 * self.scale,
             ctrl1: ctrl1 * self.scale,
             end: end * self.scale,
         });
     }
 
-    pub fn set_color(&mut self, color: V4) { self.current_color = color; }
+    pub fn set_color(&mut self, color: V4) { self.color = color; }
 
-    pub fn set_shader(&mut self, shader: Shader) { self.current_shader = shader; }
+    pub fn set_shader(&mut self, shader: Shader) { self.shader = shader; }
 
-    pub fn fill(&mut self) {
-        let mut path = vec![];
-        std::mem::swap(&mut self.current_path, &mut path);
-
-        let sample_depth = self.current_sample_depth;
-        self.elements.push(Element {
-            path,
-            color: self.current_color,
-            shader: self.current_shader.clone(),
-            raster_method: Method::Fill,
-            sample_depth,
-        });
+    pub fn set_stroke_thickness(&mut self, stroke_thickness: f32) {
+        self.stroke_thickness = stroke_thickness;
     }
 
+    pub fn fill(&mut self) { self.push_element(Method::Fill); }
+
+    pub fn stroke(&mut self) { self.push_element(Method::Stroke(self.stroke_thickness)); }
+
     pub(crate) fn append_path_segments(&mut self, path_segments: impl Iterator<Item = Segment>) {
-        self.current_path.extend(path_segments);
+        self.path.extend(path_segments);
+    }
+
+    fn push_element(&mut self, raster_method: Method) {
+        let mut path = vec![];
+        std::mem::swap(&mut self.path, &mut path);
+
+        let sample_depth = self.sample_depth;
+        self.elements.push(Element {
+            path,
+            color: self.color,
+            shader: self.shader.clone(),
+            raster_method,
+            sample_depth,
+        });
     }
 }
