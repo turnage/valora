@@ -3,7 +3,8 @@ use valora::*;
 
 use itertools::{iproduct, Itertools};
 use nalgebra::distance;
-use rand::distributions::*;
+use noise::{Fbm, NoiseFn};
+use rand::{distributions::*, prelude::*};
 use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -72,7 +73,7 @@ impl Iterator for NgonIter {
     type Item = V2;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.i == self.n {
+        if self.i == self.n + 1 {
             return None;
         }
 
@@ -188,11 +189,60 @@ impl Draw for Rect {
     }
 }
 
+pub struct Filled<D>(D);
+
+impl<D: Draw> Draw for Filled<D> {
+    fn draw(&self, comp: &mut Composition) {
+        self.0.draw(comp);
+        comp.fill();
+    }
+}
+
+fn triangle_fan(
+    fbm: &Fbm,
+    palette: &CosineColours,
+    d: usize,
+    max: usize,
+    phase_offset: f32,
+    r: f32,
+    sign: f32,
+    p: V2,
+    rng: &mut StdRng,
+    comp: &mut Composition,
+) {
+    if d > max {
+        return;
+    }
+
+    let noise = ((fbm.get([p.x as f64, p.y as f64]) as f32) + 1.) / 2. * sign;
+    let color = palette.sample(d as f32 * noise);
+    comp.set_color(V4::new(color.x, color.y, color.z, 1.));
+    comp.draw(Filled(NgonIter::triangle(
+        noise * std::f32::consts::PI,
+        2. * r / (d as f32),
+        p,
+    )));
+    let phase = noise * 2. * std::f32::consts::PI;
+    let next_point = Ellipse::circle(p, r).circumpoint(phase);
+
+    let children = rng.gen_range(1, 4);
+    triangle_fan(
+        fbm,
+        palette,
+        d + 1,
+        max,
+        phase_offset,
+        r,
+        sign,
+        next_point,
+        rng,
+        comp,
+    );
+}
+
 const NOISE_SHADER: &str = include_str!("noise.frag");
 
 fn main() {
-    use noise::{Fbm, NoiseFn};
-
     let fbm = Fbm::default();
 
     let options = Options::from_args();
@@ -206,23 +256,26 @@ fn main() {
             V3::new(0.0, 0.25, 0.25),
         );
         render_gate.render_frames(|ctx, mut comp| {
-            //comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
-            //comp.draw(world.full_frame());
-            //comp.fill();
+            comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
+            comp.draw(Filled(world.full_frame()));
+            comp.set_sample_depth(SampleDepth::Super8);
 
             let c = world.center();
-            comp.set_sample_depth(SampleDepth::Super64);
-
-            comp.move_to(V2::new(0., 0.));
-            comp.line_to(V2::new(0., 6.));
-            comp.line_to(V2::new(4., 6.));
-            comp.cubic_to(V2::new(6., 3.), V2::new(2., 3.), V2::new(4., 0.));
-            comp.line_to(V2::new(0., 0.));
-
-            //comp.set_shader(noise_shader.clone());
-            //comp.draw(NgonIter::new(0., 300., c, 10));
-            comp.set_color(V4::new(1., 0., 0., 1.));
-            comp.fill();
+            let r = 10.;
+            for i in 0..1000 {
+                triangle_fan(
+                    &fbm,
+                    &palette,
+                    0,
+                    1000,
+                    10.,
+                    r,
+                    if i % 2 == 0 { 1. } else { -1. },
+                    c + V2::new((i % 10) as f32, 0.) + V2::new(0., (i / 10) as f32),
+                    rng,
+                    comp,
+                );
+            }
 
             println!("Enqued; render begins now");
         })

@@ -8,8 +8,9 @@ pub struct LineSegment {
     m: Slope,
     bounds: Bounds,
     start: V2,
-    end: V2,
+    dir: V2,
     length: f32,
+    normal: V2,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -38,6 +39,14 @@ impl LineSegment {
             }
         };
 
+        let dir = (end - start).normalize();
+        let dir_theta = dir * std::f32::consts::PI / 2.;
+        let normal = V2::new(
+            dir_theta.x.cos() - dir_theta.y.sin(),
+            dir_theta.x.sin() - dir_theta.y.cos(),
+        )
+        .normalize();
+
         Some(LineSegment {
             m,
             bounds: Bounds {
@@ -46,9 +55,10 @@ impl LineSegment {
                 top,
                 bottom,
             },
-            start: start,
-            end: end,
+            start,
+            dir,
             length: (start - end).norm(),
+            normal,
         })
     }
 }
@@ -98,17 +108,18 @@ impl Curve for LineSegment {
             return None;
         }
 
-        Some((self.end - self.start) * t + self.start)
+        Some(self.start + self.dir * t * self.length)
     }
 
     fn bounds(&self) -> &Bounds { &self.bounds }
 
-    fn bookends(&self) -> (V2, V2) { (self.start, self.end) }
+    fn bookends(&self) -> (V2, V2) { (self.start, self.start + self.dir * self.length) }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn line_segment_new_valid() {
@@ -123,8 +134,9 @@ mod test {
                     bottom: 1.0
                 },
                 start: V2::new(3.0, 1.0),
-                end: V2::new(4.0, 2.0),
+                dir: V2::new(0.70710677, 0.70710677),
                 length: 1.4142135623730951,
+                normal: V2::new(-0.7071068, 0.7071068)
             })
         );
     }
@@ -142,8 +154,9 @@ mod test {
                     bottom: 1.0
                 },
                 start: V2::new(3.0, 1.0),
-                end: V2::new(4.0, 3.0),
+                dir: V2::new(0.4472136, 0.8944272,),
                 length: 2.23606797749979,
+                normal: V2::new(-0.4206461, 0.90722483)
             })
         );
     }
@@ -188,8 +201,9 @@ mod test {
                     bottom: 0.0
                 },
                 start: V2::new(0.0, 0.0),
-                end: V2::new(0.0, 100.0),
+                dir: V2::new(0.0, 1.0),
                 length: 100.0,
+                normal: V2::new(0., 1.0)
             })
         );
 
@@ -204,8 +218,9 @@ mod test {
                     bottom: 0.0
                 },
                 start: V2::new(0.0, 100.0),
-                end: V2::new(100.0, 0.0),
+                dir: V2::new(0.70710677, -0.70710677),
                 length: 141.4213562373095,
+                normal: V2::new(0.9475477, 0.31961447)
             })
         );
 

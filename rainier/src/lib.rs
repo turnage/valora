@@ -85,6 +85,7 @@ impl World {
             Segment::LineTo(V2::new(self.width, 0.0)),
             Segment::LineTo(V2::new(self.width, self.height)),
             Segment::LineTo(V2::new(0.0, self.height)),
+            Segment::LineTo(V2::new(0.0, 0.0)),
         ]
         .into_iter()
         .collect()
