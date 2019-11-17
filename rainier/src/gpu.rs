@@ -1,20 +1,14 @@
 use crate::{
     raster::{raster_path, Method},
     Result,
-    SampleDepth,
     V4,
 };
+use arrayvec::ArrayVec;
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
     index::PrimitiveType,
-    texture::{
-        texture2d::Texture2d,
-        texture2d_multisample::Texture2dMultisample,
-        MipmapsOption,
-        RawImage2d,
-        UncompressedFloatFormat,
-    },
+    texture::{texture2d::Texture2d, MipmapsOption, RawImage2d, UncompressedFloatFormat},
     uniforms::{MagnifySamplerFilter, UniformValue, Uniforms},
     Blend,
     BlendingFunction,
@@ -27,9 +21,15 @@ use glium::{
 };
 use glutin::dpi::PhysicalSize;
 use itertools::Itertools;
-use lyon_path::Builder;
+use lyon_path::{math::Point, Builder};
 use rand::random;
 use std::rc::Rc;
+
+#[derive(Copy, Clone, Debug)]
+pub enum DrawMode {
+    Iterate,
+    Final,
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct GpuVertex {
@@ -74,7 +74,6 @@ pub struct Element {
     pub color: V4,
     pub raster_method: Method,
     pub shader: Shader,
-    pub sample_depth: SampleDepth,
 }
 
 pub struct Gpu {
@@ -85,7 +84,7 @@ pub struct Gpu {
 pub struct GpuCommand<'a> {
     pub vertices: VertexBuffer<GpuVertex>,
     pub indices: IndexBuffer<u32>,
-    pub texture: &'a Texture2dMultisample,
+    pub texture: &'a Texture2d,
     pub program: &'a Program,
     pub uniforms: &'a UniformBuffer,
 }
@@ -144,18 +143,7 @@ impl Gpu {
         })
     }
 
-    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2dMultisample> {
-        Ok(Texture2dMultisample::empty_with_format(
-            self.ctx.as_ref(),
-            UncompressedFloatFormat::F32F32F32F32,
-            MipmapsOption::NoMipmap,
-            width,
-            height,
-            /*samples=*/ 1,
-        )?)
-    }
-
-    pub fn build_ram_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
+    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
         Ok(Texture2d::empty_with_format(
             self.ctx.as_ref(),
             UncompressedFloatFormat::F32F32F32F32,
@@ -169,8 +157,9 @@ impl Gpu {
         &self,
         width: u32,
         height: u32,
-        elements: impl Iterator<Item = Element>,
-    ) -> Result<Rc<Texture2dMultisample>> {
+        draw_mode: DrawMode,
+        mut elements: impl Iterator<Item = Element>,
+    ) -> Result<Rc<Texture2d>> {
         let texture = self.build_texture(width, height)?;
         for (_id, batch) in &elements.group_by(|e| e.shader.id) {
             let mut batch = batch.peekable();
@@ -189,7 +178,90 @@ impl Gpu {
                 .uniforms
                 .push(String::from("height"), UniformValue::Float(height as f32));
 
-            let (indices, vertices) = self.build_buffers(batch)?;
+            let (cpu_vertices, cpu_indices, primitive_type) = match draw_mode {
+                DrawMode::Iterate => {
+                    let (_, cpu_vertices, cpu_indices) = batch.try_fold::<_, _, Result<(
+                        u32,
+                        Vec<GpuVertex>,
+                        Vec<u32>,
+                    )>>(
+                        (0, vec![], vec![]),
+                        |(idx, mut vertices, mut indices), element| {
+                            let (mut new_vertices, new_indices) =
+                                raster_path(element.path, element.raster_method, element.color)?;
+                            vertices.append(&mut new_vertices);
+                            indices.extend(new_indices.into_iter().map(|i| i + idx));
+                            Ok((vertices.len() as u32, vertices, indices))
+                        },
+                    )?;
+                    (cpu_vertices, cpu_indices, PrimitiveType::TrianglesList)
+                }
+                DrawMode::Final => {
+                    let mut cpu_vertices = vec![];
+                    for element in batch {
+                        let paths = match element.raster_method {
+                            Method::Fill => vec![element.path],
+                            stroke_method @ Method::Stroke(_) => unimplemented!(),
+                        };
+
+                        let rgba = [
+                            element.color.x,
+                            element.color.y,
+                            element.color.z,
+                            element.color.w,
+                        ];
+                        cpu_vertices.extend(
+                            paths
+                                .into_iter()
+                                .flat_map(|path| {
+                                    amicola::fill_path(path, amicola::SampleDepth::Super64)
+                                })
+                                .flat_map(|cmd| match cmd {
+                                    amicola::ShadeCommand::Boundary { x, y, coverage } => {
+                                        let rgba = {
+                                            let mut copy = rgba;
+                                            copy[3] *= coverage;
+                                            copy
+                                        };
+                                        let mut out: ArrayVec<[GpuVertex; 2]> = ArrayVec::new();
+                                        out.push(GpuVertex {
+                                            vpos: [x as f32, y as f32],
+                                            vcol: rgba,
+                                        });
+                                        out.push(GpuVertex {
+                                            vpos: [x as f32 + 1.0, y as f32],
+                                            vcol: rgba,
+                                        });
+                                        out
+                                    }
+                                    amicola::ShadeCommand::Span { x, y } => {
+                                        let mut out: ArrayVec<[GpuVertex; 2]> = ArrayVec::new();
+                                        out.push(GpuVertex {
+                                            vpos: [x.start as f32, y as f32],
+                                            vcol: rgba,
+                                        });
+                                        out.push(GpuVertex {
+                                            vpos: [x.end as f32, y as f32],
+                                            vcol: rgba,
+                                        });
+                                        out
+                                    }
+                                }),
+                        );
+                    }
+                    let cpu_indices = cpu_vertices
+                        .iter()
+                        .enumerate()
+                        .map(|(i, _)| i as u32)
+                        .collect::<Vec<u32>>();
+                    (cpu_vertices, cpu_indices, PrimitiveType::LinesList)
+                }
+            };
+
+            let vertices = VertexBuffer::new(self.ctx.as_ref(), cpu_vertices.as_slice())?;
+            let indices =
+                IndexBuffer::new(self.ctx.as_ref(), primitive_type, cpu_indices.as_slice())?;
+
             self.draw_to_texture(GpuCommand {
                 indices,
                 vertices,
@@ -199,29 +271,6 @@ impl Gpu {
             })?;
         }
         Ok(Rc::new(texture))
-    }
-
-    pub fn read_to_ram(&self, texture: &Texture2dMultisample) -> Result<RawImage2d<u8>> {
-        let (width, height) = texture.dimensions();
-        let target = self.build_ram_texture(width, height)?;
-        texture.as_surface().blit_color(
-            &glium::Rect {
-                left: 0,
-                bottom: 0,
-                width,
-                height,
-            },
-            &target.as_surface(),
-            &glium::BlitTarget {
-                left: 0,
-                bottom: 0,
-                width: width as i32,
-                height: height as i32,
-            },
-            MagnifySamplerFilter::Linear,
-        );
-
-        Ok(target.read())
     }
 
     fn draw_to_texture(&self, cmd: GpuCommand) -> Result<()> {
@@ -249,31 +298,5 @@ impl Gpu {
                 ..Default::default()
             },
         )?)
-    }
-
-    fn build_buffers(
-        &self,
-        mut elements: impl Iterator<Item = Element>,
-    ) -> Result<(IndexBuffer<u32>, VertexBuffer<GpuVertex>)> {
-        let (_, vertices, indices) = elements
-            .try_fold::<_, _, Result<(u32, Vec<GpuVertex>, Vec<u32>)>>(
-                (0, vec![], vec![]),
-                |(idx, mut vertices, mut indices), element| {
-                    let (mut new_vertices, new_indices) =
-                        raster_path(element.path, element.raster_method, element.color)?;
-                    vertices.append(&mut new_vertices);
-                    indices.extend(new_indices.into_iter().map(|i| i + idx));
-                    Ok((vertices.len() as u32, vertices, indices))
-                },
-            )?;
-
-        let vertex_buffer = VertexBuffer::new(self.ctx.as_ref(), vertices.as_slice())?;
-        let index_buffer = IndexBuffer::new(
-            self.ctx.as_ref(),
-            PrimitiveType::TrianglesList,
-            indices.as_slice(),
-        )?;
-
-        Ok((index_buffer, vertex_buffer))
     }
 }

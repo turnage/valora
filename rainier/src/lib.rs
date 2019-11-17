@@ -47,6 +47,10 @@ pub struct Options {
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
     pub output: PathBuf,
+
+    /// Whether this run should export in high quality (takes longer, looks best).
+    #[structopt(long = "export")]
+    pub export: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -134,6 +138,7 @@ impl<'a, 'b> ShaderBuilder<'a, 'b> {
 pub struct RenderGate<'a> {
     gpu: &'a Gpu,
     world: World,
+    draw_mode: DrawMode,
     width: u32,
     height: u32,
     save_dir: PathBuf,
@@ -154,12 +159,15 @@ impl<'a> RenderGate<'a> {
             f(&FrameContext { frame }, &mut comp);
 
             println!("Rendering to texture");
-            let buffer = self
-                .gpu
-                .precompose(self.width, self.height, comp.elements.into_iter())?;
+            let buffer = self.gpu.precompose(
+                self.width,
+                self.height,
+                self.draw_mode,
+                comp.elements.into_iter(),
+            )?;
             println!("Reading to ram...");
 
-            let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(buffer.as_ref())?;
+            let raw: glium::texture::RawImage2d<u8> = buffer.read();
             println!("encoding as image...");
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> =
                 ImageBuffer::from_raw(self.width, self.height, raw.data.into_owned()).unwrap();
@@ -191,6 +199,11 @@ pub fn run(
     let gate = RenderGate {
         gpu: &gpu,
         world,
+        draw_mode: if options.export {
+            DrawMode::Final
+        } else {
+            DrawMode::Iterate
+        },
         width: width as u32,
         height: height as u32,
         save_dir: options.output,
@@ -202,36 +215,12 @@ pub fn run(
     f(&gpu_handle, &world, &mut rng, gate)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SampleDepth {
-    Single,
-    Super4,
-    Super8,
-    Super16,
-    Super32,
-    Super64,
-}
-
-impl Into<u64> for SampleDepth {
-    fn into(self) -> u64 {
-        match self {
-            SampleDepth::Single => 1,
-            SampleDepth::Super4 => 4,
-            SampleDepth::Super8 => 8,
-            SampleDepth::Super16 => 16,
-            SampleDepth::Super32 => 32,
-            SampleDepth::Super64 => 64,
-        }
-    }
-}
-
 pub struct Composition {
     path: Builder,
     shader: Shader,
     color: V4,
     stroke_thickness: f32,
     scale: f32,
-    sample_depth: SampleDepth,
     elements: Vec<Element>,
 }
 
@@ -243,16 +232,11 @@ impl Composition {
             color: V4::new(1.0, 1.0, 1.0, 1.0),
             scale: 1.,
             stroke_thickness: 1.,
-            sample_depth: SampleDepth::Single,
             elements: vec![],
         }
     }
 
     pub fn draw(&mut self, element: impl Draw) { element.draw(self); }
-
-    pub fn set_sample_depth(&mut self, sample_depth: SampleDepth) {
-        self.sample_depth = sample_depth;
-    }
 
     pub fn set_scale(&mut self, scale: f32) { self.scale = scale; }
 
@@ -298,13 +282,11 @@ impl Composition {
         let mut path = Builder::new();
         std::mem::swap(&mut self.path, &mut path);
 
-        let sample_depth = self.sample_depth;
         self.elements.push(Element {
             path,
             color: self.color,
             shader: self.shader.clone(),
             raster_method,
-            sample_depth,
         });
     }
 }

@@ -303,7 +303,6 @@ fn main() {
         render_gate.render_frames(|ctx, mut comp| {
             comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
             comp.draw(Filled(*world));
-            comp.set_sample_depth(SampleDepth::Super16);
             /*
             comp.set_color(V4::new(1.0, 0.0, 1.0, 1.0));
             comp.draw(Filled(Squig {
@@ -311,7 +310,7 @@ fn main() {
                 r: 10.,
             }));*/
 
-            let r = 400.;
+            let r = 180.;
             const COLS: usize = 10;
             const ROWS: usize = 10;
             for c in GridIter::new(COLS, ROWS)
@@ -323,13 +322,17 @@ fn main() {
                     let signal = i as f32 / COUNT as f32;
                     let rgb = palette.sample(signal);
                     comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
-                    comp.draw(Stroked {
+                    /*comp.draw(Stroked {
                         element: Squig {
                             center: c,
                             r: r - r * signal,
                         },
-                        thickness: 1.,
-                    });
+                        thickness: 30.,
+                    });*/
+                    comp.draw(Filled(Squig {
+                        center: c,
+                        r: r - r * signal,
+                    }));
                 }
             }
 
