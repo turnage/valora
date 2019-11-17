@@ -240,6 +240,7 @@ impl Draw for Squig {
             circle.circumpoint(-end / 4. + phase),
             circle.circumpoint(start + phase),
         );
+        comp.close();
     }
 }
 
@@ -310,7 +311,7 @@ fn main() {
                 r: 10.,
             }));*/
 
-            let r = 180.;
+            let r = 400.;
             const COLS: usize = 10;
             const ROWS: usize = 10;
             for c in GridIter::new(COLS, ROWS)
@@ -322,17 +323,17 @@ fn main() {
                     let signal = i as f32 / COUNT as f32;
                     let rgb = palette.sample(signal);
                     comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
-                    /*comp.draw(Stroked {
+                    comp.draw(Stroked {
                         element: Squig {
                             center: c,
                             r: r - r * signal,
                         },
-                        thickness: 30.,
-                    });*/
-                    comp.draw(Filled(Squig {
+                        thickness: 10.,
+                    });
+                    /*comp.draw(Filled(Squig {
                         center: c,
                         r: r - r * signal,
-                    }));
+                    }));*/
                 }
             }
 

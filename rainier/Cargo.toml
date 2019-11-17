@@ -5,7 +5,6 @@ authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-amicola = { path = "../amicola" }
 glium = "0.25.1"
 glutin = "0.21.1"
 structopt = "0.3.0"

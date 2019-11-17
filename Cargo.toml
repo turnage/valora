@@ -5,10 +5,9 @@ authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 
 [workspace]
-members = ["amicola", "rainier"]
+members = ["rainier"]
 
 [dependencies]
-amicola = { path = "amicola" }
 rainier = { path = "rainier" }
 qpine = { path = "qpine" }
 formo = { path = "formo" }

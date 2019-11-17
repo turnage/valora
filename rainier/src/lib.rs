@@ -47,10 +47,6 @@ pub struct Options {
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
     pub output: PathBuf,
-
-    /// Whether this run should export in high quality (takes longer, looks best).
-    #[structopt(long = "export")]
-    pub export: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -138,7 +134,6 @@ impl<'a, 'b> ShaderBuilder<'a, 'b> {
 pub struct RenderGate<'a> {
     gpu: &'a Gpu,
     world: World,
-    draw_mode: DrawMode,
     width: u32,
     height: u32,
     save_dir: PathBuf,
@@ -159,15 +154,12 @@ impl<'a> RenderGate<'a> {
             f(&FrameContext { frame }, &mut comp);
 
             println!("Rendering to texture");
-            let buffer = self.gpu.precompose(
-                self.width,
-                self.height,
-                self.draw_mode,
-                comp.elements.into_iter(),
-            )?;
+            let buffer = self
+                .gpu
+                .precompose(self.width, self.height, comp.elements.into_iter())?;
             println!("Reading to ram...");
 
-            let raw: glium::texture::RawImage2d<u8> = buffer.read();
+            let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(buffer.as_ref())?;
             println!("encoding as image...");
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> =
                 ImageBuffer::from_raw(self.width, self.height, raw.data.into_owned()).unwrap();
@@ -199,11 +191,6 @@ pub fn run(
     let gate = RenderGate {
         gpu: &gpu,
         world,
-        draw_mode: if options.export {
-            DrawMode::Final
-        } else {
-            DrawMode::Iterate
-        },
         width: width as u32,
         height: height as u32,
         save_dir: options.output,
@@ -265,6 +252,8 @@ impl Composition {
             Point::new(end.x * self.scale, end.y * self.scale),
         );
     }
+
+    pub fn close(&mut self) { self.path.close() }
 
     pub fn set_color(&mut self, color: V4) { self.color = color; }
 
