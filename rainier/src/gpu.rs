@@ -1,5 +1,5 @@
-use crate::Result;
-use amicola::{raster_path, Method, SampleDepth, ShadeCommand, V4};
+use crate::{Result, V4};
+use amicola::{raster_path, Method, SampleDepth, ShadeCommand};
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
@@ -219,42 +219,37 @@ impl Gpu {
                     element.color.z,
                     element.color.w,
                 ];
-                let path = element.path.build();
-                raster_path(
-                    path.into_iter(),
-                    element.raster_method,
-                    element.sample_depth,
-                )
-                .flat_map(|cmd| match cmd {
-                    ShadeCommand::Boundary { x, y, coverage } => {
-                        let rgba = {
-                            let mut copy = rgba;
-                            copy[3] *= coverage;
-                            copy
-                        };
-                        vec![
+                raster_path(element.path, element.raster_method, element.sample_depth)
+                    .flat_map(|cmd| match cmd {
+                        ShadeCommand::Boundary { x, y, coverage } => {
+                            let rgba = {
+                                let mut copy = rgba;
+                                copy[3] *= coverage;
+                                copy
+                            };
+                            vec![
+                                GpuVertex {
+                                    vpos: [x as f32, y as f32],
+                                    vcol: rgba,
+                                },
+                                GpuVertex {
+                                    vpos: [x as f32 + 1.0, y as f32],
+                                    vcol: rgba,
+                                },
+                            ]
+                        }
+                        ShadeCommand::Span { x, y } => vec![
                             GpuVertex {
-                                vpos: [x as f32, y as f32],
+                                vpos: [x.start as f32, y as f32],
                                 vcol: rgba,
                             },
                             GpuVertex {
-                                vpos: [x as f32 + 1.0, y as f32],
+                                vpos: [x.end as f32, y as f32],
                                 vcol: rgba,
                             },
-                        ]
-                    }
-                    ShadeCommand::Span { x, y } => vec![
-                        GpuVertex {
-                            vpos: [x.start as f32, y as f32],
-                            vcol: rgba,
-                        },
-                        GpuVertex {
-                            vpos: [x.end as f32, y as f32],
-                            vcol: rgba,
-                        },
-                    ],
-                })
-                .collect::<Vec<GpuVertex>>()
+                        ],
+                    })
+                    .collect::<Vec<GpuVertex>>()
             })
             .collect::<Vec<GpuVertex>>();
 

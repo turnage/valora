@@ -3,7 +3,7 @@
 mod gpu;
 
 pub use self::gpu::{Shader, UniformBuffer};
-pub use amicola::{SampleDepth, V2, V4};
+pub use amicola::SampleDepth;
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
@@ -16,7 +16,9 @@ use lyon_path::{math::Point, Builder};
 use nalgebra::{base::*, Matrix};
 use std::{path::PathBuf, rc::Rc};
 
+pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
 pub type V3 = Matrix<f32, U3, U1, ArrayStorage<f32, U3, U1>>;
+pub type V4 = Matrix<f32, U4, U1, ArrayStorage<f32, U4, U1>>;
 
 type Result<T> = std::result::Result<T, Error>;
 

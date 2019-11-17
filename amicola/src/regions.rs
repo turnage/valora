@@ -1,15 +1,10 @@
 //! Raster region search and enumeration.
 
-use crate::{
-    ext,
-    grid_lines::*,
-    monotonics::{Curve, RasterSegment},
-    sampling::*,
-    V2,
-};
+use crate::{ext, grid_lines::*, sampling::*, V2};
 use float_ord::FloatOrd;
 use itertools::Itertools;
 use log::trace;
+use lyon_geom::LineSegment;
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
@@ -89,7 +84,7 @@ impl PartialOrd for RawHit {
 
 impl Ord for RawHit {
     fn cmp(&self, RawHit { t: other, .. }: &RawHit) -> Ordering {
-        if (self.t - *other).abs() <= std::f32::EPSILON * 10. {
+        if (self.t - *other).abs() <= std::f32::EPSILON {
             Ordering::Equal
         } else {
             FloatOrd(self.t).cmp(&FloatOrd(*other))
@@ -102,20 +97,20 @@ impl Eq for RawHit {}
 #[derive(Debug, Default)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
-    segments: Vec<RasterSegment>,
+    segments: Vec<LineSegment<f32>>,
 }
 
-impl From<Vec<RasterSegment>> for RegionList {
-    fn from(segments: Vec<RasterSegment>) -> Self {
+impl From<Vec<LineSegment<f32>>> for RegionList {
+    fn from(segments: Vec<LineSegment<f32>>) -> Self {
         let mut hits = BTreeSet::new();
 
         for (segment_id, segment) in segments.iter().enumerate() {
             trace!("Considering segment: {:#?}", segment);
 
-            let bounds = segment.bounds();
+            let bounds = segment.bounding_rect();
 
             let mut segment_hits = BTreeSet::new();
-            let (start, end) = segment.bookends();
+            let (start, end) = (segment.from, segment.to);
             segment_hits.insert(RawHit {
                 t: 0.0,
                 position: start,
@@ -125,24 +120,22 @@ impl From<Vec<RasterSegment>> for RegionList {
                 position: end,
             });
 
-            let iter = GridLinesIter::Bounds(bounds);
-
-            for horizontal_line in iter.horizontal() {
+            for horizontal_line in horizontal_grid_lines(bounds) {
                 let y = horizontal_line as f32;
-                if let Some(intersection) = segment.sample_y(y) {
+                if let Some(t) = segment.horizontal_line_intersection_t(y) {
                     segment_hits.insert(RawHit {
-                        position: V2::new(intersection.axis, y),
-                        t: intersection.t,
+                        position: segment.sample(t),
+                        t,
                     });
                 }
             }
 
-            for vertical_line in iter.vertical() {
+            for vertical_line in vertical_grid_lines(bounds) {
                 let x = vertical_line as f32;
-                if let Some(intersection) = segment.sample_x(x) {
+                if let Some(t) = segment.vertical_line_intersection_t(x) {
                     segment_hits.insert(RawHit {
-                        position: V2::new(x, intersection.axis),
-                        t: intersection.t,
+                        position: segment.sample(t),
+                        t,
                     });
                 }
             }
@@ -162,7 +155,7 @@ impl From<Vec<RasterSegment>> for RegionList {
                     let (start, end) = ext::min_max(raw_hit1.position.y, raw_hit2.position.y);
                     Some((
                         Range { start, end },
-                        (raw_hit1.position + raw_hit2.position) / 2.,
+                        (raw_hit1.position + raw_hit2.position.to_vector()) / 2.,
                     ))
                 })
             {
@@ -189,7 +182,11 @@ impl RegionList {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
                 x: x,
                 y: y,
-                coverage: coverage(V2::new(x as f32, y as f32), sample_depth, segments.iter()),
+                coverage: coverage(
+                    V2::new(x as f32, y as f32),
+                    sample_depth,
+                    segments.iter().copied(),
+                ),
             },
             Region::Span { start_x, end_x, y } => ShadeCommand::Span {
                 x: start_x..end_x,
@@ -287,8 +284,11 @@ impl RegionList {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::monotonics::RasterSegmentSet;
-    use lyon_path::{math::Point, Builder};
+    use lyon_path::{
+        iterator::{Flattened, FlattenedIterator},
+        math::Point,
+        Builder,
+    };
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
 
@@ -299,8 +299,13 @@ mod test {
         builder.line_to(Point::new(0.0, 2.0));
         builder.line_to(Point::new(2.0, 0.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -322,8 +327,13 @@ mod test {
         builder.line_to(Point::new(3.0, 3.0));
         builder.line_to(Point::new(-1.0, 0.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -360,8 +370,13 @@ mod test {
         builder.line_to(Point::new(0.0, 5.0));
         builder.line_to(Point::new(5.0, 0.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -404,8 +419,13 @@ mod test {
         builder.line_to(Point::new(2.0, 0.0));
         builder.line_to(Point::new(0.0, 3.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -438,8 +458,13 @@ mod test {
         builder.line_to(Point::new(1.0, 5.0));
         builder.line_to(Point::new(3.0, 2.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -490,8 +515,13 @@ mod test {
         builder.line_to(Point::new(1.69, 6.31));
         builder.line_to(Point::new(6.18, 5.22));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -546,8 +576,13 @@ mod test {
         builder.line_to(Point::new(2.42, 9.02));
         builder.line_to(Point::new(8.83, 7.46));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -622,8 +657,13 @@ mod test {
         builder.line_to(Point::new(11.0, 5.0));
         builder.line_to(Point::new(3.0, 5.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -691,8 +731,13 @@ mod test {
         builder.line_to(Point::new(9.33, 2.5));
         builder.line_to(Point::new(5., 0.));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -801,8 +846,13 @@ mod test {
         builder.line_to(Point::new(5.0, 1.0));
         builder.line_to(Point::new(5.0, 0.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -836,8 +886,13 @@ mod test {
         builder.line_to(Point::new(4.75, 0.25));
         builder.line_to(Point::new(5.0, 0.0));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -869,8 +924,13 @@ mod test {
         builder.line_to(Point::new(5.0, 0.0));
         builder.line_to(Point::new(0., 0.));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -899,8 +959,13 @@ mod test {
         builder.move_to(Point::new(0., 0.));
         builder.quadratic_bezier_to(Point::new(3., 3.), Point::new(2., 0.));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -925,8 +990,13 @@ mod test {
         builder.quadratic_bezier_to(Point::new(0., 4.), Point::new(2., 2.));
         builder.line_to(Point::new(2., 0.));
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -966,8 +1036,13 @@ mod test {
             Point::new(2., 0.),
         );
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 
@@ -1002,8 +1077,13 @@ mod test {
             Point::new(14., 0.),
         );
         let path = builder.build();
+        let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
+        let regions = RegionList::from(
+            flattened_path
+                .line_segments()
+                .collect::<Vec<LineSegment<f32>>>(),
+        );
 
         println!("Regions: {:#?}", regions);
 

@@ -1,8 +1,10 @@
 //! Stroker for a path.
 
-use crate::{monotonics::RasterSegment, PathIterator};
-use pathfinder_path_utils::{segments::Segment as PathFinderSegment, stroke::StrokeToFillIter};
+use lyon_geom::LineSegment;
 
-pub fn stroke_path(path: impl PathIterator, thickness: f32) -> impl Iterator<Item = RasterSegment> {
-    std::iter::empty()
+pub fn stroke_path(
+    path: impl Iterator<Item = LineSegment<f32>>,
+    thickness: f32,
+) -> impl Iterator<Item = LineSegment<f32>> {
+    path
 }

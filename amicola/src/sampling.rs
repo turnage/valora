@@ -1,9 +1,7 @@
 //! Super sampling patterns.
 
-use crate::{
-    monotonics::{Curve, RasterSegment},
-    V2,
-};
+use crate::V2;
+use lyon_geom::LineSegment;
 
 /// Super sampling depths for the hammersley pattern.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -29,17 +27,21 @@ impl Into<u64> for SampleDepth {
     }
 }
 
-pub fn coverage<'a>(
+pub fn coverage(
     offset: V2,
     depth: SampleDepth,
-    path: impl Iterator<Item = &'a RasterSegment> + Clone,
+    path: impl Iterator<Item = LineSegment<f32>> + Clone,
 ) -> f32 {
     // TODO: Sample vertically as well?
     let mut hits = 0;
-    for command in hammersley(depth).map(|cmd| cmd + offset) {
+    for command in hammersley(depth).map(|mut cmd| {
+        cmd.x += offset.x;
+        cmd.y += offset.y;
+        cmd
+    }) {
         let mut pass_count = 0;
         for segment in path.clone() {
-            if let Some(x) = segment.sample_y(command.y).map(|i| i.axis) {
+            if let Some(x) = segment.horizontal_line_intersection(command.y).map(|p| p.x) {
                 if x <= command.x {
                     pass_count += 1;
                 }

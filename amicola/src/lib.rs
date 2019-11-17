@@ -1,58 +1,65 @@
 //! A rasterizer for fine art.
 
-mod bounds;
 mod ext;
 mod grid_lines;
-mod monotonics;
 mod regions;
 mod sampling;
 mod stroker;
 
-pub use lyon_path::iterator::PathIterator;
+pub use lyon_path::{
+    iterator::{Flattened, FlattenedIterator},
+    Builder,
+    Path,
+    PathEvent,
+};
 pub use regions::ShadeCommand;
 pub use sampling::SampleDepth;
+pub type V2 = Point2D<f32, UnknownUnit>;
 
-use nalgebra::{base::*, Matrix};
+use euclid::{Point2D, UnknownUnit};
+use lyon_geom::LineSegment;
 
-pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
-pub type V4 = Matrix<f32, U4, U1, ArrayStorage<f32, U4, U1>>;
-
-use self::monotonics::{RasterSegment, RasterSegmentSet};
 use regions::RegionList;
 
 /// Generates commands to shade the area inside the path. The path is automatically closed by
 /// assuming an edge from the last to the first vertex.
-pub fn fill_path<'a>(
-    path: impl PathIterator + 'a,
+pub fn fill_path(
+    builder: Builder,
     sample_depth: SampleDepth,
-) -> impl Iterator<Item = ShadeCommand> + 'a {
-    RegionList::from(RasterSegmentSet::build_from_path(path)).shade_commands(sample_depth)
+) -> impl Iterator<Item = ShadeCommand> {
+    let path = builder.build();
+    let samples_per_pixel: u64 = sample_depth.into();
+    let builder = Flattened::new(1.0 / samples_per_pixel as f32, path.into_iter());
+    RegionList::from(builder.line_segments().collect::<Vec<LineSegment<f32>>>())
+        .shade_commands(sample_depth)
 }
 
-pub fn stroke_path<'a>(
-    path: impl PathIterator + 'a,
+pub fn stroke_path(
+    path: Builder,
     thickness: f32,
     sample_depth: SampleDepth,
-) -> impl Iterator<Item = ShadeCommand> + 'a {
-    RegionList::from(
-        stroker::stroke_path(path, thickness)
-            .filter_map(<Option<RasterSegment>>::from)
-            .collect::<Vec<RasterSegment>>(),
-    )
-    .shade_commands(sample_depth)
+) -> impl Iterator<Item = ShadeCommand> {
+    std::iter::empty() /*
+                       let builder = FlatteningBuilder(path, 1.0 / sample_depth.into() as f32);
+                       RegionList::from(
+                           stroker::stroke_path(builder.into_iter(), thickness)
+                               .filter_map(<Option<RasterSegment>>::from)
+                               .collect::<Vec<RasterSegment>>(),
+                       )
+                       .shade_commands(sample_depth)*/
 }
 
-pub fn raster_path<'a>(
-    path: impl PathIterator + 'a,
+pub fn raster_path(
+    path: Builder,
     method: Method,
     sample_depth: SampleDepth,
-) -> impl Iterator<Item = ShadeCommand> + 'a {
+) -> impl Iterator<Item = ShadeCommand> {
     match method {
         Method::Fill => {
-            Box::new(fill_path(path, sample_depth)) as Box<dyn Iterator<Item = ShadeCommand> + 'a>
+            Box::new(fill_path(path, sample_depth)) as Box<dyn Iterator<Item = ShadeCommand>>
         }
         Method::Stroke(thickness) => Box::new(stroke_path(path, thickness, sample_depth))
-            as Box<dyn Iterator<Item = ShadeCommand> + 'a>,
+            as Box<dyn Iterator<Item = ShadeCommand>>,
     }
 }
 
