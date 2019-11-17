@@ -130,7 +130,12 @@ impl CosineColours {
     pub fn new(a: V3, b: V3, c: V3, d: V3) -> Self { Self { a, b, c, d } }
 
     pub fn sample(&self, t: f32) -> V3 {
-        self.a + self.b.component_mul(&(self.c * t + self.d).map(f32::cos))
+        self.a
+            + self.b.component_mul(
+                &(self.c * t + self.d)
+                    .map(|v| v * std::f32::consts::PI * 2.)
+                    .map(f32::cos),
+            )
     }
 }
 
@@ -211,6 +216,33 @@ impl<D: Draw> Draw for Stroked<D> {
     }
 }
 
+pub struct Squig {
+    center: V2,
+    r: f32,
+}
+
+impl Draw for Squig {
+    fn draw(&self, comp: &mut Composition) {
+        let start = 0.;
+        let end = std::f32::consts::PI;
+        let circle = Ellipse::circle(self.center, self.r);
+
+        let phase = std::f32::consts::PI / 2.;
+
+        comp.move_to(circle.circumpoint(start + phase));
+        comp.cubic_to(
+            circle.circumpoint(end / 4. + phase),
+            circle.circumpoint(end / 2. + phase),
+            circle.circumpoint(end + phase),
+        );
+        comp.cubic_to(
+            circle.circumpoint(-end / 2. + phase),
+            circle.circumpoint(-end / 4. + phase),
+            circle.circumpoint(start + phase),
+        );
+    }
+}
+
 fn triangle_fan(
     fbm: &Fbm,
     palette: &CosineColours,
@@ -265,21 +297,32 @@ fn main() {
         let palette = CosineColours::new(
             V3::new(0.5, 0.5, 0.5),
             V3::new(0.5, 0.5, 0.5),
-            V3::new(2.0, 1.0, 1.0),
-            V3::new(0.0, 0.25, 0.25),
+            V3::new(2.0, 1.0, 0.0),
+            V3::new(0.5, 0.20, 0.25),
         );
         render_gate.render_frames(|ctx, mut comp| {
             comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
             comp.draw(Filled(*world));
             comp.set_sample_depth(SampleDepth::Super8);
 
-            let c = world.center();
-            let r = 10.;
-            comp.set_color(V4::new(1., 0., 0., 1.));
-            comp.draw(Stroked {
-                element: NgonIter::triangle(0., 50., c),
-                thickness: 5.,
-            });
+            let r = 400.;
+            const COLS: usize = 10;
+            const ROWS: usize = 10;
+            for c in GridIter::new(COLS, ROWS)
+                .tiles(world.width, world.height)
+                .map(|r| r.center())
+            {
+                const COUNT: usize = 20;
+                for i in 0..COUNT {
+                    let signal = i as f32 / COUNT as f32;
+                    let rgb = palette.sample(signal);
+                    comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
+                    comp.draw(Filled(Squig {
+                        center: c,
+                        r: r - r * signal,
+                    }));
+                }
+            }
             /*for i in 0..1000 {
                 triangle_fan(
                     &fbm,
