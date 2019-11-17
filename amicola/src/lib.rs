@@ -30,8 +30,7 @@ pub fn fill_path(
     let path = builder.build();
     let samples_per_pixel: u64 = sample_depth.into();
     let builder = Flattened::new(1.0 / samples_per_pixel as f32, path.into_iter());
-    RegionList::from(builder.line_segments().collect::<Vec<LineSegment<f32>>>())
-        .shade_commands(sample_depth)
+    RegionList::from(builder.line_segments()).shade_commands(sample_depth)
 }
 
 pub fn stroke_path(

@@ -100,11 +100,18 @@ pub struct RegionList {
     segments: Vec<LineSegment<f32>>,
 }
 
-impl From<Vec<LineSegment<f32>>> for RegionList {
-    fn from(segments: Vec<LineSegment<f32>>) -> Self {
+impl<I> From<I> for RegionList
+where
+    I: Iterator<Item = LineSegment<f32>>,
+{
+    fn from(segment_iter: I) -> Self {
+        let mut segments = vec![];
         let mut hits = BTreeSet::new();
 
-        for (segment_id, segment) in segments.iter().enumerate() {
+        for (segment_id, segment) in segment_iter
+            .filter(|line| line.to.y != line.from.y)
+            .enumerate()
+        {
             trace!("Considering segment: {:#?}", segment);
 
             let bounds = segment.bounding_rect();
@@ -169,6 +176,7 @@ impl From<Vec<LineSegment<f32>>> for RegionList {
                 trace!("\tJoined hit: {:#?}", hit);
                 hits.insert(hit);
             }
+            segments.push(segment);
         }
 
         Self { segments, hits }
@@ -301,11 +309,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -329,11 +333,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -372,11 +372,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -421,11 +417,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -460,11 +452,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -517,11 +505,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -578,11 +562,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -659,11 +639,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -733,11 +709,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -848,11 +820,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -888,11 +856,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -926,11 +890,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -961,11 +921,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -992,11 +948,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -1038,11 +990,7 @@ mod test {
         let path = builder.build();
         let flattened_path = Flattened::new(0.1, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -1077,13 +1025,9 @@ mod test {
             Point::new(14., 0.),
         );
         let path = builder.build();
-        let flattened_path = Flattened::new(0.1, path.into_iter());
+        let flattened_path = Flattened::new(0.01, path.into_iter());
 
-        let regions = RegionList::from(
-            flattened_path
-                .line_segments()
-                .collect::<Vec<LineSegment<f32>>>(),
-        );
+        let regions = RegionList::from(flattened_path.line_segments());
 
         println!("Regions: {:#?}", regions);
 
@@ -1216,12 +1160,9 @@ mod test {
                 Boundary { x: 7, y: 16 },
                 Boundary { x: 8, y: 16 },
                 Boundary { x: 9, y: 16 },
+                Boundary { x: 10, y: 16 },
                 Boundary { x: 11, y: 16 },
-                Span {
-                    start_x: 10,
-                    end_x: 11,
-                    y: 16,
-                },
+                Boundary { x: 12, y: 16 },
                 Boundary { x: 13, y: 16 },
             ]
         );
