@@ -1,15 +1,14 @@
 //! Tools for composing generative fine art.
 
 mod gpu;
+mod raster;
 
 pub use self::gpu::{Shader, UniformBuffer};
-pub use amicola::SampleDepth;
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
 
-use self::gpu::*;
-use amicola::*;
+use self::{gpu::*, raster::Method};
 use failure::Error;
 use image::{ImageBuffer, Rgba};
 use lyon_path::{math::Point, Builder};
@@ -160,7 +159,7 @@ impl<'a> RenderGate<'a> {
                 .precompose(self.width, self.height, comp.elements.into_iter())?;
             println!("Reading to ram...");
 
-            let raw: glium::texture::RawImage2d<u8> = buffer.read();
+            let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(buffer.as_ref())?;
             println!("encoding as image...");
             let image: ImageBuffer<Rgba<u8>, Vec<u8>> =
                 ImageBuffer::from_raw(self.width, self.height, raw.data.into_owned()).unwrap();
@@ -203,6 +202,29 @@ pub fn run(
     f(&gpu_handle, &world, &mut rng, gate)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SampleDepth {
+    Single,
+    Super4,
+    Super8,
+    Super16,
+    Super32,
+    Super64,
+}
+
+impl Into<u64> for SampleDepth {
+    fn into(self) -> u64 {
+        match self {
+            SampleDepth::Single => 1,
+            SampleDepth::Super4 => 4,
+            SampleDepth::Super8 => 8,
+            SampleDepth::Super16 => 16,
+            SampleDepth::Super32 => 32,
+            SampleDepth::Super64 => 64,
+        }
+    }
+}
+
 pub struct Composition {
     path: Builder,
     shader: Shader,
@@ -236,21 +258,27 @@ impl Composition {
 
     pub fn move_to(&mut self, dest: V2) {
         self.path = Builder::new();
-        self.path.move_to(Point::new(dest.x, dest.y));
+        self.path
+            .move_to(Point::new(dest.x * self.scale, dest.y * self.scale));
     }
 
-    pub fn line_to(&mut self, dest: V2) { self.path.line_to(Point::new(dest.x, dest.y)); }
+    pub fn line_to(&mut self, dest: V2) {
+        self.path
+            .line_to(Point::new(dest.x * self.scale, dest.y * self.scale));
+    }
 
     pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
-        self.path
-            .quadratic_bezier_to(Point::new(ctrl.x, ctrl.y), Point::new(end.x, end.y));
+        self.path.quadratic_bezier_to(
+            Point::new(ctrl.x * self.scale, ctrl.y * self.scale),
+            Point::new(end.x * self.scale, end.y * self.scale),
+        );
     }
 
     pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
         self.path.cubic_bezier_to(
-            Point::new(ctrl0.x, ctrl0.y),
-            Point::new(ctrl1.x, ctrl1.y),
-            Point::new(end.x, end.y),
+            Point::new(ctrl0.x * self.scale, ctrl0.y * self.scale),
+            Point::new(ctrl1.x * self.scale, ctrl1.y * self.scale),
+            Point::new(end.x * self.scale, end.y * self.scale),
         );
     }
 

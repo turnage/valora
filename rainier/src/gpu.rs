@@ -1,11 +1,21 @@
-use crate::{Result, V4};
-use amicola::{raster_path, Method, SampleDepth, ShadeCommand};
+use crate::{
+    raster::{raster_path, Method},
+    Result,
+    SampleDepth,
+    V4,
+};
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
     index::PrimitiveType,
-    texture::{texture2d::Texture2d, MipmapsOption, UncompressedFloatFormat},
-    uniforms::{UniformValue, Uniforms},
+    texture::{
+        texture2d::Texture2d,
+        texture2d_multisample::Texture2dMultisample,
+        MipmapsOption,
+        RawImage2d,
+        UncompressedFloatFormat,
+    },
+    uniforms::{MagnifySamplerFilter, UniformValue, Uniforms},
     Blend,
     BlendingFunction,
     DrawParameters,
@@ -75,7 +85,7 @@ pub struct Gpu {
 pub struct GpuCommand<'a> {
     pub vertices: VertexBuffer<GpuVertex>,
     pub indices: IndexBuffer<u32>,
-    pub texture: &'a Texture2d,
+    pub texture: &'a Texture2dMultisample,
     pub program: &'a Program,
     pub uniforms: &'a UniformBuffer,
 }
@@ -134,7 +144,18 @@ impl Gpu {
         })
     }
 
-    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
+    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2dMultisample> {
+        Ok(Texture2dMultisample::empty_with_format(
+            self.ctx.as_ref(),
+            UncompressedFloatFormat::F32F32F32F32,
+            MipmapsOption::NoMipmap,
+            width,
+            height,
+            /*samples=*/ 1,
+        )?)
+    }
+
+    pub fn build_ram_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
         Ok(Texture2d::empty_with_format(
             self.ctx.as_ref(),
             UncompressedFloatFormat::F32F32F32F32,
@@ -149,7 +170,7 @@ impl Gpu {
         width: u32,
         height: u32,
         elements: impl Iterator<Item = Element>,
-    ) -> Result<Rc<Texture2d>> {
+    ) -> Result<Rc<Texture2dMultisample>> {
         let texture = self.build_texture(width, height)?;
         for (_id, batch) in &elements.group_by(|e| e.shader.id) {
             let mut batch = batch.peekable();
@@ -178,6 +199,29 @@ impl Gpu {
             })?;
         }
         Ok(Rc::new(texture))
+    }
+
+    pub fn read_to_ram(&self, texture: &Texture2dMultisample) -> Result<RawImage2d<u8>> {
+        let (width, height) = texture.dimensions();
+        let target = self.build_ram_texture(width, height)?;
+        texture.as_surface().blit_color(
+            &glium::Rect {
+                left: 0,
+                bottom: 0,
+                width,
+                height,
+            },
+            &target.as_surface(),
+            &glium::BlitTarget {
+                left: 0,
+                bottom: 0,
+                width: width as i32,
+                height: height as i32,
+            },
+            MagnifySamplerFilter::Linear,
+        );
+
+        Ok(target.read())
     }
 
     fn draw_to_texture(&self, cmd: GpuCommand) -> Result<()> {
@@ -209,60 +253,24 @@ impl Gpu {
 
     fn build_buffers(
         &self,
-        elements: impl Iterator<Item = Element>,
+        mut elements: impl Iterator<Item = Element>,
     ) -> Result<(IndexBuffer<u32>, VertexBuffer<GpuVertex>)> {
-        let vertices = elements
-            .flat_map(|element| {
-                let rgba = [
-                    element.color.x,
-                    element.color.y,
-                    element.color.z,
-                    element.color.w,
-                ];
-                raster_path(element.path, element.raster_method, element.sample_depth)
-                    .flat_map(|cmd| match cmd {
-                        ShadeCommand::Boundary { x, y, coverage } => {
-                            let rgba = {
-                                let mut copy = rgba;
-                                copy[3] *= coverage;
-                                copy
-                            };
-                            vec![
-                                GpuVertex {
-                                    vpos: [x as f32, y as f32],
-                                    vcol: rgba,
-                                },
-                                GpuVertex {
-                                    vpos: [x as f32 + 1.0, y as f32],
-                                    vcol: rgba,
-                                },
-                            ]
-                        }
-                        ShadeCommand::Span { x, y } => vec![
-                            GpuVertex {
-                                vpos: [x.start as f32, y as f32],
-                                vcol: rgba,
-                            },
-                            GpuVertex {
-                                vpos: [x.end as f32, y as f32],
-                                vcol: rgba,
-                            },
-                        ],
-                    })
-                    .collect::<Vec<GpuVertex>>()
-            })
-            .collect::<Vec<GpuVertex>>();
+        let (_, vertices, indices) = elements
+            .try_fold::<_, _, Result<(u32, Vec<GpuVertex>, Vec<u32>)>>(
+                (0, vec![], vec![]),
+                |(idx, mut vertices, mut indices), element| {
+                    let (mut new_vertices, new_indices) =
+                        raster_path(element.path, element.raster_method, element.color)?;
+                    vertices.append(&mut new_vertices);
+                    indices.extend(new_indices.into_iter().map(|i| i + idx));
+                    Ok((vertices.len() as u32, vertices, indices))
+                },
+            )?;
 
         let vertex_buffer = VertexBuffer::new(self.ctx.as_ref(), vertices.as_slice())?;
-
-        let indices = vertices
-            .iter()
-            .enumerate()
-            .map(|(i, _)| i as u32)
-            .collect::<Vec<u32>>();
         let index_buffer = IndexBuffer::new(
             self.ctx.as_ref(),
-            PrimitiveType::LinesList,
+            PrimitiveType::TrianglesList,
             indices.as_slice(),
         )?;
 

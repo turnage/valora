@@ -303,7 +303,13 @@ fn main() {
         render_gate.render_frames(|ctx, mut comp| {
             comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
             comp.draw(Filled(*world));
-            comp.set_sample_depth(SampleDepth::Single);
+            comp.set_sample_depth(SampleDepth::Super16);
+            /*
+            comp.set_color(V4::new(1.0, 0.0, 1.0, 1.0));
+            comp.draw(Filled(Squig {
+                center: world.center(),
+                r: 10.,
+            }));*/
 
             let r = 400.;
             const COLS: usize = 10;
@@ -317,12 +323,16 @@ fn main() {
                     let signal = i as f32 / COUNT as f32;
                     let rgb = palette.sample(signal);
                     comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
-                    comp.draw(Filled(Squig {
-                        center: c,
-                        r: r - r * signal,
-                    }));
+                    comp.draw(Stroked {
+                        element: Squig {
+                            center: c,
+                            r: r - r * signal,
+                        },
+                        thickness: 1.,
+                    });
                 }
             }
+
             /*for i in 0..1000 {
                 triangle_fan(
                     &fbm,
