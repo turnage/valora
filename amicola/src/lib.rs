@@ -4,12 +4,11 @@ mod bounds;
 mod ext;
 mod grid_lines;
 mod monotonics;
-mod path;
 mod regions;
 mod sampling;
 mod stroker;
 
-pub use self::path::{Path, Segment};
+pub use lyon_path::iterator::PathIterator;
 pub use regions::ShadeCommand;
 pub use sampling::SampleDepth;
 
@@ -23,15 +22,18 @@ use regions::RegionList;
 
 /// Generates commands to shade the area inside the path. The path is automatically closed by
 /// assuming an edge from the last to the first vertex.
-pub fn fill_path(path: &Path, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
+pub fn fill_path<'a>(
+    path: impl PathIterator + 'a,
+    sample_depth: SampleDepth,
+) -> impl Iterator<Item = ShadeCommand> + 'a {
     RegionList::from(RasterSegmentSet::build_from_path(path)).shade_commands(sample_depth)
 }
 
-pub fn stroke_path(
-    path: &Path,
+pub fn stroke_path<'a>(
+    path: impl PathIterator + 'a,
     thickness: f32,
     sample_depth: SampleDepth,
-) -> impl Iterator<Item = ShadeCommand> {
+) -> impl Iterator<Item = ShadeCommand> + 'a {
     RegionList::from(
         stroker::stroke_path(path, thickness)
             .filter_map(<Option<RasterSegment>>::from)
@@ -40,17 +42,17 @@ pub fn stroke_path(
     .shade_commands(sample_depth)
 }
 
-pub fn raster_path(
-    path: &Path,
+pub fn raster_path<'a>(
+    path: impl PathIterator + 'a,
     method: Method,
     sample_depth: SampleDepth,
-) -> impl Iterator<Item = ShadeCommand> {
+) -> impl Iterator<Item = ShadeCommand> + 'a {
     match method {
         Method::Fill => {
-            Box::new(fill_path(path, sample_depth)) as Box<dyn Iterator<Item = ShadeCommand>>
+            Box::new(fill_path(path, sample_depth)) as Box<dyn Iterator<Item = ShadeCommand> + 'a>
         }
         Method::Stroke(thickness) => Box::new(stroke_path(path, thickness, sample_depth))
-            as Box<dyn Iterator<Item = ShadeCommand>>,
+            as Box<dyn Iterator<Item = ShadeCommand> + 'a>,
     }
 }
 

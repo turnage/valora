@@ -1,5 +1,5 @@
 use crate::Result;
-use amicola::{raster_path, Method, SampleDepth, Segment, ShadeCommand, V4};
+use amicola::{raster_path, Method, SampleDepth, ShadeCommand, V4};
 use glium::{
     backend::glutin::headless::Headless,
     implement_vertex,
@@ -17,6 +17,7 @@ use glium::{
 };
 use glutin::dpi::PhysicalSize;
 use itertools::Itertools;
+use lyon_path::Builder;
 use rand::random;
 use std::rc::Rc;
 
@@ -59,7 +60,7 @@ impl Uniforms for UniformBuffer {
 
 /// A rasterable element in a composition.
 pub struct Element {
-    pub path: Vec<Segment>,
+    pub path: Builder,
     pub color: V4,
     pub raster_method: Method,
     pub shader: Shader,
@@ -218,8 +219,9 @@ impl Gpu {
                     element.color.z,
                     element.color.w,
                 ];
+                let path = element.path.build();
                 raster_path(
-                    &element.path.into_iter().collect(),
+                    path.into_iter(),
                     element.raster_method,
                     element.sample_depth,
                 )

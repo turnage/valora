@@ -287,24 +287,20 @@ impl RegionList {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        monotonics::RasterSegmentSet,
-        path::{Path, Segment},
-    };
+    use crate::monotonics::RasterSegmentSet;
+    use lyon_path::{math::Point, Builder};
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
 
     #[test]
     fn small_triangle_boundaries() {
-        let triangle = vec![
-            Segment::LineTo(V2::new(0.0, 0.0)),
-            Segment::LineTo(V2::new(0.0, 2.0)),
-            Segment::LineTo(V2::new(2.0, 0.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0.0, 0.0));
+        builder.line_to(Point::new(0.0, 2.0));
+        builder.line_to(Point::new(2.0, 0.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -320,16 +316,14 @@ mod test {
 
     #[test]
     fn small_triangle_off_screen_to_left() {
-        let triangle = vec![
-            Segment::LineTo(V2::new(-1.0, 0.0)),
-            Segment::LineTo(V2::new(3.0, 0.0)),
-            Segment::LineTo(V2::new(3.0, 3.0)),
-            Segment::LineTo(V2::new(-1.0, 0.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(-1.0, 0.0));
+        builder.line_to(Point::new(3.0, 0.0));
+        builder.line_to(Point::new(3.0, 3.0));
+        builder.line_to(Point::new(-1.0, 0.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -361,15 +355,13 @@ mod test {
 
     #[test]
     fn triangle_regions() {
-        let triangle = vec![
-            Segment::LineTo(V2::new(0.0, 0.0)),
-            Segment::LineTo(V2::new(0.0, 5.0)),
-            Segment::LineTo(V2::new(5.0, 0.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0.0, 0.0));
+        builder.line_to(Point::new(0.0, 5.0));
+        builder.line_to(Point::new(5.0, 0.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -406,16 +398,14 @@ mod test {
 
     #[test]
     fn inverted_triangle_regions() {
-        let triangle = vec![
-            Segment::LineTo(V2::new(0.0, 3.0)),
-            Segment::LineTo(V2::new(4.0, 3.0)),
-            Segment::LineTo(V2::new(2.0, 0.0)),
-            Segment::LineTo(V2::new(0.0, 3.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0.0, 3.0));
+        builder.line_to(Point::new(4.0, 3.0));
+        builder.line_to(Point::new(2.0, 0.0));
+        builder.line_to(Point::new(0.0, 3.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&triangle));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -441,17 +431,15 @@ mod test {
 
     #[test]
     fn quadrilateral_regions() {
-        let quad = vec![
-            Segment::MoveTo(V2::new(3.0, 2.0)),
-            Segment::LineTo(V2::new(6.0, 4.0)),
-            Segment::LineTo(V2::new(4.0, 7.0)),
-            Segment::LineTo(V2::new(1.0, 5.0)),
-            Segment::LineTo(V2::new(3.0, 2.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(3.0, 2.0));
+        builder.line_to(Point::new(6.0, 4.0));
+        builder.line_to(Point::new(4.0, 7.0));
+        builder.line_to(Point::new(1.0, 5.0));
+        builder.line_to(Point::new(3.0, 2.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&quad));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -495,17 +483,15 @@ mod test {
 
     #[test]
     fn irregular_regions() {
-        let irregular = vec![
-            Segment::LineTo(V2::new(6.18, 5.22)),
-            Segment::LineTo(V2::new(5.06, 1.07)),
-            Segment::LineTo(V2::new(2.33, 2.75)),
-            Segment::LineTo(V2::new(1.69, 6.31)),
-            Segment::LineTo(V2::new(6.18, 5.22)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(6.18, 5.22));
+        builder.line_to(Point::new(5.06, 1.07));
+        builder.line_to(Point::new(2.33, 2.75));
+        builder.line_to(Point::new(1.69, 6.31));
+        builder.line_to(Point::new(6.18, 5.22));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&irregular));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -553,17 +539,15 @@ mod test {
 
     #[test]
     fn irregular_regions_2() {
-        let irregular = vec![
-            Segment::LineTo(V2::new(8.83, 7.46)),
-            Segment::LineTo(V2::new(7.23, 1.53)),
-            Segment::LineTo(V2::new(3.33, 3.93)),
-            Segment::LineTo(V2::new(2.42, 9.02)),
-            Segment::LineTo(V2::new(8.83, 7.46)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(8.83, 7.46));
+        builder.line_to(Point::new(7.23, 1.53));
+        builder.line_to(Point::new(3.33, 3.93));
+        builder.line_to(Point::new(2.42, 9.02));
+        builder.line_to(Point::new(8.83, 7.46));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&irregular));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -630,18 +614,16 @@ mod test {
     fn self_intersecting_pyramid() {
         use Region::*;
 
-        let self_intersecting = vec![
-            Segment::LineTo(V2::new(3.0, 5.0)),
-            Segment::LineTo(V2::new(5.0, 9.0)),
-            Segment::LineTo(V2::new(7.0, 2.0)),
-            Segment::LineTo(V2::new(9.0, 9.0)),
-            Segment::LineTo(V2::new(11.0, 5.0)),
-            Segment::LineTo(V2::new(3.0, 5.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(3.0, 5.0));
+        builder.line_to(Point::new(5.0, 9.0));
+        builder.line_to(Point::new(7.0, 2.0));
+        builder.line_to(Point::new(9.0, 9.0));
+        builder.line_to(Point::new(11.0, 5.0));
+        builder.line_to(Point::new(3.0, 5.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&self_intersecting));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -700,19 +682,17 @@ mod test {
     fn low_res_circle() {
         use Region::*;
 
-        let circle = vec![
-            Segment::LineTo(V2::new(5., 0.)),
-            Segment::LineTo(V2::new(0.67, 2.5)),
-            Segment::LineTo(V2::new(0.67, 7.5)),
-            Segment::LineTo(V2::new(5., 10.)),
-            Segment::LineTo(V2::new(9.33, 7.5)),
-            Segment::LineTo(V2::new(9.33, 2.5)),
-            Segment::LineTo(V2::new(5., 0.)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(5., 0.));
+        builder.line_to(Point::new(0.67, 2.5));
+        builder.line_to(Point::new(0.67, 7.5));
+        builder.line_to(Point::new(5., 10.));
+        builder.line_to(Point::new(9.33, 7.5));
+        builder.line_to(Point::new(9.33, 2.5));
+        builder.line_to(Point::new(5., 0.));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&circle));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -812,19 +792,17 @@ mod test {
     fn subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = vec![
-            Segment::LineTo(V2::new(0., 0.)),
-            Segment::LineTo(V2::new(0.25, 0.25)),
-            Segment::LineTo(V2::new(0.5, 0.5)),
-            Segment::LineTo(V2::new(0.75, 0.75)),
-            Segment::LineTo(V2::new(1.0, 1.0)),
-            Segment::LineTo(V2::new(5.0, 1.0)),
-            Segment::LineTo(V2::new(5.0, 0.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0., 0.));
+        builder.line_to(Point::new(0.25, 0.25));
+        builder.line_to(Point::new(0.5, 0.5));
+        builder.line_to(Point::new(0.75, 0.75));
+        builder.line_to(Point::new(1.0, 1.0));
+        builder.line_to(Point::new(5.0, 1.0));
+        builder.line_to(Point::new(5.0, 0.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&subpixel_adjacency));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -846,22 +824,20 @@ mod test {
     fn double_ended_subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = vec![
-            Segment::LineTo(V2::new(0., 0.)),
-            Segment::LineTo(V2::new(0.25, 0.25)),
-            Segment::LineTo(V2::new(0.5, 0.5)),
-            Segment::LineTo(V2::new(0.75, 0.75)),
-            Segment::LineTo(V2::new(1.0, 1.0)),
-            Segment::LineTo(V2::new(4.0, 1.0)),
-            Segment::LineTo(V2::new(4.25, 0.75)),
-            Segment::LineTo(V2::new(4.5, 0.5)),
-            Segment::LineTo(V2::new(4.75, 0.25)),
-            Segment::LineTo(V2::new(5.0, 0.0)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0., 0.));
+        builder.line_to(Point::new(0.25, 0.25));
+        builder.line_to(Point::new(0.5, 0.5));
+        builder.line_to(Point::new(0.75, 0.75));
+        builder.line_to(Point::new(1.0, 1.0));
+        builder.line_to(Point::new(4.0, 1.0));
+        builder.line_to(Point::new(4.25, 0.75));
+        builder.line_to(Point::new(4.5, 0.5));
+        builder.line_to(Point::new(4.75, 0.25));
+        builder.line_to(Point::new(5.0, 0.0));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&subpixel_adjacency));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -883,20 +859,18 @@ mod test {
     fn complex_subpixel_adjacency() {
         use Region::*;
 
-        let subpixel_adjacency = vec![
-            Segment::MoveTo(V2::new(0., 0.)),
-            Segment::LineTo(V2::new(1.0, 0.1)),
-            Segment::LineTo(V2::new(2.0, 1.0)),
-            Segment::LineTo(V2::new(3.0, 1.0)),
-            Segment::LineTo(V2::new(4.0, 0.5)),
-            Segment::LineTo(V2::new(5.0, 1.0)),
-            Segment::LineTo(V2::new(5.0, 0.0)),
-            Segment::LineTo(V2::new(0., 0.)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0., 0.));
+        builder.line_to(Point::new(1.0, 0.1));
+        builder.line_to(Point::new(2.0, 1.0));
+        builder.line_to(Point::new(3.0, 1.0));
+        builder.line_to(Point::new(4.0, 0.5));
+        builder.line_to(Point::new(5.0, 1.0));
+        builder.line_to(Point::new(5.0, 0.0));
+        builder.line_to(Point::new(0., 0.));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&subpixel_adjacency));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -921,17 +895,12 @@ mod test {
     fn simple_quadratic() {
         use Region::*;
 
-        let simple_quadratic = vec![
-            Segment::MoveTo(V2::new(0., 0.)),
-            Segment::QuadraticTo {
-                ctrl: V2::new(3., 3.),
-                end: V2::new(2., 0.),
-            },
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0., 0.));
+        builder.quadratic_bezier_to(Point::new(3., 3.), Point::new(2., 0.));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_quadratic));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -951,18 +920,13 @@ mod test {
     fn quadratic_triangle() {
         use Region::*;
 
-        let simple_quadratic = vec![
-            Segment::MoveTo(V2::new(0., 0.)),
-            Segment::QuadraticTo {
-                ctrl: V2::new(0., 4.),
-                end: V2::new(2., 2.),
-            },
-            Segment::LineTo(V2::new(2., 0.)),
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0., 0.));
+        builder.quadratic_bezier_to(Point::new(0., 4.), Point::new(2., 2.));
+        builder.line_to(Point::new(2., 0.));
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_quadratic));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -993,24 +957,17 @@ mod test {
     fn cubic_triangle() {
         use Region::*;
 
-        pretty_env_logger::init();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0., 0.));
+        builder.quadratic_bezier_to(Point::new(0., 4.), Point::new(2., 2.));
+        builder.cubic_bezier_to(
+            Point::new(2.5, 1.5),
+            Point::new(1.5, 0.5),
+            Point::new(2., 0.),
+        );
+        let path = builder.build();
 
-        let simple_cubic = vec![
-            Segment::MoveTo(V2::new(0., 0.)),
-            Segment::QuadraticTo {
-                ctrl: V2::new(0., 4.),
-                end: V2::new(2., 2.),
-            },
-            Segment::CubicTo {
-                ctrl0: V2::new(2.5, 1.5),
-                ctrl1: V2::new(1.5, 0.5),
-                end: V2::new(2., 0.),
-            },
-        ]
-        .into_iter()
-        .collect::<Path>();
-
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_cubic));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 
@@ -1036,22 +993,17 @@ mod test {
     fn cubic_blob() {
         use Region::*;
 
-        let simple_cubic = vec![
-            Segment::MoveTo(V2::new(0., 0.)),
-            Segment::QuadraticTo {
-                ctrl: V2::new(0., 20.),
-                end: V2::new(14., 16.),
-            },
-            Segment::CubicTo {
-                ctrl0: V2::new(20., 12.),
-                ctrl1: V2::new(8., 4.),
-                end: V2::new(14., 0.),
-            },
-        ]
-        .into_iter()
-        .collect::<Path>();
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0., 0.));
+        builder.quadratic_bezier_to(Point::new(0., 20.), Point::new(14., 16.));
+        builder.cubic_bezier_to(
+            Point::new(20., 12.),
+            Point::new(8., 4.),
+            Point::new(14., 0.),
+        );
+        let path = builder.build();
 
-        let regions = RegionList::from(RasterSegmentSet::build_from_path(&simple_cubic));
+        let regions = RegionList::from(RasterSegmentSet::build_from_path(path.into_iter()));
 
         println!("Regions: {:#?}", regions);
 

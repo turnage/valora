@@ -270,7 +270,7 @@ fn main() {
         );
         render_gate.render_frames(|ctx, mut comp| {
             comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
-            comp.draw(Filled(world.full_frame()));
+            comp.draw(Filled(*world));
             comp.set_sample_depth(SampleDepth::Super8);
 
             let c = world.center();

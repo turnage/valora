@@ -9,56 +9,57 @@ use self::{
     line_segment::{LineSegment, RasterableLineSegment},
     quadratic_segment::{CreateQuadraticResult, QuadraticBezier},
 };
-use crate::{
-    bounds::Bounds,
-    path::{self, Path, PathLink},
-    V2,
-};
+use crate::{bounds::Bounds, PathIterator, V2};
 use enum_dispatch::enum_dispatch;
+use lyon_path::PathEvent;
 use std::convert::TryFrom;
 
 pub struct RasterSegmentSet;
 
 impl RasterSegmentSet {
-    pub fn build_from_path(path: &Path) -> Vec<RasterSegment> {
+    pub fn build_from_path(path: impl PathIterator) -> Vec<RasterSegment> {
         let mut segments = vec![];
 
-        for PathLink {
-            position: start,
-            segment,
-        } in path.links()
-        {
-            match segment {
-                path::Segment::LineTo(end) => {
-                    if let Some(line_segment) = RasterableLineSegment::new(start, end) {
+        for event in path {
+            match event {
+                PathEvent::Line(line_segment) => {
+                    if let Some(line_segment) = RasterableLineSegment::new(
+                        V2::new(line_segment.from.x, line_segment.from.y),
+                        V2::new(line_segment.to.x, line_segment.to.y),
+                    ) {
                         segments.push(RasterSegment::from(line_segment));
                     }
                 }
-                path::Segment::QuadraticTo { ctrl, end } => {
-                    match QuadraticBezier::new(start, ctrl, end) {
-                        CreateQuadraticResult::IsLineSegment { start, end } => {
-                            if let Some(line_segment) = RasterableLineSegment::new(start, end) {
-                                segments.push(RasterSegment::from(line_segment));
-                            }
-                        }
-                        CreateQuadraticResult::Quadratic(qs) => {
-                            segments.extend(qs.into_iter().map(RasterSegment::from));
-                        }
-                    }
-                }
-                path::Segment::CubicTo { ctrl0, ctrl1, end } => {
-                    match CubicBezier::new(start, ctrl0, ctrl1, end) {
-                        CreateCubicResult::IsLineSegment { start, end } => {
-                            if let Some(line_segment) = RasterableLineSegment::new(start, end) {
-                                segments.push(RasterSegment::from(line_segment));
-                            }
-                        }
-                        CreateCubicResult::Cubic(cs) => {
-                            segments.extend(cs.into_iter().map(RasterSegment::from));
+                PathEvent::Quadratic(q) => match QuadraticBezier::new(
+                    V2::new(q.from.x, q.from.y),
+                    V2::new(q.ctrl.x, q.ctrl.y),
+                    V2::new(q.to.x, q.to.y),
+                ) {
+                    CreateQuadraticResult::IsLineSegment { start, end } => {
+                        if let Some(line_segment) = RasterableLineSegment::new(start, end) {
+                            segments.push(RasterSegment::from(line_segment));
                         }
                     }
-                }
-                path::Segment::MoveTo(_) => {}
+                    CreateQuadraticResult::Quadratic(qs) => {
+                        segments.extend(qs.into_iter().map(RasterSegment::from));
+                    }
+                },
+                PathEvent::Cubic(c) => match CubicBezier::new(
+                    V2::new(c.from.x, c.from.y),
+                    V2::new(c.ctrl1.x, c.ctrl1.y),
+                    V2::new(c.ctrl2.x, c.ctrl2.y),
+                    V2::new(c.to.x, c.to.y),
+                ) {
+                    CreateCubicResult::IsLineSegment { start, end } => {
+                        if let Some(line_segment) = RasterableLineSegment::new(start, end) {
+                            segments.push(RasterSegment::from(line_segment));
+                        }
+                    }
+                    CreateCubicResult::Cubic(cs) => {
+                        segments.extend(cs.into_iter().map(RasterSegment::from));
+                    }
+                },
+                _ => {}
             }
         }
 
@@ -72,61 +73,6 @@ pub enum RasterSegment {
     RasterableLineSegment(RasterableLineSegment),
     QuadraticSegment(QuadraticBezier),
     CubicSegment(CubicBezier),
-}
-
-impl From<Segment> for Option<RasterSegment> {
-    fn from(segment: Segment) -> Option<RasterSegment> {
-        match segment {
-            Segment::LineSegment(line_segment) => RasterableLineSegment::try_from(line_segment)
-                .ok()
-                .map(RasterSegment::from),
-            Segment::QuadraticSegment(q) => Some(RasterSegment::from(q)),
-            Segment::CubicSegment(c) => Some(RasterSegment::from(c)),
-        }
-    }
-}
-
-pub struct SegmentSet;
-
-impl SegmentSet {
-    pub fn build_from_path(path: &Path) -> Vec<Segment> {
-        let mut segments = vec![];
-
-        for PathLink {
-            position: start,
-            segment,
-        } in path.links()
-        {
-            match segment {
-                path::Segment::LineTo(end) => {
-                    segments.push(Segment::from(LineSegment::new(start, end)));
-                }
-                path::Segment::QuadraticTo { ctrl, end } => {
-                    match QuadraticBezier::new(start, ctrl, end) {
-                        CreateQuadraticResult::IsLineSegment { start, end } => {
-                            segments.push(Segment::from(LineSegment::new(start, end)));
-                        }
-                        CreateQuadraticResult::Quadratic(qs) => {
-                            segments.extend(qs.into_iter().map(Segment::from));
-                        }
-                    }
-                }
-                path::Segment::CubicTo { ctrl0, ctrl1, end } => {
-                    match CubicBezier::new(start, ctrl0, ctrl1, end) {
-                        CreateCubicResult::IsLineSegment { start, end } => {
-                            segments.push(Segment::from(LineSegment::new(start, end)));
-                        }
-                        CreateCubicResult::Cubic(cs) => {
-                            segments.extend(cs.into_iter().map(Segment::from));
-                        }
-                    }
-                }
-                path::Segment::MoveTo(_) => {}
-            }
-        }
-
-        segments
-    }
 }
 
 #[enum_dispatch]

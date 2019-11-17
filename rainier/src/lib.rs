@@ -3,7 +3,7 @@
 mod gpu;
 
 pub use self::gpu::{Shader, UniformBuffer};
-pub use amicola::{Path, SampleDepth, Segment, V2, V4};
+pub use amicola::{SampleDepth, V2, V4};
 pub use glium::program::Program;
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
@@ -12,6 +12,7 @@ use self::gpu::*;
 use amicola::*;
 use failure::Error;
 use image::{ImageBuffer, Rgba};
+use lyon_path::{math::Point, Builder};
 use nalgebra::{base::*, Matrix};
 use std::{path::PathBuf, rc::Rc};
 
@@ -78,17 +79,15 @@ impl World {
     pub fn normalize(&self, p: V2) -> V2 { V2::new(p.x / self.width, p.y / self.height) }
 
     pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
+}
 
-    pub fn full_frame(&self) -> Path {
-        vec![
-            Segment::MoveTo(V2::new(0.0, 0.0)),
-            Segment::LineTo(V2::new(self.width, 0.0)),
-            Segment::LineTo(V2::new(self.width, self.height)),
-            Segment::LineTo(V2::new(0.0, self.height)),
-            Segment::LineTo(V2::new(0.0, 0.0)),
-        ]
-        .into_iter()
-        .collect()
+impl Draw for World {
+    fn draw(&self, comp: &mut Composition) {
+        comp.line_to(V2::new(0.0, 0.0));
+        comp.line_to(V2::new(self.width, 0.0));
+        comp.line_to(V2::new(self.width, self.height));
+        comp.line_to(V2::new(0.0, self.height));
+        comp.line_to(V2::new(0.0, 0.0));
     }
 }
 
@@ -102,10 +101,6 @@ fn save_path_for_frame(mut base_path: PathBuf, seed: u64, frame: usize) -> PathB
 
 pub trait Draw {
     fn draw(&self, comp: &mut Composition);
-}
-
-impl Draw for Path {
-    fn draw(&self, comp: &mut Composition) { comp.append_path_segments(self.segments().copied()) }
 }
 
 pub struct GpuHandle<'a> {
@@ -207,7 +202,7 @@ pub fn run(
 }
 
 pub struct Composition {
-    path: Vec<Segment>,
+    path: Builder,
     shader: Shader,
     color: V4,
     stroke_thickness: f32,
@@ -219,7 +214,7 @@ pub struct Composition {
 impl Composition {
     fn new(default_shader: Shader) -> Self {
         Self {
-            path: vec![],
+            path: Builder::new(),
             shader: default_shader,
             color: V4::new(1.0, 1.0, 1.0, 1.0),
             scale: 1.,
@@ -237,23 +232,24 @@ impl Composition {
 
     pub fn set_scale(&mut self, scale: f32) { self.scale = scale; }
 
-    pub fn move_to(&mut self, dest: V2) { self.path = vec![Segment::MoveTo(dest * self.scale)]; }
+    pub fn move_to(&mut self, dest: V2) {
+        self.path = Builder::new();
+        self.path.move_to(Point::new(dest.x, dest.y));
+    }
 
-    pub fn line_to(&mut self, dest: V2) { self.path.push(Segment::LineTo(dest * self.scale)); }
+    pub fn line_to(&mut self, dest: V2) { self.path.line_to(Point::new(dest.x, dest.y)); }
 
     pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
-        self.path.push(Segment::QuadraticTo {
-            ctrl: ctrl * self.scale,
-            end: end * self.scale,
-        });
+        self.path
+            .quadratic_bezier_to(Point::new(ctrl.x, ctrl.y), Point::new(end.x, end.y));
     }
 
     pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
-        self.path.push(Segment::CubicTo {
-            ctrl0: ctrl0 * self.scale,
-            ctrl1: ctrl1 * self.scale,
-            end: end * self.scale,
-        });
+        self.path.cubic_bezier_to(
+            Point::new(ctrl0.x, ctrl0.y),
+            Point::new(ctrl1.x, ctrl1.y),
+            Point::new(end.x, end.y),
+        );
     }
 
     pub fn set_color(&mut self, color: V4) { self.color = color; }
@@ -268,12 +264,8 @@ impl Composition {
 
     pub fn stroke(&mut self) { self.push_element(Method::Stroke(self.stroke_thickness)); }
 
-    pub(crate) fn append_path_segments(&mut self, path_segments: impl Iterator<Item = Segment>) {
-        self.path.extend(path_segments);
-    }
-
     fn push_element(&mut self, raster_method: Method) {
-        let mut path = vec![];
+        let mut path = Builder::new();
         std::mem::swap(&mut self.path, &mut path);
 
         let sample_depth = self.sample_depth;
