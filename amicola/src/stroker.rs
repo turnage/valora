@@ -11,15 +11,16 @@ fn offset_segment(segment: &Segment, offset: f32) -> impl Iterator<Item = Segmen
     }
 }
 
-pub fn stroke_path(path: &Path, offset: f32) -> Vec<Segment> {
-    let raster_segments = RasterSegmentSet::build_from_path(&path);
-    let inner_path = raster_segments
+pub fn stroke_path(path: &Path, offset: f32) -> impl Iterator<Item = Segment> {
+    let segments = SegmentSet::build_from_path(&path);
+    let inner_path = segments
         .iter()
         .flat_map(|s| offset_segment(s, -offset))
         .collect::<Vec<Segment>>()
         .into_iter();
-    let outer_path = raster_segments
-        .iter()
-        .flat_map(|s| offset_segment(s, offset));
-    outer_path.chain(inner_path.rev()).collect()
+    let outer_path = segments.iter().flat_map(|s| offset_segment(s, offset));
+    outer_path
+        .chain(inner_path.rev())
+        .collect::<Vec<Segment>>()
+        .into_iter()
 }

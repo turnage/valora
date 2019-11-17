@@ -3,7 +3,7 @@
 use crate::{
     ext,
     grid_lines::*,
-    monotonics::{self, Curve},
+    monotonics::{Curve, RasterSegment},
     sampling::*,
     V2,
 };
@@ -102,11 +102,11 @@ impl Eq for RawHit {}
 #[derive(Debug, Default)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
-    segments: Vec<monotonics::Segment>,
+    segments: Vec<RasterSegment>,
 }
 
-impl From<Vec<monotonics::Segment>> for RegionList {
-    fn from(segments: Vec<monotonics::Segment>) -> Self {
+impl From<Vec<RasterSegment>> for RegionList {
+    fn from(segments: Vec<RasterSegment>) -> Self {
         let mut hits = BTreeSet::new();
 
         for (segment_id, segment) in segments.iter().enumerate() {
@@ -287,8 +287,10 @@ impl RegionList {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::path::{Path, Segment};
-    use monotonics::RasterSegmentSet;
+    use crate::{
+        monotonics::RasterSegmentSet,
+        path::{Path, Segment},
+    };
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
 

@@ -6,7 +6,7 @@ mod quadratic_segment;
 
 use self::{
     cubic_segment::{CreateCubicResult, CubicBezier},
-    line_segment::LineSegment,
+    line_segment::{LineSegment, RasterableLineSegment},
     quadratic_segment::{CreateQuadraticResult, QuadraticBezier},
 };
 use crate::{
@@ -15,10 +15,80 @@ use crate::{
     V2,
 };
 use enum_dispatch::enum_dispatch;
+use std::convert::TryFrom;
 
 pub struct RasterSegmentSet;
 
 impl RasterSegmentSet {
+    pub fn build_from_path(path: &Path) -> Vec<RasterSegment> {
+        let mut segments = vec![];
+
+        for PathLink {
+            position: start,
+            segment,
+        } in path.links()
+        {
+            match segment {
+                path::Segment::LineTo(end) => {
+                    if let Some(line_segment) = RasterableLineSegment::new(start, end) {
+                        segments.push(RasterSegment::from(line_segment));
+                    }
+                }
+                path::Segment::QuadraticTo { ctrl, end } => {
+                    match QuadraticBezier::new(start, ctrl, end) {
+                        CreateQuadraticResult::IsLineSegment { start, end } => {
+                            if let Some(line_segment) = RasterableLineSegment::new(start, end) {
+                                segments.push(RasterSegment::from(line_segment));
+                            }
+                        }
+                        CreateQuadraticResult::Quadratic(qs) => {
+                            segments.extend(qs.into_iter().map(RasterSegment::from));
+                        }
+                    }
+                }
+                path::Segment::CubicTo { ctrl0, ctrl1, end } => {
+                    match CubicBezier::new(start, ctrl0, ctrl1, end) {
+                        CreateCubicResult::IsLineSegment { start, end } => {
+                            if let Some(line_segment) = RasterableLineSegment::new(start, end) {
+                                segments.push(RasterSegment::from(line_segment));
+                            }
+                        }
+                        CreateCubicResult::Cubic(cs) => {
+                            segments.extend(cs.into_iter().map(RasterSegment::from));
+                        }
+                    }
+                }
+                path::Segment::MoveTo(_) => {}
+            }
+        }
+
+        segments
+    }
+}
+
+#[enum_dispatch]
+#[derive(Debug)]
+pub enum RasterSegment {
+    RasterableLineSegment(RasterableLineSegment),
+    QuadraticSegment(QuadraticBezier),
+    CubicSegment(CubicBezier),
+}
+
+impl From<Segment> for Option<RasterSegment> {
+    fn from(segment: Segment) -> Option<RasterSegment> {
+        match segment {
+            Segment::LineSegment(line_segment) => RasterableLineSegment::try_from(line_segment)
+                .ok()
+                .map(RasterSegment::from),
+            Segment::QuadraticSegment(q) => Some(RasterSegment::from(q)),
+            Segment::CubicSegment(c) => Some(RasterSegment::from(c)),
+        }
+    }
+}
+
+pub struct SegmentSet;
+
+impl SegmentSet {
     pub fn build_from_path(path: &Path) -> Vec<Segment> {
         let mut segments = vec![];
 
@@ -29,16 +99,12 @@ impl RasterSegmentSet {
         {
             match segment {
                 path::Segment::LineTo(end) => {
-                    if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
-                        segments.push(Segment::from(line_segment));
-                    }
+                    segments.push(Segment::from(LineSegment::new(start, end)));
                 }
                 path::Segment::QuadraticTo { ctrl, end } => {
                     match QuadraticBezier::new(start, ctrl, end) {
                         CreateQuadraticResult::IsLineSegment { start, end } => {
-                            if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
-                                segments.push(Segment::from(line_segment));
-                            }
+                            segments.push(Segment::from(LineSegment::new(start, end)));
                         }
                         CreateQuadraticResult::Quadratic(qs) => {
                             segments.extend(qs.into_iter().map(Segment::from));
@@ -48,9 +114,7 @@ impl RasterSegmentSet {
                 path::Segment::CubicTo { ctrl0, ctrl1, end } => {
                     match CubicBezier::new(start, ctrl0, ctrl1, end) {
                         CreateCubicResult::IsLineSegment { start, end } => {
-                            if let Some(line_segment) = LineSegment::new_rasterable(start, end) {
-                                segments.push(Segment::from(line_segment));
-                            }
+                            segments.push(Segment::from(LineSegment::new(start, end)));
                         }
                         CreateCubicResult::Cubic(cs) => {
                             segments.extend(cs.into_iter().map(Segment::from));
@@ -83,6 +147,7 @@ pub struct Intersection {
 
 /// A trait for monotonic curves.
 #[enum_dispatch(Segment)]
+#[enum_dispatch(RasterSegment)]
 pub trait Curve {
     /// Returns the point at `t` on the curve, if it is defined. Curves are defined on
     /// the domain `[0, 1]` only.

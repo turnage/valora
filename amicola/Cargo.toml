@@ -19,6 +19,7 @@ derive_more = "0.15.0"
 vek = "0.9.10"
 roots = "0.0.5"
 arrayvec = "0.5.1"
+newtype_derive = "0.1.6"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

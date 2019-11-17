@@ -18,7 +18,7 @@ use nalgebra::{base::*, Matrix};
 pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
 pub type V4 = Matrix<f32, U4, U1, ArrayStorage<f32, U4, U1>>;
 
-use self::monotonics::RasterSegmentSet;
+use self::monotonics::{RasterSegment, RasterSegmentSet};
 use regions::RegionList;
 
 /// Generates commands to shade the area inside the path. The path is automatically closed by
@@ -32,7 +32,12 @@ pub fn stroke_path(
     thickness: f32,
     sample_depth: SampleDepth,
 ) -> impl Iterator<Item = ShadeCommand> {
-    RegionList::from(stroker::stroke_path(path, thickness)).shade_commands(sample_depth)
+    RegionList::from(
+        stroker::stroke_path(path, thickness)
+            .filter_map(<Option<RasterSegment>>::from)
+            .collect::<Vec<RasterSegment>>(),
+    )
+    .shade_commands(sample_depth)
 }
 
 pub fn raster_path(

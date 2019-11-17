@@ -1,7 +1,7 @@
 //! Super sampling patterns.
 
 use crate::{
-    monotonics::{Curve, Segment},
+    monotonics::{Curve, RasterSegment},
     V2,
 };
 
@@ -32,7 +32,7 @@ impl Into<u64> for SampleDepth {
 pub fn coverage<'a>(
     offset: V2,
     depth: SampleDepth,
-    path: impl Iterator<Item = &'a Segment> + Clone,
+    path: impl Iterator<Item = &'a RasterSegment> + Clone,
 ) -> f32 {
     // TODO: Sample vertically as well?
     let mut hits = 0;
