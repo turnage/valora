@@ -10,6 +10,7 @@ use glium::{
         Context,
         Facade,
     },
+    glutin::EventsLoop,
     implement_vertex,
     index::PrimitiveType,
     texture::{
@@ -118,8 +119,8 @@ pub struct GpuCommand<'a, S> {
 }
 
 impl Gpu {
-    pub fn new() -> Result<Self> {
-        let events_loop = glium::glutin::EventsLoop::new();
+    pub fn new() -> Result<(Self, EventsLoop)> {
+        let events_loop = EventsLoop::new();
         let ctx = glium::glutin::ContextBuilder::new()
             .with_multisampling(0)
             .build_headless(
@@ -138,22 +139,27 @@ impl Gpu {
             None,
         )?);
 
-        Ok(Gpu {
-            program,
-            ctx,
-            height_sign: 1.,
-        })
+        Ok((
+            Gpu {
+                program,
+                ctx,
+                height_sign: 1.,
+            },
+            events_loop,
+        ))
     }
 
-    pub fn with_window(width: u32, height: u32) -> Result<Self> {
-        let events_loop = glium::glutin::EventsLoop::new();
+    pub fn with_window(width: u32, height: u32) -> Result<(Self, EventsLoop)> {
+        let events_loop = EventsLoop::new();
         let wb = glium::glutin::WindowBuilder::new()
             .with_dimensions(glutin::dpi::LogicalSize {
                 width: width as f64,
                 height: height as f64,
             })
             .with_title("Hello world");
-        let cb = glium::glutin::ContextBuilder::new().with_srgb(false);
+        let cb = glium::glutin::ContextBuilder::new()
+            .with_srgb(false)
+            .with_multisampling(8);
         let display = glium::Display::new(wb, cb, &events_loop).unwrap();
         let ctx = Rc::new(DisplayFacade(display));
 
@@ -164,11 +170,14 @@ impl Gpu {
             None,
         )?);
 
-        Ok(Gpu {
-            program,
-            ctx,
-            height_sign: -1.,
-        })
+        Ok((
+            Gpu {
+                program,
+                ctx,
+                height_sign: -1.,
+            },
+            events_loop,
+        ))
     }
 
     pub fn get_frame(&self) -> Option<Frame> { self.ctx.get_frame() }
@@ -210,7 +219,7 @@ impl Gpu {
             MipmapsOption::NoMipmap,
             width,
             height,
-            /*samples=*/ 32,
+            /*samples=*/ 16,
         )?)
     }
 
@@ -326,7 +335,7 @@ impl Gpu {
                 line_width: Some(1.0),
                 multisampling: true,
                 dithering: false,
-                smooth: None,
+                smooth: Some(glium::draw_parameters::Smooth::Nicest),
                 ..Default::default()
             },
         )?)

@@ -4,6 +4,7 @@ use valora::*;
 use itertools::{iproduct, Itertools};
 use nalgebra::distance;
 use noise::{Fbm, NoiseFn};
+use palette::encoding::{srgb::Srgb, TransferFn};
 use rand::{distributions::*, prelude::*};
 use std::rc::Rc;
 
@@ -130,12 +131,13 @@ impl CosineColours {
     pub fn new(a: V3, b: V3, c: V3, d: V3) -> Self { Self { a, b, c, d } }
 
     pub fn sample(&self, t: f32) -> V3 {
-        self.a
+        (self.a
             + self.b.component_mul(
                 &(self.c * t + self.d)
                     .map(|v| v * std::f32::consts::PI * 2.)
                     .map(f32::cos),
-            )
+            ))
+        .map(Srgb::into_linear)
     }
 }
 
@@ -302,8 +304,10 @@ fn main() {
             V3::new(0.5, 0.20, 0.25),
         );
         render_gate.render_frames(|ctx, mut comp| {
-            comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
-            comp.draw(Filled(*world));
+            if ctx.frame == 0 {
+                comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
+                comp.draw(Filled(*world));
+            }
             /*
             comp.set_color(V4::new(1.0, 0.0, 1.0, 1.0));
             comp.draw(Filled(Squig {
@@ -311,24 +315,25 @@ fn main() {
                 r: 10.,
             }));*/
 
-            let r = 30.;
+            let time = ctx.frame as f32 / 24.;
+
+            let signal = time.rem_euclid(4.) / 4.;
+            let rgb = palette.sample(signal);
+            comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
+
+            let r = 10. + time * 10.;
             const COLS: usize = 10;
             const ROWS: usize = 10;
             for c in GridIter::new(COLS, ROWS)
                 .tiles(world.width, world.height)
                 .map(|r| r.center())
-                .skip(4)
             {
-                const COUNT: usize = 20;
-                for i in 0..COUNT {
-                    let signal = i as f32 / COUNT as f32;
-                    let rgb = palette.sample(signal);
-                    comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
-                    comp.draw(Filled(Squig {
-                        center: c,
-                        r: r - r * signal,
-                    }));
-                }
+                let c = Ellipse::circle(c, time * 10.).circumpoint(
+                    fbm.get([c.x as f64, c.y as f64, time as f64]) as f32
+                        * std::f32::consts::PI
+                        * 2.,
+                );
+                comp.draw(Filled(Squig { center: c, r: r }));
             }
 
             /*for i in 0..1000 {

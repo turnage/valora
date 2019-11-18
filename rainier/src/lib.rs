@@ -10,6 +10,7 @@ pub use structopt::StructOpt;
 
 use self::{gpu::*, raster::Method};
 use failure::Error;
+use glium::glutin::EventsLoop;
 use image::{ImageBuffer, Rgba};
 use lyon_path::{math::Point, Builder};
 use nalgebra::{base::*, Matrix};
@@ -142,6 +143,7 @@ impl<'a, 'b> ShaderBuilder<'a, 'b> {
 
 pub struct RenderGate<'a> {
     gpu: &'a Gpu,
+    events_loop: EventsLoop,
     world: World,
     width: u32,
     height: u32,
@@ -201,6 +203,28 @@ impl<'a> RenderGate<'a> {
                     &mut frame,
                 )?;
                 frame.finish();
+
+                let mut quit = false;
+                self.events_loop.poll_events(|event| {
+                    use glutin::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+                    match event {
+                        Event::DeviceEvent {
+                            event:
+                                DeviceEvent::Key(KeyboardInput {
+                                    virtual_keycode: Some(VirtualKeyCode::Escape),
+                                    ..
+                                }),
+                            ..
+                        } => {
+                            quit = true;
+                        }
+                        _ => {}
+                    }
+                });
+                if quit {
+                    return Ok(());
+                }
+
                 std::thread::sleep(self.wait);
             }
         }
@@ -220,7 +244,7 @@ pub fn run(
     );
     let mut rng = StdRng::seed_from_u64(options.seed);
 
-    let gpu = if options.output.is_some() {
+    let (gpu, events_loop) = if options.output.is_some() {
         Gpu::new()?
     } else {
         Gpu::with_window(width as u32, height as u32)?
@@ -228,6 +252,7 @@ pub fn run(
 
     let gate = RenderGate {
         gpu: &gpu,
+        events_loop,
         world,
         width: width as u32,
         height: height as u32,
