@@ -5,7 +5,11 @@ use crate::{
 };
 use arrayvec::ArrayVec;
 use glium::{
-    backend::glutin::headless::Headless,
+    backend::{
+        glutin::{headless::Headless, Display},
+        Context,
+        Facade,
+    },
     implement_vertex,
     index::PrimitiveType,
     texture::{
@@ -19,6 +23,7 @@ use glium::{
     Blend,
     BlendingFunction,
     DrawParameters,
+    Frame,
     IndexBuffer,
     LinearBlendingFactor,
     Program,
@@ -82,15 +87,32 @@ pub struct Element {
     pub shader: Shader,
 }
 
-pub struct Gpu {
-    ctx: Rc<Headless>,
-    program: Rc<Program>,
+pub struct DisplayFacade(Display);
+
+impl Facade for DisplayFacade {
+    fn get_context(&self) -> &Rc<Context> { self.0.get_context() }
 }
 
-pub struct GpuCommand<'a> {
+pub trait FacadeExt: Facade {
+    fn get_frame(&self) -> Option<Frame> { None }
+}
+
+impl FacadeExt for Headless {}
+
+impl FacadeExt for DisplayFacade {
+    fn get_frame(&self) -> Option<Frame> { Some(self.0.draw()) }
+}
+
+pub struct Gpu {
+    ctx: Rc<dyn FacadeExt>,
+    program: Rc<Program>,
+    height_sign: f32,
+}
+
+pub struct GpuCommand<'a, S> {
     pub vertices: VertexBuffer<GpuVertex>,
     pub indices: IndexBuffer<u32>,
-    pub texture: &'a Texture2dMultisample,
+    pub target: &'a mut S,
     pub program: &'a Program,
     pub uniforms: &'a UniformBuffer,
 }
@@ -116,8 +138,40 @@ impl Gpu {
             None,
         )?);
 
-        Ok(Gpu { program, ctx })
+        Ok(Gpu {
+            program,
+            ctx,
+            height_sign: 1.,
+        })
     }
+
+    pub fn with_window(width: u32, height: u32) -> Result<Self> {
+        let events_loop = glium::glutin::EventsLoop::new();
+        let wb = glium::glutin::WindowBuilder::new()
+            .with_dimensions(glutin::dpi::LogicalSize {
+                width: width as f64,
+                height: height as f64,
+            })
+            .with_title("Hello world");
+        let cb = glium::glutin::ContextBuilder::new().with_srgb(false);
+        let display = glium::Display::new(wb, cb, &events_loop).unwrap();
+        let ctx = Rc::new(DisplayFacade(display));
+
+        let program = Rc::new(Program::from_source(
+            ctx.as_ref(),
+            VERTEX_SHADER,
+            FRAGMENT_SHADER,
+            None,
+        )?);
+
+        Ok(Gpu {
+            program,
+            ctx,
+            height_sign: -1.,
+        })
+    }
+
+    pub fn get_frame(&self) -> Option<Frame> { self.ctx.get_frame() }
 
     pub fn default_shader(&self, width: f32, height: f32) -> Shader {
         Shader {
@@ -197,8 +251,8 @@ impl Gpu {
         width: u32,
         height: u32,
         mut elements: impl Iterator<Item = Element>,
-    ) -> Result<Rc<Texture2dMultisample>> {
-        let texture = self.build_texture(width, height)?;
+        target: &mut impl Surface,
+    ) -> Result<()> {
         for (_id, batch) in &elements.group_by(|e| e.shader.id) {
             let mut batch = batch.peekable();
             let mut first = if let Some(first) = batch.peek() {
@@ -215,6 +269,10 @@ impl Gpu {
             first
                 .uniforms
                 .push(String::from("height"), UniformValue::Float(height as f32));
+            first.uniforms.push(
+                String::from("height_sign"),
+                UniformValue::Float(self.height_sign),
+            );
 
             let (_, cpu_vertices, cpu_indices) = batch
                 .try_fold::<_, _, Result<(u32, Vec<GpuVertex>, Vec<u32>)>>(
@@ -238,16 +296,17 @@ impl Gpu {
             self.draw_to_texture(GpuCommand {
                 indices,
                 vertices,
-                texture: &texture,
+                target,
                 program: first.program.as_ref(),
                 uniforms: &first.uniforms,
             })?;
         }
-        Ok(Rc::new(texture))
+
+        Ok(())
     }
 
-    fn draw_to_texture(&self, cmd: GpuCommand) -> Result<()> {
-        Ok(cmd.texture.as_surface().draw(
+    fn draw_to_texture<S: Surface>(&self, cmd: GpuCommand<S>) -> Result<()> {
+        Ok(cmd.target.draw(
             &cmd.vertices,
             &cmd.indices,
             cmd.program,
@@ -265,7 +324,7 @@ impl Gpu {
                     constant_value: (0.0, 0.0, 0.0, 0.0),
                 },
                 line_width: Some(1.0),
-                multisampling: false,
+                multisampling: true,
                 dithering: false,
                 smooth: None,
                 ..Default::default()

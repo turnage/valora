@@ -311,29 +311,23 @@ fn main() {
                 r: 10.,
             }));*/
 
-            let r = 400.;
+            let r = 30.;
             const COLS: usize = 10;
             const ROWS: usize = 10;
             for c in GridIter::new(COLS, ROWS)
                 .tiles(world.width, world.height)
                 .map(|r| r.center())
+                .skip(4)
             {
                 const COUNT: usize = 20;
                 for i in 0..COUNT {
                     let signal = i as f32 / COUNT as f32;
                     let rgb = palette.sample(signal);
                     comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
-                    comp.draw(Stroked {
-                        element: Squig {
-                            center: c,
-                            r: r - r * signal,
-                        },
-                        thickness: 10.,
-                    });
-                    /*comp.draw(Filled(Squig {
+                    comp.draw(Filled(Squig {
                         center: c,
                         r: r - r * signal,
-                    }));*/
+                    }));
                 }
             }
 
@@ -351,8 +345,6 @@ fn main() {
                     comp,
                 );
             }*/
-
-            println!("Enqued; render begins now");
         })
     })
     .expect("to run composition");

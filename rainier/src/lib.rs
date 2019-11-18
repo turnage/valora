@@ -13,7 +13,12 @@ use failure::Error;
 use image::{ImageBuffer, Rgba};
 use lyon_path::{math::Point, Builder};
 use nalgebra::{base::*, Matrix};
-use std::{path::PathBuf, rc::Rc};
+use palette::{
+    encoding::{srgb::Srgb, TransferFn},
+    Component,
+};
+use rayon::prelude::*;
+use std::{path::PathBuf, rc::Rc, time::Duration};
 
 pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
 pub type V3 = Matrix<f32, U3, U1, ArrayStorage<f32, U3, U1>>;
@@ -44,9 +49,13 @@ pub struct Options {
     #[structopt(short = "f", long = "frames", default_value = "1")]
     pub frames: usize,
 
+    /// The number of frames (to try) to render per second.
+    #[structopt(short = "r", long = "frames_per_second", default_value = "24")]
+    pub framerate: usize,
+
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
-    pub output: PathBuf,
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -136,7 +145,8 @@ pub struct RenderGate<'a> {
     world: World,
     width: u32,
     height: u32,
-    save_dir: PathBuf,
+    wait: Duration,
+    save_dir: Option<PathBuf>,
     frames: usize,
 }
 
@@ -148,28 +158,51 @@ impl<'a> RenderGate<'a> {
         let default_shader = self
             .gpu
             .default_shader(self.width as f32, self.height as f32);
+        let mut buffer = self.gpu.build_texture(self.width, self.height)?;
         for frame in 0..(self.frames) {
             let mut comp = Composition::new(default_shader.clone());
             comp.set_scale(self.world.scale);
             f(&FrameContext { frame }, &mut comp);
 
-            println!("Rendering to texture");
-            let buffer = self
-                .gpu
-                .precompose(self.width, self.height, comp.elements.into_iter())?;
-            println!("Reading to ram...");
+            if let Some(save_dir) = self.save_dir.as_ref() {
+                self.gpu.precompose(
+                    self.width,
+                    self.height,
+                    comp.elements.into_iter(),
+                    &mut buffer.as_surface(),
+                )?;
+                let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
+                let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
+                    self.width,
+                    self.height,
+                    raw.data
+                        .into_par_iter()
+                        .map(|v| v.convert::<f32>())
+                        .map(|v: f32| <Srgb as TransferFn>::from_linear(v))
+                        .map(|v| v.convert::<u8>())
+                        .collect(),
+                )
+                .unwrap();
 
-            let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(buffer.as_ref())?;
-            println!("encoding as image...");
-            let image: ImageBuffer<Rgba<u8>, Vec<u8>> =
-                ImageBuffer::from_raw(self.width, self.height, raw.data.into_owned()).unwrap();
-            println!("saving image to disk...");
-
-            image.save(save_path_for_frame(
-                self.save_dir.clone(),
-                self.world.seed,
-                frame,
-            ))?;
+                image.save(save_path_for_frame(
+                    save_dir.clone(),
+                    self.world.seed,
+                    frame,
+                ))?;
+            } else {
+                let mut frame = self
+                    .gpu
+                    .get_frame()
+                    .expect("Expected frame for windowed gpu context");
+                self.gpu.precompose(
+                    self.width,
+                    self.height,
+                    comp.elements.into_iter(),
+                    &mut frame,
+                )?;
+                frame.finish();
+                std::thread::sleep(self.wait);
+            }
         }
         Ok(())
     }
@@ -187,12 +220,18 @@ pub fn run(
     );
     let mut rng = StdRng::seed_from_u64(options.seed);
 
-    let gpu = Gpu::new()?;
+    let gpu = if options.output.is_some() {
+        Gpu::new()?
+    } else {
+        Gpu::with_window(width as u32, height as u32)?
+    };
+
     let gate = RenderGate {
         gpu: &gpu,
         world,
         width: width as u32,
         height: height as u32,
+        wait: Duration::from_secs_f64(1. / options.framerate as f64),
         save_dir: options.output,
         frames: options.frames,
     };

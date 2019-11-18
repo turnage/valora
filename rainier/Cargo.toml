@@ -19,4 +19,6 @@ lyon_tessellation = "0.14.2"
 lyon_tess2 = "0.14.0"
 euclid = "0.20.4"
 arrayvec = "0.5.1"
+palette = "0.5.0"
+rayon = "1.2.0"
 
