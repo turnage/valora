@@ -89,8 +89,8 @@ impl Iterator for NgonIter {
     }
 }
 
-impl Draw for NgonIter {
-    fn draw(&self, comp: &mut Composition) {
+impl Paint for NgonIter {
+    fn paint(&self, comp: &mut Canvas) {
         for (i, v) in (*self).enumerate() {
             comp.line_to(v);
         }
@@ -175,8 +175,8 @@ impl Rect {
     }
 }
 
-impl Draw for Rect {
-    fn draw(&self, comp: &mut Composition) {
+impl Paint for Rect {
+    fn paint(&self, comp: &mut Canvas) {
         comp.move_to(self.bottom_left);
         for v in [
             V2::new(self.bottom_left.x + self.width, self.bottom_left.y),
@@ -196,9 +196,9 @@ impl Draw for Rect {
 
 pub struct Filled<D>(D);
 
-impl<D: Draw> Draw for Filled<D> {
-    fn draw(&self, comp: &mut Composition) {
-        self.0.draw(comp);
+impl<D: Paint> Paint for Filled<D> {
+    fn paint(&self, comp: &mut Canvas) {
+        self.0.paint(comp);
         comp.fill();
     }
 }
@@ -208,9 +208,9 @@ pub struct Stroked<D> {
     thickness: f32,
 }
 
-impl<D: Draw> Draw for Stroked<D> {
-    fn draw(&self, comp: &mut Composition) {
-        self.element.draw(comp);
+impl<D: Paint> Paint for Stroked<D> {
+    fn paint(&self, comp: &mut Canvas) {
+        self.element.paint(comp);
         comp.set_stroke_thickness(self.thickness);
         comp.stroke();
     }
@@ -221,8 +221,8 @@ pub struct Squig {
     r: f32,
 }
 
-impl Draw for Squig {
-    fn draw(&self, comp: &mut Composition) {
+impl Paint for Squig {
+    fn paint(&self, comp: &mut Canvas) {
         let start = 0.;
         let end = std::f32::consts::PI;
         let circle = Ellipse::circle(self.center, self.r);
@@ -262,11 +262,11 @@ fn main() {
         render_gate.render_frames(|ctx, mut comp| {
             if ctx.frame == 0 {
                 comp.set_color(LinSrgb::new(1., 1., 1.));
-                comp.draw(Filled(*world));
+                comp.paint(Filled(*world));
             }
             /*
             comp.set_color(V4::new(1.0, 0.0, 1.0, 1.0));
-            comp.draw(Filled(Squig {
+            comp.paint(Filled(Squig {
                 center: world.center(),
                 r: 10.,
             }));*/
@@ -289,7 +289,7 @@ fn main() {
                         * std::f32::consts::PI
                         * 2.,
                 );
-                comp.draw(Filled(Squig { center: c, r: r }));
+                comp.paint(Filled(Squig { center: c, r: r }));
             }
 
             /*for i in 0..1000 {

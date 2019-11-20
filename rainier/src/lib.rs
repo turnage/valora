@@ -59,12 +59,31 @@ pub struct Options {
     pub output: Option<PathBuf>,
 }
 
+/// The world in which the painting takes place.
 #[derive(Debug, Copy, Clone)]
 pub struct World {
+    /// The RNG seed this painting was given.
     pub seed: u64,
+    /// The width in coordinate space of the painting.
+    ///
+    /// Coordinate space may differ from output space. If width is 500 but scale is 10, the painting
+    /// will have a coordinate space width of 500, but the final output will have a width of 5000 pixels.
     pub width: f32,
+    /// The height in coordinate space of the painting.
+    ///
+    /// Coordinate space may differ from output space. If height is 500 but scale is 10, the painting
+    /// will have a coordinate space height of 500, but the final output will have a height of 5000 pixels.
     pub height: f32,
+    /// The scale of the output.
+    ///
+    /// The final output space is (width*scale)x(height*scale). This value is useful for painting
+    /// and doing work at one quickly rendering resolution, and later exporting at a much higher
+    /// resolution while preserving the composition exactly.
+    ///
+    /// This value may be needed when writing shaders or using other raster graphics, to adjust them
+    /// for the real output size. Vector painting such as with paths should not need to consider this.
     pub scale: f32,
+    /// The total number of frames in this painting.
     pub frames: usize,
 }
 
@@ -80,6 +99,7 @@ impl From<&Options> for World {
     }
 }
 
+/// The context of the current render frame.
 #[derive(Debug, Copy, Clone)]
 pub struct FrameContext {
     /// The current frame in the composition.
@@ -92,8 +112,8 @@ impl World {
     pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
 }
 
-impl Draw for World {
-    fn draw(&self, comp: &mut Composition) {
+impl Paint for World {
+    fn paint(&self, comp: &mut Canvas) {
         comp.line_to(V2::new(0.0, 0.0));
         comp.line_to(V2::new(self.width, 0.0));
         comp.line_to(V2::new(self.width, self.height));
@@ -110,15 +130,18 @@ fn save_path_for_frame(mut base_path: PathBuf, seed: u64, frame: usize) -> PathB
     base_path
 }
 
-pub trait Draw {
-    fn draw(&self, comp: &mut Composition);
+/// A trait for types which can be represented in a `Canvas`.
+pub trait Paint {
+    /// Paints self in the composition.
+    fn paint(&self, comp: &mut Canvas);
 }
 
-pub struct GpuHandle<'a> {
-    gpu: &'a Gpu,
+/// A handle to the gpu.
+pub struct Gpu<'a> {
+    gpu: &'a gpu::Gpu,
 }
 
-impl<'a> GpuHandle<'a> {
+impl<'a> Gpu<'a> {
     pub fn build_shader(&self, glsl: &str) -> Result<ShaderBuilder> {
         Ok(ShaderBuilder {
             gpu_handle: &self,
@@ -128,7 +151,7 @@ impl<'a> GpuHandle<'a> {
 }
 
 pub struct ShaderBuilder<'a, 'b> {
-    gpu_handle: &'a GpuHandle<'b>,
+    gpu_handle: &'a Gpu<'b>,
     program: Rc<Program>,
 }
 
@@ -141,8 +164,9 @@ impl<'a, 'b> ShaderBuilder<'a, 'b> {
     }
 }
 
-pub struct RenderGate<'a> {
-    gpu: &'a Gpu,
+/// A render gate renders frames.
+pub struct Renderer<'a> {
+    gpu: &'a gpu::Gpu,
     events_loop: EventsLoop,
     world: World,
     width: u32,
@@ -152,17 +176,16 @@ pub struct RenderGate<'a> {
     frames: usize,
 }
 
-impl<'a> RenderGate<'a> {
-    pub fn render_frames(
-        &mut self,
-        mut f: impl FnMut(&FrameContext, &mut Composition),
-    ) -> Result<()> {
+impl<'a> Renderer<'a> {
+    /// Render all of the frames for the composition. This will not return until until all frames of
+    /// the composition have been rendered.
+    pub fn render_frames(&mut self, mut f: impl FnMut(&FrameContext, &mut Canvas)) -> Result<()> {
         let default_shader = self
             .gpu
             .default_shader(self.width as f32, self.height as f32);
         let buffer = self.gpu.build_texture(self.width, self.height)?;
         for frame in 0..(self.frames) {
-            let mut comp = Composition::new(default_shader.clone());
+            let mut comp = Canvas::new(default_shader.clone());
             comp.set_scale(self.world.scale);
             f(&FrameContext { frame }, &mut comp);
 
@@ -232,9 +255,10 @@ impl<'a> RenderGate<'a> {
     }
 }
 
+/// Run a composition.
 pub fn run(
     options: Options,
-    mut f: impl FnMut(&GpuHandle, &World, &mut StdRng, RenderGate) -> Result<()>,
+    mut f: impl FnMut(&Gpu, &World, &mut StdRng, Renderer) -> Result<()>,
 ) -> Result<()> {
     let world = World::from(&options);
 
@@ -245,12 +269,12 @@ pub fn run(
     let mut rng = StdRng::seed_from_u64(options.seed);
 
     let (gpu, events_loop) = if options.output.is_some() {
-        Gpu::new()?
+        gpu::Gpu::new()?
     } else {
-        Gpu::with_window(width as u32, height as u32)?
+        gpu::Gpu::with_window(width as u32, height as u32)?
     };
 
-    let gate = RenderGate {
+    let gate = Renderer {
         gpu: &gpu,
         events_loop,
         world,
@@ -261,12 +285,13 @@ pub fn run(
         frames: options.frames,
     };
 
-    let gpu_handle = GpuHandle { gpu: &gpu };
+    let gpu = Gpu { gpu: &gpu };
 
-    f(&gpu_handle, &world, &mut rng, gate)
+    f(&gpu, &world, &mut rng, gate)
 }
 
-pub struct Composition {
+/// A painting surface.
+pub struct Canvas {
     path: Builder,
     shader: Shader,
     color: LinSrgba,
@@ -275,7 +300,7 @@ pub struct Composition {
     elements: Vec<Element>,
 }
 
-impl Composition {
+impl Canvas {
     fn new(default_shader: Shader) -> Self {
         Self {
             path: Builder::new(),
@@ -287,21 +312,39 @@ impl Composition {
         }
     }
 
-    pub fn draw(&mut self, element: impl Draw) { element.draw(self); }
+    /// Sets the scale of all following path operations.
+    fn set_scale(&mut self, scale: f32) { self.scale = scale; }
 
-    pub fn set_scale(&mut self, scale: f32) { self.scale = scale; }
+    /// Paints an element.
+    pub fn paint(&mut self, element: impl Paint) { element.paint(self); }
 
+    /// Sets the current color.
+    pub fn set_color(&mut self, color: impl IntoColor) {
+        self.color = Alpha::from(color.into_rgb());
+    }
+
+    /// Sets the current color.
+    pub fn set_color_with_alpha(&mut self, color_alpha: Alpha<impl IntoColor, f32>) {
+        self.color = Alpha {
+            color: color_alpha.color.into_rgb(),
+            alpha: color_alpha.alpha,
+        };
+    }
+
+    /// Stats a new path at the given point.
     pub fn move_to(&mut self, dest: V2) {
         self.path = Builder::new();
         self.path
             .move_to(Point::new(dest.x * self.scale, dest.y * self.scale));
     }
 
+    /// Adds a line to the current path which ends at the given point.
     pub fn line_to(&mut self, dest: V2) {
         self.path
             .line_to(Point::new(dest.x * self.scale, dest.y * self.scale));
     }
 
+    /// Adds a quadratic bezier curve to the current path with the given control and end points.
     pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
         self.path.quadratic_bezier_to(
             Point::new(ctrl.x * self.scale, ctrl.y * self.scale),
@@ -309,6 +352,7 @@ impl Composition {
         );
     }
 
+    /// Adds a cubic bezier curve to the current path with the given control and end points.
     pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
         self.path.cubic_bezier_to(
             Point::new(ctrl0.x * self.scale, ctrl0.y * self.scale),
@@ -317,28 +361,26 @@ impl Composition {
         );
     }
 
+    /// Closes the current path.
     pub fn close(&mut self) { self.path.close() }
 
-    pub fn set_color_with_alpha(&mut self, color_alpha: Alpha<impl IntoColor, f32>) {
-        self.color = Alpha {
-            color: color_alpha.color.into_rgb(),
-            alpha: color_alpha.alpha,
-        };
-    }
-
-    pub fn set_color(&mut self, color: impl IntoColor) {
-        self.color = Alpha::from(color.into_rgb());
-    }
-
-    pub fn set_shader(&mut self, shader: Shader) { self.shader = shader; }
-
+    /// Sets the thickness of lines drawn with the `stroke()`.
     pub fn set_stroke_thickness(&mut self, stroke_thickness: f32) {
         self.stroke_thickness = stroke_thickness;
     }
 
+    /// Paints the current path by filling the region inside the path.
     pub fn fill(&mut self) { self.push_element(Method::Fill); }
 
+    /// Paints the current path by stroking the path.
     pub fn stroke(&mut self) { self.push_element(Method::Stroke(self.stroke_thickness)); }
+
+    /// Sets the current shader used to shade rastered paths.
+    ///
+    /// Changing shaders requires making a new draw call to the GPU and tearing down some state.
+    /// Changing shaders 0-10 times per frame is likely to be fast enough. Changing shaders 500
+    /// times per frame will be slow.
+    pub fn set_shader(&mut self, shader: Shader) { self.shader = shader; }
 
     fn push_element(&mut self, raster_method: Method) {
         let mut path = Builder::new();
