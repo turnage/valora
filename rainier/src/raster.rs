@@ -1,7 +1,7 @@
 //! Rasterization utilities.
 
-use crate::{gpu::GpuVertex, Result, V4};
-use lyon_path::{math::Point, Builder};
+use crate::{gpu::GpuVertex, Result};
+use lyon_path::Builder;
 use lyon_tessellation::{
     geometry_builder::vertex_builder,
     FillOptions,
@@ -12,6 +12,7 @@ use lyon_tessellation::{
     StrokeVertex,
     VertexBuffers,
 };
+use palette::LinSrgba;
 
 /// The method by which the rasterizer will rasterize the vector path.
 #[derive(Debug, Clone, Copy)]
@@ -29,7 +30,7 @@ pub enum Method {
 pub fn raster_path(
     builder: Builder,
     method: Method,
-    color: V4,
+    color: LinSrgba,
 ) -> Result<(Vec<GpuVertex>, Vec<u32>)> {
     match method {
         Method::Fill => {
@@ -51,7 +52,12 @@ pub fn raster_path(
                     .into_iter()
                     .map(|v| GpuVertex {
                         vpos: [v.position.x, v.position.y],
-                        vcol: [color.x, color.y, color.z, color.w],
+                        vcol: [
+                            color.color.red,
+                            color.color.green,
+                            color.color.blue,
+                            color.alpha,
+                        ],
                     })
                     .collect(),
                 buffers.indices,
@@ -76,7 +82,12 @@ pub fn raster_path(
                     .into_iter()
                     .map(|v| GpuVertex {
                         vpos: [v.position.x, v.position.y],
-                        vcol: [color.x, color.y, color.z, color.w],
+                        vcol: [
+                            color.color.red,
+                            color.color.green,
+                            color.color.blue,
+                            color.alpha,
+                        ],
                     })
                     .collect(),
                 buffers.indices,

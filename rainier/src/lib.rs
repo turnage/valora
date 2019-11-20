@@ -5,6 +5,7 @@ mod raster;
 
 pub use self::gpu::{Shader, UniformBuffer};
 pub use glium::program::Program;
+pub use palette::{self, Alpha, Blend, ComponentWise, Hue, IntoColor, LinSrgb, LinSrgba, Saturate};
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
 
@@ -23,7 +24,6 @@ use std::{path::PathBuf, rc::Rc, time::Duration};
 
 pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
 pub type V3 = Matrix<f32, U3, U1, ArrayStorage<f32, U3, U1>>;
-pub type V4 = Matrix<f32, U4, U1, ArrayStorage<f32, U4, U1>>;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -160,7 +160,7 @@ impl<'a> RenderGate<'a> {
         let default_shader = self
             .gpu
             .default_shader(self.width as f32, self.height as f32);
-        let mut buffer = self.gpu.build_texture(self.width, self.height)?;
+        let buffer = self.gpu.build_texture(self.width, self.height)?;
         for frame in 0..(self.frames) {
             let mut comp = Composition::new(default_shader.clone());
             comp.set_scale(self.world.scale);
@@ -202,11 +202,11 @@ impl<'a> RenderGate<'a> {
                     comp.elements.into_iter(),
                     &mut frame,
                 )?;
-                frame.finish();
+                frame.finish().expect("Swapping buffers");
 
                 let mut quit = false;
                 self.events_loop.poll_events(|event| {
-                    use glutin::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+                    use glutin::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode};
                     match event {
                         Event::DeviceEvent {
                             event:
@@ -269,7 +269,7 @@ pub fn run(
 pub struct Composition {
     path: Builder,
     shader: Shader,
-    color: V4,
+    color: LinSrgba,
     stroke_thickness: f32,
     scale: f32,
     elements: Vec<Element>,
@@ -280,7 +280,7 @@ impl Composition {
         Self {
             path: Builder::new(),
             shader: default_shader,
-            color: V4::new(1.0, 1.0, 1.0, 1.0),
+            color: Alpha::<LinSrgb, _>::new(1., 1., 1., 1.),
             scale: 1.,
             stroke_thickness: 1.,
             elements: vec![],
@@ -319,7 +319,16 @@ impl Composition {
 
     pub fn close(&mut self) { self.path.close() }
 
-    pub fn set_color(&mut self, color: V4) { self.color = color; }
+    pub fn set_color_with_alpha(&mut self, color_alpha: Alpha<impl IntoColor, f32>) {
+        self.color = Alpha {
+            color: color_alpha.color.into_rgb(),
+            alpha: color_alpha.alpha,
+        };
+    }
+
+    pub fn set_color(&mut self, color: impl IntoColor) {
+        self.color = Alpha::from(color.into_rgb());
+    }
 
     pub fn set_shader(&mut self, shader: Shader) { self.shader = shader; }
 

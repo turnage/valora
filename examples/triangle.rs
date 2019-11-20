@@ -121,23 +121,21 @@ impl GridIter {
 }
 
 pub struct CosineColours {
-    a: V3,
-    b: V3,
-    c: V3,
-    d: V3,
+    a: LinSrgb,
+    b: LinSrgb,
+    c: LinSrgb,
+    d: LinSrgb,
 }
 
 impl CosineColours {
-    pub fn new(a: V3, b: V3, c: V3, d: V3) -> Self { Self { a, b, c, d } }
+    pub fn new(a: LinSrgb, b: LinSrgb, c: LinSrgb, d: LinSrgb) -> Self { Self { a, b, c, d } }
 
-    pub fn sample(&self, t: f32) -> V3 {
-        (self.a
-            + self.b.component_mul(
-                &(self.c * t + self.d)
-                    .map(|v| v * std::f32::consts::PI * 2.)
-                    .map(f32::cos),
-            ))
-        .map(Srgb::into_linear)
+    pub fn sample(&self, t: f32) -> LinSrgb {
+        self.c
+            .component_wise(&self.d, |c, d| (c * t + d))
+            .component_wise_self(|v| v * std::f32::consts::PI * 2.)
+            .component_wise_self(f32::cos)
+            .component_wise(&self.a, std::ops::Add::add)
     }
 }
 
@@ -246,48 +244,6 @@ impl Draw for Squig {
     }
 }
 
-fn triangle_fan(
-    fbm: &Fbm,
-    palette: &CosineColours,
-    d: usize,
-    max: usize,
-    phase_offset: f32,
-    r: f32,
-    sign: f32,
-    p: V2,
-    rng: &mut StdRng,
-    comp: &mut Composition,
-) {
-    if d > max {
-        return;
-    }
-
-    let noise = ((fbm.get([p.x as f64, p.y as f64]) as f32) + 1.) / 2. * sign;
-    let color = palette.sample(d as f32 * noise);
-    comp.set_color(V4::new(color.x, color.y, color.z, 1.));
-    comp.draw(Filled(NgonIter::triangle(
-        noise * std::f32::consts::PI,
-        2. * r / (d as f32),
-        p,
-    )));
-    let phase = noise * 2. * std::f32::consts::PI;
-    let next_point = Ellipse::circle(p, r).circumpoint(phase);
-
-    let children = rng.gen_range(1, 4);
-    triangle_fan(
-        fbm,
-        palette,
-        d + 1,
-        max,
-        phase_offset,
-        r,
-        sign,
-        next_point,
-        rng,
-        comp,
-    );
-}
-
 const NOISE_SHADER: &str = include_str!("noise.frag");
 
 fn main() {
@@ -298,14 +254,14 @@ fn main() {
         let noise_shader_builder = gpu.build_shader(NOISE_SHADER).expect("to compile glsl");
         let noise_shader = noise_shader_builder.build().expect("to build noise shader");
         let palette = CosineColours::new(
-            V3::new(0.5, 0.5, 0.5),
-            V3::new(0.5, 0.5, 0.5),
-            V3::new(2.0, 1.0, 0.0),
-            V3::new(0.5, 0.20, 0.25),
+            LinSrgb::new(0.5, 0.5, 0.5),
+            LinSrgb::new(0.5, 0.5, 0.5),
+            LinSrgb::new(2.0, 1.0, 0.0),
+            LinSrgb::new(0.5, 0.20, 0.25),
         );
         render_gate.render_frames(|ctx, mut comp| {
             if ctx.frame == 0 {
-                comp.set_color(V4::new(1.0, 1.0, 1.0, 1.0));
+                comp.set_color(LinSrgb::new(1., 1., 1.));
                 comp.draw(Filled(*world));
             }
             /*
@@ -319,7 +275,7 @@ fn main() {
 
             let signal = time.rem_euclid(4.) / 4.;
             let rgb = palette.sample(signal);
-            comp.set_color(V4::new(rgb.x, rgb.y, rgb.z, 1.));
+            comp.set_color(rgb);
 
             let r = 10. + time * 10.;
             const COLS: usize = 10;

@@ -1,8 +1,0 @@
-[package]
-name = "qpine"
-version = "0.1.0"
-authors = ["Payton Turnage <paytonturnage@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-formo = { path = "../formo" }

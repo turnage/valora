@@ -1,9 +1,7 @@
 use crate::{
     raster::{raster_path, Method},
     Result,
-    V4,
 };
-use arrayvec::ArrayVec;
 use glium::{
     backend::{
         glutin::{headless::Headless, Display},
@@ -33,15 +31,10 @@ use glium::{
 };
 use glutin::dpi::PhysicalSize;
 use itertools::Itertools;
-use lyon_path::{math::Point, Builder};
+use lyon_path::Builder;
+use palette::LinSrgba;
 use rand::random;
 use std::rc::Rc;
-
-#[derive(Copy, Clone, Debug)]
-pub enum DrawMode {
-    Iterate,
-    Final,
-}
 
 #[derive(Debug, Copy, Clone)]
 pub struct GpuVertex {
@@ -83,7 +76,7 @@ impl Uniforms for UniformBuffer {
 /// A rasterable element in a composition.
 pub struct Element {
     pub path: Builder,
-    pub color: V4,
+    pub color: LinSrgba,
     pub raster_method: Method,
     pub shader: Shader,
 }
@@ -259,7 +252,7 @@ impl Gpu {
         &self,
         width: u32,
         height: u32,
-        mut elements: impl Iterator<Item = Element>,
+        elements: impl Iterator<Item = Element>,
         target: &mut impl Surface,
     ) -> Result<()> {
         for (_id, batch) in &elements.group_by(|e| e.shader.id) {

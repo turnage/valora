@@ -9,11 +9,8 @@ members = ["rainier"]
 
 [dependencies]
 rainier = { path = "rainier" }
-qpine = { path = "qpine" }
-formo = { path = "formo" }
 
 [dev-dependencies]
 itertools = "0.8.0"
 nalgebra = "0.18.0"
 noise = "0.6.0"
-palette = "0.4.1"
