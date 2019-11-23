@@ -157,7 +157,7 @@ fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
         }
     }
 
-    (min + max) / 2.0
+    (min + max.to_vector()) / 2.0
 }
 
 pub struct Rect {

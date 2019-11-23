@@ -14,7 +14,6 @@ use failure::Error;
 use glium::glutin::EventsLoop;
 use image::{ImageBuffer, Rgba};
 use lyon_path::{math::Point, Builder};
-use nalgebra::{base::*, Matrix};
 use palette::{
     encoding::{srgb::Srgb, TransferFn},
     Component,
@@ -22,8 +21,7 @@ use palette::{
 use rayon::prelude::*;
 use std::{path::PathBuf, rc::Rc, time::Duration};
 
-pub type V2 = Matrix<f32, U2, U1, ArrayStorage<f32, U2, U1>>;
-pub type V3 = Matrix<f32, U3, U1, ArrayStorage<f32, U3, U1>>;
+pub type V2 = Point;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -334,31 +332,22 @@ impl Canvas {
     /// Stats a new path at the given point.
     pub fn move_to(&mut self, dest: V2) {
         self.path = Builder::new();
-        self.path
-            .move_to(Point::new(dest.x * self.scale, dest.y * self.scale));
+        self.path.move_to(dest * self.scale);
     }
 
     /// Adds a line to the current path which ends at the given point.
-    pub fn line_to(&mut self, dest: V2) {
-        self.path
-            .line_to(Point::new(dest.x * self.scale, dest.y * self.scale));
-    }
+    pub fn line_to(&mut self, dest: V2) { self.path.line_to(dest * self.scale); }
 
     /// Adds a quadratic bezier curve to the current path with the given control and end points.
     pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
-        self.path.quadratic_bezier_to(
-            Point::new(ctrl.x * self.scale, ctrl.y * self.scale),
-            Point::new(end.x * self.scale, end.y * self.scale),
-        );
+        self.path
+            .quadratic_bezier_to(ctrl * self.scale, end * self.scale);
     }
 
     /// Adds a cubic bezier curve to the current path with the given control and end points.
     pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
-        self.path.cubic_bezier_to(
-            Point::new(ctrl0.x * self.scale, ctrl0.y * self.scale),
-            Point::new(ctrl1.x * self.scale, ctrl1.y * self.scale),
-            Point::new(end.x * self.scale, end.y * self.scale),
-        );
+        self.path
+            .cubic_bezier_to(ctrl0 * self.scale, ctrl1 * self.scale, end * self.scale);
     }
 
     /// Closes the current path.
