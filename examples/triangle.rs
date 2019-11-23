@@ -251,8 +251,10 @@ fn main() {
 
     let options = Options::from_args();
     run(options, |gpu, world, mut rng, mut render_gate| {
-        let noise_shader_builder = gpu.build_shader(NOISE_SHADER).expect("to compile glsl");
-        let noise_shader = noise_shader_builder.build().expect("to build noise shader");
+        let glsl = gpu.compile_glsl(NOISE_SHADER).expect("to compile glsl");
+        let noise_shader = gpu
+            .build_shader(glsl, UniformBuffer::default())
+            .expect("to build noise shader");
         let palette = CosineColours::new(
             LinSrgb::new(0.5, 0.5, 0.5),
             LinSrgb::new(0.5, 0.5, 0.5),

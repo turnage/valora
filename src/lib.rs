@@ -21,7 +21,7 @@ use palette::{
     Component,
 };
 use rayon::prelude::*;
-use std::{path::PathBuf, rc::Rc, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 pub type V2 = Point;
 
@@ -110,44 +110,13 @@ fn save_path_for_frame(mut base_path: PathBuf, seed: u64, frame: usize) -> PathB
     base_path
 }
 
-/// A handle to the gpu.
-pub struct Gpu<'a> {
-    gpu: &'a gpu::Gpu,
-}
-
-impl<'a> Gpu<'a> {
-    pub fn build_shader(&self, glsl: &str) -> Result<ShaderBuilder> {
-        Ok(ShaderBuilder {
-            gpu_handle: &self,
-            program: self.gpu.compile_glsl(glsl)?,
-        })
-    }
-}
-
-pub struct ShaderBuilder<'a, 'b> {
-    gpu_handle: &'a Gpu<'b>,
-    program: Rc<Program>,
-}
-
-impl<'a, 'b> ShaderBuilder<'a, 'b> {
-    // TODO: Take uniform trait bound here
-    pub fn build(&self) -> Result<Shader> {
-        self.gpu_handle
-            .gpu
-            .build_shader(self.program.clone(), UniformBuffer::default())
-    }
-}
-
 /// A render gate renders frames.
 pub struct Renderer<'a> {
-    gpu: &'a gpu::Gpu,
+    gpu: &'a Gpu,
     events_loop: EventsLoop,
-    world: World,
-    width: u32,
-    height: u32,
-    wait: Duration,
-    save_dir: Option<PathBuf>,
-    frames: usize,
+    options: Options,
+    output_width: u32,
+    output_height: u32,
 }
 
 impl<'a> Renderer<'a> {
@@ -156,19 +125,27 @@ impl<'a> Renderer<'a> {
     pub fn render_frames(&mut self, mut f: impl FnMut(&FrameContext, &mut Canvas)) -> Result<()> {
         let default_shader = self
             .gpu
-            .default_shader(self.width as f32, self.height as f32);
-        let buffer = self.gpu.build_texture(self.width, self.height)?;
-        for frame in 0..(self.frames) {
-            let mut comp = Canvas::new(default_shader.clone(), self.world.scale);
+            .default_shader(self.output_width as f32, self.output_height as f32);
+
+        let wait = Duration::from_secs_f64(1. / self.options.world.framerate as f64);
+        let buffer = self
+            .gpu
+            .build_texture(self.output_width, self.output_height)?;
+        for frame in 0..(self.options.world.frames) {
+            let mut comp = Canvas::new(default_shader.clone(), self.options.world.scale);
             f(&FrameContext { frame }, &mut comp);
 
-            if let Some(save_dir) = self.save_dir.as_ref() {
-                self.gpu
-                    .render(self.width, self.height, comp, &mut buffer.as_surface())?;
+            if let Some(save_dir) = self.options.output.as_ref() {
+                self.gpu.render(
+                    self.output_width,
+                    self.output_height,
+                    comp,
+                    &mut buffer.as_surface(),
+                )?;
                 let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
                 let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
-                    self.width,
-                    self.height,
+                    self.output_width,
+                    self.output_height,
                     raw.data
                         .into_par_iter()
                         .map(|v| v.convert::<f32>())
@@ -180,7 +157,7 @@ impl<'a> Renderer<'a> {
 
                 image.save(save_path_for_frame(
                     save_dir.clone(),
-                    self.world.seed,
+                    self.options.world.seed,
                     frame,
                 ))?;
             } else {
@@ -188,7 +165,8 @@ impl<'a> Renderer<'a> {
                     .gpu
                     .get_frame()
                     .expect("Expected frame for windowed gpu context");
-                self.gpu.render(self.width, self.height, comp, &mut frame)?;
+                self.gpu
+                    .render(self.output_width, self.output_height, comp, &mut frame)?;
                 frame.finish().expect("Swapping buffers");
 
                 let mut quit = false;
@@ -212,7 +190,7 @@ impl<'a> Renderer<'a> {
                     return Ok(());
                 }
 
-                std::thread::sleep(self.wait);
+                std::thread::sleep(wait);
             }
         }
         Ok(())
@@ -231,23 +209,18 @@ pub fn run(
     let mut rng = StdRng::seed_from_u64(options.world.seed);
 
     let (gpu, events_loop) = if options.output.is_some() {
-        gpu::Gpu::new()?
+        Gpu::new()?
     } else {
-        gpu::Gpu::with_window(width as u32, height as u32)?
+        Gpu::with_window(width as u32, height as u32)?
     };
 
     let gate = Renderer {
         gpu: &gpu,
         events_loop,
-        world: options.world,
-        width: width as u32,
-        height: height as u32,
-        wait: Duration::from_secs_f64(1. / options.world.framerate as f64),
-        save_dir: options.output,
-        frames: options.world.frames,
+        options: options.clone(),
+        output_width: width as u32,
+        output_height: height as u32,
     };
-
-    let gpu = Gpu { gpu: &gpu };
 
     f(&gpu, &options.world, &mut rng, gate)
 }
