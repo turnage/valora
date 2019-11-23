@@ -68,7 +68,18 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
             .gpu
             .default_shader(self.output_width as f32, self.output_height as f32);
 
-        for frame in 0..(self.options.world.frames) {
+        let end_frame = self.options.world.frames.map(|f| f + self.options.delay);
+        for frame in std::iter::successors(Some(0), move |last| {
+            if let Some(end_frame) = end_frame {
+                if last + 1 <= end_frame {
+                    Some(last + 1)
+                } else {
+                    None
+                }
+            } else {
+                Some(last + 1)
+            }
+        }) {
             let mut canvas = Canvas::new(default_shader.clone(), self.options.world.scale);
             f(
                 Context {
@@ -159,20 +170,23 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                     canvas,
                     &mut buffer.as_surface(),
                 )?;
-                let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
-                let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
-                    self.output_width,
-                    self.output_height,
-                    raw.data
-                        .into_par_iter()
-                        .map(|v| v.convert::<f32>())
-                        .map(|v: f32| <Srgb as TransferFn>::from_linear(v))
-                        .map(|v| v.convert::<u8>())
-                        .collect(),
-                )
-                .unwrap();
 
-                image.save(output_path(frame_number, current_seed))?;
+                if frame_number > self.options.delay {
+                    let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
+                    let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
+                        self.output_width,
+                        self.output_height,
+                        raw.data
+                            .into_par_iter()
+                            .map(|v| v.convert::<f32>())
+                            .map(|v: f32| <Srgb as TransferFn>::from_linear(v))
+                            .map(|v| v.convert::<u8>())
+                            .collect(),
+                    )
+                    .unwrap();
+
+                    image.save(output_path(frame_number, current_seed))?;
+                }
 
                 Ok(FrameUpdates {
                     new_seed: None,

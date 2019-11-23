@@ -53,6 +53,12 @@ pub struct Options {
     #[structopt(flatten)]
     pub world: World,
 
+    /// The number of frames to delay saving to file. For example, if delay=100,
+    /// 100 frames will be rendered silently and then the 101st and those after it
+    /// will be saved to file.
+    #[structopt(short = "d", long = "delay", default_value = "0")]
+    pub delay: usize,
+
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
     pub output: Option<PathBuf>,
@@ -91,8 +97,8 @@ pub struct World {
     pub scale: f32,
 
     /// The total number of frames in this painting.
-    #[structopt(short = "f", long = "frames", default_value = "1")]
-    pub frames: usize,
+    #[structopt(short = "f", long = "frames")]
+    pub frames: Option<usize>,
 
     /// The number of frames (to try) to render per second.
     #[structopt(short = "r", long = "frames_per_second", default_value = "24")]
@@ -180,7 +186,13 @@ pub fn run<A: Artist>(options: Options) -> Result<()> {
         let mut renderer = Renderer {
             strategy: &mut strategy,
             gpu: &gpu,
-            options: options.clone(),
+            options: Options {
+                world: World {
+                    seed: current_seed,
+                    ..options.world
+                },
+                ..options.clone()
+            },
             rng: &mut rng,
             output_width: output_width,
             output_height: output_height,
