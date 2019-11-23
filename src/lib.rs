@@ -102,7 +102,7 @@ pub fn run<P: Painter>(options: Options) -> Result<()> {
         (options.world.height as f32 * options.world.scale) as u32,
     );
 
-    let (gpu, strategy) = if let Some(base_path) = options.output.clone() {
+    let (gpu, mut strategy) = if let Some(base_path) = options.output.clone() {
         let (gpu, _) = Gpu::new()?;
         let buffer = gpu.build_texture(output_width, output_height)?;
 
@@ -139,18 +139,30 @@ pub fn run<P: Painter>(options: Options) -> Result<()> {
         )
     };
 
-    let mut rng = StdRng::seed_from_u64(options.world.seed);
-    let mut painter = P::setup(&gpu, &options.world, &mut rng)?;
+    let mut current_seed = options.world.seed;
+    loop {
+        let mut rng = StdRng::seed_from_u64(current_seed);
+        let mut painter = P::setup(&gpu, &options.world, &mut rng)?;
 
-    let mut renderer = Renderer {
-        strategy,
-        gpu: &gpu,
-        options: options.clone(),
-        rng: &mut rng,
-        output_width: output_width,
-        output_height: output_height,
-    };
-    renderer.render_frames(|ctx, canvas| painter.paint(ctx, canvas))?;
+        let mut renderer = Renderer {
+            strategy: &mut strategy,
+            gpu: &gpu,
+            options: options.clone(),
+            rng: &mut rng,
+            output_width: output_width,
+            output_height: output_height,
+        };
+
+        if let Some(rebuild) = renderer.render_frames(|ctx, canvas| painter.paint(ctx, canvas))? {
+            match rebuild {
+                Rebuild::NewSeed(new_seed) => {
+                    current_seed = new_seed;
+                }
+            }
+        } else {
+            break;
+        }
+    }
 
     Ok(())
 }

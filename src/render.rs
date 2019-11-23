@@ -7,7 +7,7 @@ use palette::{
     encoding::{srgb::Srgb, TransferFn},
     Component,
 };
-use rand::rngs::StdRng;
+use rand::{random, rngs::StdRng};
 use rayon::prelude::*;
 use std::{path::PathBuf, time::Duration};
 
@@ -46,7 +46,7 @@ pub enum RenderStrategy<F1, F2> {
 
 /// A render gate renders frames.
 pub struct Renderer<'a, F1, F2> {
-    pub strategy: RenderStrategy<F1, F2>,
+    pub strategy: &'a mut RenderStrategy<F1, F2>,
     pub gpu: &'a Gpu,
     pub options: Options,
     pub rng: &'a mut StdRng,
@@ -99,7 +99,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
         frame_number: usize,
         canvas: Canvas,
     ) -> Result<FrameUpdates> {
-        match &mut self.strategy {
+        match self.strategy {
             RenderStrategy::Screen {
                 get_frame,
                 events_loop,
@@ -109,9 +109,11 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 frame.set_finish()?;
                 self.gpu
                     .render(self.output_width, self.output_height, canvas, &mut frame)?;
+
+                let mut new_seed = None;
                 let mut should_quit = false;
                 events_loop.poll_events(|event| {
-                    use glutin::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode};
+                    use glutin::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode};
                     match event {
                         Event::DeviceEvent {
                             event:
@@ -123,12 +125,23 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                         } => {
                             should_quit = true;
                         }
+                        Event::DeviceEvent {
+                            event:
+                                DeviceEvent::Key(KeyboardInput {
+                                    state: ElementState::Released,
+                                    virtual_keycode: Some(VirtualKeyCode::R),
+                                    ..
+                                }),
+                            ..
+                        } => {
+                            new_seed = Some(random());
+                        }
                         _ => {}
                     }
                 });
 
                 Ok(FrameUpdates {
-                    new_seed: None,
+                    new_seed,
                     wait: Some(*wait),
                     should_quit,
                 })

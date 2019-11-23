@@ -244,18 +244,19 @@ impl Paint for Squig {
     }
 }
 
-const NOISE_SHADER: &str = include_str!("noise.frag");
+const NOISE_SHADER: &str = include_str!("stripe.frag");
 
 pub struct Bloops {
     fbm: Fbm,
-    noise_shader: Shader,
+    stripe_shader: Shader,
     palette: CosineColours,
+    grid_size: usize,
 }
 
 impl Painter for Bloops {
     fn setup(gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<Self> {
         let glsl = gpu.compile_glsl(NOISE_SHADER).expect("to compile glsl");
-        let noise_shader = gpu
+        let stripe_shader = gpu
             .build_shader(glsl, UniformBuffer::default())
             .expect("to build noise shader");
         let palette = CosineColours::new(
@@ -264,11 +265,13 @@ impl Painter for Bloops {
             LinSrgb::new(2.0, 1.0, 0.0),
             LinSrgb::new(0.5, 0.20, 0.25),
         );
+        let grid_size = rng.gen_range(2, 20);
 
         Ok(Self {
             fbm: Fbm::default(),
-            noise_shader,
+            stripe_shader,
             palette,
+            grid_size,
         })
     }
 
@@ -284,10 +287,10 @@ impl Painter for Bloops {
         let rgb = self.palette.sample(signal);
         canvas.set_color(rgb);
 
+        canvas.set_shader(self.stripe_shader.clone());
+
         let r = 10. + time * 10.;
-        const COLS: usize = 10;
-        const ROWS: usize = 10;
-        for c in GridIter::new(COLS, ROWS)
+        for c in GridIter::new(self.grid_size, self.grid_size)
             .tiles(ctx.world.width, ctx.world.height)
             .map(|r| r.center())
         {
