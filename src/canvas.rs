@@ -32,12 +32,6 @@ impl Canvas {
         }
     }
 
-    pub(crate) fn elements(&mut self) -> Vec<Element> {
-        let mut elements = vec![];
-        std::mem::swap(&mut elements, &mut self.elements);
-        elements
-    }
-
     /// Paints an element.
     pub fn paint(&mut self, element: impl Paint) { element.paint(self); }
 
@@ -107,4 +101,11 @@ impl Canvas {
             raster_method,
         });
     }
+}
+
+impl IntoIterator for Canvas {
+    type Item = Element;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter { self.elements.into_iter() }
 }

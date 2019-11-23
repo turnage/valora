@@ -114,7 +114,7 @@ pub struct GpuCommand<'a, S> {
 }
 
 impl Gpu {
-    pub fn new() -> Result<(Self, EventsLoop)> {
+    pub(crate) fn new() -> Result<(Self, EventsLoop)> {
         let events_loop = EventsLoop::new();
         let ctx = glium::glutin::ContextBuilder::new()
             .with_multisampling(0)
@@ -144,7 +144,7 @@ impl Gpu {
         ))
     }
 
-    pub fn with_window(width: u32, height: u32) -> Result<(Self, EventsLoop)> {
+    pub(crate) fn with_window(width: u32, height: u32) -> Result<(Self, EventsLoop)> {
         let events_loop = EventsLoop::new();
         let wb = glium::glutin::WindowBuilder::new()
             .with_dimensions(glutin::dpi::LogicalSize {
@@ -175,9 +175,9 @@ impl Gpu {
         ))
     }
 
-    pub fn get_frame(&self) -> Option<Frame> { self.ctx.get_frame() }
+    pub(crate) fn get_frame(&self) -> Option<Frame> { self.ctx.get_frame() }
 
-    pub fn default_shader(&self, width: f32, height: f32) -> Shader {
+    pub(crate) fn default_shader(&self, width: f32, height: f32) -> Shader {
         Shader {
             id: random(),
             program: self.program.clone(),
@@ -218,7 +218,7 @@ impl Gpu {
         )?)
     }
 
-    pub fn build_ram_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
+    fn build_ram_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
         Ok(Texture2d::empty_with_format(
             self.ctx.as_ref(),
             UncompressedFloatFormat::F32F32F32F32,
@@ -250,13 +250,14 @@ impl Gpu {
         Ok(target.read())
     }
 
-    pub fn precompose(
+    pub fn render(
         &self,
         width: u32,
         height: u32,
-        elements: impl Iterator<Item = Element>,
+        elements: impl IntoIterator<Item = Element>,
         target: &mut impl Surface,
     ) -> Result<()> {
+        let elements = elements.into_iter();
         for (_id, batch) in &elements.group_by(|e| e.shader.id) {
             let mut batch = batch.peekable();
             let mut first = if let Some(first) = batch.peek() {

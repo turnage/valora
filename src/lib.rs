@@ -5,12 +5,13 @@ mod gpu;
 mod raster;
 
 pub use self::gpu::{Shader, UniformBuffer};
+pub use canvas::*;
 pub use glium::program::Program;
 pub use palette::{self, Alpha, Blend, ComponentWise, Hue, IntoColor, LinSrgb, LinSrgba, Saturate};
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
 
-use self::{canvas::*, gpu::*, raster::Method};
+use self::{gpu::*, raster::Method};
 use failure::Error;
 use glium::glutin::EventsLoop;
 use image::{ImageBuffer, Rgba};
@@ -182,12 +183,8 @@ impl<'a> Renderer<'a> {
             f(&FrameContext { frame }, &mut comp);
 
             if let Some(save_dir) = self.save_dir.as_ref() {
-                self.gpu.precompose(
-                    self.width,
-                    self.height,
-                    comp.elements().into_iter(),
-                    &mut buffer.as_surface(),
-                )?;
+                self.gpu
+                    .render(self.width, self.height, comp, &mut buffer.as_surface())?;
                 let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
                 let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
                     self.width,
@@ -211,12 +208,7 @@ impl<'a> Renderer<'a> {
                     .gpu
                     .get_frame()
                     .expect("Expected frame for windowed gpu context");
-                self.gpu.precompose(
-                    self.width,
-                    self.height,
-                    comp.elements().into_iter(),
-                    &mut frame,
-                )?;
+                self.gpu.render(self.width, self.height, comp, &mut frame)?;
                 frame.finish().expect("Swapping buffers");
 
                 let mut quit = false;
