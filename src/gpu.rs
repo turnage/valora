@@ -99,6 +99,7 @@ impl FacadeExt for DisplayFacade {
     fn get_frame(&self) -> Option<Frame> { Some(self.0.draw()) }
 }
 
+#[derive(Clone)]
 pub struct Gpu {
     ctx: Rc<dyn FacadeExt>,
     program: Rc<Program>,

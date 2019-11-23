@@ -3,24 +3,19 @@
 mod canvas;
 mod gpu;
 mod raster;
+mod render;
 
 pub use self::gpu::{Shader, UniformBuffer};
 pub use canvas::*;
 pub use glium::program::Program;
 pub use palette::{self, Alpha, Blend, ComponentWise, Hue, IntoColor, LinSrgb, LinSrgba, Saturate};
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
+pub use render::*;
 pub use structopt::StructOpt;
 
 use self::{gpu::*, raster::Method};
 use failure::Error;
-use glium::glutin::EventsLoop;
-use image::{ImageBuffer, Rgba};
 use lyon_path::math::Point;
-use palette::{
-    encoding::{srgb::Srgb, TransferFn},
-    Component,
-};
-use rayon::prelude::*;
 use std::{path::PathBuf, time::Duration};
 
 pub type V2 = Point;
@@ -79,13 +74,6 @@ pub struct World {
     pub framerate: usize,
 }
 
-/// The context of the current render frame.
-#[derive(Debug, Copy, Clone)]
-pub struct FrameContext {
-    /// The current frame in the composition.
-    pub frame: usize,
-}
-
 impl World {
     pub fn normalize(&self, p: V2) -> V2 { V2::new(p.x / self.width, p.y / self.height) }
 
@@ -102,125 +90,66 @@ impl Paint for World {
     }
 }
 
-fn save_path_for_frame(mut base_path: PathBuf, seed: u64, frame: usize) -> PathBuf {
-    base_path.push(format!("{}", seed));
-    std::fs::create_dir_all(&base_path)
-        .expect(&format!("To create save directory {:?}", base_path));
-    base_path.push(format!("{}.png", frame));
-    base_path
+pub trait Painter {
+    fn setup(&mut self, gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<()>;
+    fn paint(&mut self, frame_context: &FrameContext, canvas: &mut Canvas);
 }
 
-/// A render gate renders frames.
-pub struct Renderer<'a> {
-    gpu: &'a Gpu,
-    events_loop: EventsLoop,
-    options: Options,
-    output_width: u32,
-    output_height: u32,
-}
-
-impl<'a> Renderer<'a> {
-    /// Render all of the frames for the composition. This will not return until until all frames of
-    /// the composition have been rendered.
-    pub fn render_frames(&mut self, mut f: impl FnMut(&FrameContext, &mut Canvas)) -> Result<()> {
-        let default_shader = self
-            .gpu
-            .default_shader(self.output_width as f32, self.output_height as f32);
-
-        let wait = Duration::from_secs_f64(1. / self.options.world.framerate as f64);
-        let buffer = self
-            .gpu
-            .build_texture(self.output_width, self.output_height)?;
-        for frame in 0..(self.options.world.frames) {
-            let mut comp = Canvas::new(default_shader.clone(), self.options.world.scale);
-            f(&FrameContext { frame }, &mut comp);
-
-            if let Some(save_dir) = self.options.output.as_ref() {
-                self.gpu.render(
-                    self.output_width,
-                    self.output_height,
-                    comp,
-                    &mut buffer.as_surface(),
-                )?;
-                let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
-                let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
-                    self.output_width,
-                    self.output_height,
-                    raw.data
-                        .into_par_iter()
-                        .map(|v| v.convert::<f32>())
-                        .map(|v: f32| <Srgb as TransferFn>::from_linear(v))
-                        .map(|v| v.convert::<u8>())
-                        .collect(),
-                )
-                .unwrap();
-
-                image.save(save_path_for_frame(
-                    save_dir.clone(),
-                    self.options.world.seed,
-                    frame,
-                ))?;
-            } else {
-                let mut frame = self
-                    .gpu
-                    .get_frame()
-                    .expect("Expected frame for windowed gpu context");
-                self.gpu
-                    .render(self.output_width, self.output_height, comp, &mut frame)?;
-                frame.finish().expect("Swapping buffers");
-
-                let mut quit = false;
-                self.events_loop.poll_events(|event| {
-                    use glutin::{DeviceEvent, Event, KeyboardInput, VirtualKeyCode};
-                    match event {
-                        Event::DeviceEvent {
-                            event:
-                                DeviceEvent::Key(KeyboardInput {
-                                    virtual_keycode: Some(VirtualKeyCode::Escape),
-                                    ..
-                                }),
-                            ..
-                        } => {
-                            quit = true;
-                        }
-                        _ => {}
-                    }
-                });
-                if quit {
-                    return Ok(());
-                }
-
-                std::thread::sleep(wait);
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Run a composition.
-pub fn run(
-    options: Options,
-    mut f: impl FnMut(&Gpu, &World, &mut StdRng, Renderer) -> Result<()>,
-) -> Result<()> {
-    let (width, height) = (
-        options.world.width as f32 * options.world.scale,
-        options.world.height as f32 * options.world.scale,
+/// Run a painter.
+pub fn run(options: Options, mut painter: impl Painter) -> Result<()> {
+    let (output_width, output_height) = (
+        (options.world.width as f32 * options.world.scale) as u32,
+        (options.world.height as f32 * options.world.scale) as u32,
     );
-    let mut rng = StdRng::seed_from_u64(options.world.seed);
 
-    let (gpu, events_loop) = if options.output.is_some() {
-        Gpu::new()?
+    let (gpu, strategy) = if let Some(base_path) = options.output.clone() {
+        let (gpu, _) = Gpu::new()?;
+        let buffer = gpu.build_texture(output_width, output_height)?;
+
+        (
+            gpu,
+            RenderStrategy::File {
+                buffer,
+                output_path: move |frame_number: usize, seed: u64| {
+                    let mut base_path = base_path.clone();
+                    base_path.push(format!("{}", seed));
+                    std::fs::create_dir_all(&base_path)
+                        .expect(&format!("To create save directory {:?}", base_path));
+                    base_path.push(format!("{}.png", frame_number));
+                    base_path
+                },
+            },
+        )
     } else {
-        Gpu::with_window(width as u32, height as u32)?
+        let (gpu, events_loop) = Gpu::with_window(output_width, output_height)?;
+        let wait = Duration::from_secs_f64(1. / options.world.framerate as f64);
+        let gpu_clone = gpu.clone();
+
+        (
+            gpu,
+            RenderStrategy::Screen {
+                events_loop,
+                wait,
+                get_frame: move || {
+                    gpu_clone
+                        .get_frame()
+                        .expect("To get frame from windowed gpu")
+                },
+            },
+        )
     };
 
-    let gate = Renderer {
+    let mut renderer = Renderer {
+        strategy,
         gpu: &gpu,
-        events_loop,
         options: options.clone(),
-        output_width: width as u32,
-        output_height: height as u32,
+        output_width: output_width,
+        output_height: output_height,
     };
 
-    f(&gpu, &options.world, &mut rng, gate)
+    let mut rng = StdRng::seed_from_u64(options.world.seed);
+    painter.setup(&gpu, &options.world, &mut rng)?;
+    renderer.render_frames(|frame_context, canvas| painter.paint(frame_context, canvas))?;
+
+    Ok(())
 }
