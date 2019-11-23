@@ -1,3 +1,5 @@
+//! GPU handle and types.
+
 use crate::{
     raster::{raster_path, Method},
     Result,

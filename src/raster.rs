@@ -1,4 +1,4 @@
-//! Rasterization utilities.
+//! Path rasterization.
 
 use crate::{gpu::GpuVertex, Result};
 use lyon_path::Builder;
