@@ -1,5 +1,6 @@
 //! Tools for composing generative fine art.
 
+mod canvas;
 mod gpu;
 mod raster;
 
@@ -9,11 +10,11 @@ pub use palette::{self, Alpha, Blend, ComponentWise, Hue, IntoColor, LinSrgb, Li
 pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
 pub use structopt::StructOpt;
 
-use self::{gpu::*, raster::Method};
+use self::{canvas::*, gpu::*, raster::Method};
 use failure::Error;
 use glium::glutin::EventsLoop;
 use image::{ImageBuffer, Rgba};
-use lyon_path::{math::Point, Builder};
+use lyon_path::math::Point;
 use palette::{
     encoding::{srgb::Srgb, TransferFn},
     Component,
@@ -128,12 +129,6 @@ fn save_path_for_frame(mut base_path: PathBuf, seed: u64, frame: usize) -> PathB
     base_path
 }
 
-/// A trait for types which can be represented in a `Canvas`.
-pub trait Paint {
-    /// Paints self in the composition.
-    fn paint(&self, comp: &mut Canvas);
-}
-
 /// A handle to the gpu.
 pub struct Gpu<'a> {
     gpu: &'a gpu::Gpu,
@@ -183,15 +178,14 @@ impl<'a> Renderer<'a> {
             .default_shader(self.width as f32, self.height as f32);
         let buffer = self.gpu.build_texture(self.width, self.height)?;
         for frame in 0..(self.frames) {
-            let mut comp = Canvas::new(default_shader.clone());
-            comp.set_scale(self.world.scale);
+            let mut comp = Canvas::new(default_shader.clone(), self.world.scale);
             f(&FrameContext { frame }, &mut comp);
 
             if let Some(save_dir) = self.save_dir.as_ref() {
                 self.gpu.precompose(
                     self.width,
                     self.height,
-                    comp.elements.into_iter(),
+                    comp.elements().into_iter(),
                     &mut buffer.as_surface(),
                 )?;
                 let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
@@ -220,7 +214,7 @@ impl<'a> Renderer<'a> {
                 self.gpu.precompose(
                     self.width,
                     self.height,
-                    comp.elements.into_iter(),
+                    comp.elements().into_iter(),
                     &mut frame,
                 )?;
                 frame.finish().expect("Swapping buffers");
@@ -286,100 +280,4 @@ pub fn run(
     let gpu = Gpu { gpu: &gpu };
 
     f(&gpu, &world, &mut rng, gate)
-}
-
-/// A painting surface.
-pub struct Canvas {
-    path: Builder,
-    shader: Shader,
-    color: LinSrgba,
-    stroke_thickness: f32,
-    scale: f32,
-    elements: Vec<Element>,
-}
-
-impl Canvas {
-    fn new(default_shader: Shader) -> Self {
-        Self {
-            path: Builder::new(),
-            shader: default_shader,
-            color: Alpha::<LinSrgb, _>::new(1., 1., 1., 1.),
-            scale: 1.,
-            stroke_thickness: 1.,
-            elements: vec![],
-        }
-    }
-
-    /// Sets the scale of all following path operations.
-    fn set_scale(&mut self, scale: f32) { self.scale = scale; }
-
-    /// Paints an element.
-    pub fn paint(&mut self, element: impl Paint) { element.paint(self); }
-
-    /// Sets the current color.
-    pub fn set_color(&mut self, color: impl IntoColor) {
-        self.color = Alpha::from(color.into_rgb());
-    }
-
-    /// Sets the current color.
-    pub fn set_color_with_alpha(&mut self, color_alpha: Alpha<impl IntoColor, f32>) {
-        self.color = Alpha {
-            color: color_alpha.color.into_rgb(),
-            alpha: color_alpha.alpha,
-        };
-    }
-
-    /// Stats a new path at the given point.
-    pub fn move_to(&mut self, dest: V2) {
-        self.path = Builder::new();
-        self.path.move_to(dest * self.scale);
-    }
-
-    /// Adds a line to the current path which ends at the given point.
-    pub fn line_to(&mut self, dest: V2) { self.path.line_to(dest * self.scale); }
-
-    /// Adds a quadratic bezier curve to the current path with the given control and end points.
-    pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
-        self.path
-            .quadratic_bezier_to(ctrl * self.scale, end * self.scale);
-    }
-
-    /// Adds a cubic bezier curve to the current path with the given control and end points.
-    pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
-        self.path
-            .cubic_bezier_to(ctrl0 * self.scale, ctrl1 * self.scale, end * self.scale);
-    }
-
-    /// Closes the current path.
-    pub fn close(&mut self) { self.path.close() }
-
-    /// Sets the thickness of lines drawn with the `stroke()`.
-    pub fn set_stroke_thickness(&mut self, stroke_thickness: f32) {
-        self.stroke_thickness = stroke_thickness;
-    }
-
-    /// Paints the current path by filling the region inside the path.
-    pub fn fill(&mut self) { self.push_element(Method::Fill); }
-
-    /// Paints the current path by stroking the path.
-    pub fn stroke(&mut self) { self.push_element(Method::Stroke(self.stroke_thickness)); }
-
-    /// Sets the current shader used to shade rastered paths.
-    ///
-    /// Changing shaders requires making a new draw call to the GPU and tearing down some state.
-    /// Changing shaders 0-10 times per frame is likely to be fast enough. Changing shaders 500
-    /// times per frame will be slow.
-    pub fn set_shader(&mut self, shader: Shader) { self.shader = shader; }
-
-    fn push_element(&mut self, raster_method: Method) {
-        let mut path = Builder::new();
-        std::mem::swap(&mut self.path, &mut path);
-
-        self.elements.push(Element {
-            path,
-            color: self.color,
-            shader: self.shader.clone(),
-            raster_method,
-        });
-    }
 }
