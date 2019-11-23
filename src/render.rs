@@ -1,18 +1,22 @@
 //! Canvas rendering.
 
-use crate::{canvas::*, gpu::*, Options, Result};
+use crate::{canvas::*, gpu::*, Options, Result, World};
 use glium::{glutin::EventsLoop, texture::texture2d_multisample::Texture2dMultisample, Frame};
 use image::{ImageBuffer, Rgba};
 use palette::{
     encoding::{srgb::Srgb, TransferFn},
     Component,
 };
+use rand::rngs::StdRng;
 use rayon::prelude::*;
 use std::{path::PathBuf, time::Duration};
 
 /// The context of the current render frame.
-#[derive(Debug, Copy, Clone)]
-pub struct FrameContext {
+#[derive(Debug)]
+pub struct Context<'a> {
+    pub rng: &'a mut StdRng,
+    /// The world in which painting takes place.
+    pub world: World,
     /// The current frame in the composition.
     pub frame: usize,
 }
@@ -45,6 +49,7 @@ pub struct Renderer<'a, F1, F2> {
     pub strategy: RenderStrategy<F1, F2>,
     pub gpu: &'a Gpu,
     pub options: Options,
+    pub rng: &'a mut StdRng,
     pub output_width: u32,
     pub output_height: u32,
 }
@@ -54,7 +59,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
     /// the composition have been rendered.
     pub fn render_frames(
         &mut self,
-        mut f: impl FnMut(&FrameContext, &mut Canvas),
+        mut f: impl FnMut(Context, &mut Canvas),
     ) -> Result<Option<Rebuild>> {
         let default_shader = self
             .gpu
@@ -62,9 +67,20 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
 
         for frame in 0..(self.options.world.frames) {
             let mut canvas = Canvas::new(default_shader.clone(), self.options.world.scale);
-            f(&FrameContext { frame }, &mut canvas);
+            f(
+                Context {
+                    rng: self.rng,
+                    world: self.options.world,
+                    frame,
+                },
+                &mut canvas,
+            );
 
             let updates = self.render_frame(self.options.world.seed, frame, canvas)?;
+            if updates.should_quit {
+                break;
+            }
+
             if let Some(wait) = updates.wait {
                 std::thread::sleep(wait);
             }

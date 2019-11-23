@@ -246,11 +246,14 @@ impl Paint for Squig {
 
 const NOISE_SHADER: &str = include_str!("noise.frag");
 
-fn main() {
-    let fbm = Fbm::default();
+pub struct Bloops {
+    fbm: Fbm,
+    noise_shader: Shader,
+    palette: CosineColours,
+}
 
-    let options = Options::from_args();
-    run(options, |gpu, world, mut rng, mut render_gate| {
+impl Painter for Bloops {
+    fn setup(gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<Self> {
         let glsl = gpu.compile_glsl(NOISE_SHADER).expect("to compile glsl");
         let noise_shader = gpu
             .build_shader(glsl, UniformBuffer::default())
@@ -261,54 +264,44 @@ fn main() {
             LinSrgb::new(2.0, 1.0, 0.0),
             LinSrgb::new(0.5, 0.20, 0.25),
         );
-        render_gate.render_frames(|ctx, mut comp| {
-            if ctx.frame == 0 {
-                comp.set_color(LinSrgb::new(1., 1., 1.));
-                comp.paint(Filled(*world));
-            }
-            /*
-            comp.set_color(V4::new(1.0, 0.0, 1.0, 1.0));
-            comp.paint(Filled(Squig {
-                center: world.center(),
-                r: 10.,
-            }));*/
 
-            let time = ctx.frame as f32 / 24.;
-
-            let signal = time.rem_euclid(4.) / 4.;
-            let rgb = palette.sample(signal);
-            comp.set_color(rgb);
-
-            let r = 10. + time * 10.;
-            const COLS: usize = 10;
-            const ROWS: usize = 10;
-            for c in GridIter::new(COLS, ROWS)
-                .tiles(world.width, world.height)
-                .map(|r| r.center())
-            {
-                let c = Ellipse::circle(c, time * 10.).circumpoint(
-                    fbm.get([c.x as f64, c.y as f64, time as f64]) as f32
-                        * std::f32::consts::PI
-                        * 2.,
-                );
-                comp.paint(Filled(Squig { center: c, r: r }));
-            }
-
-            /*for i in 0..1000 {
-                triangle_fan(
-                    &fbm,
-                    &palette,
-                    0,
-                    1000,
-                    10.,
-                    r,
-                    if i % 2 == 0 { 1. } else { -1. },
-                    c + V2::new((i % 10) as f32, 0.) + V2::new(0., (i / 10) as f32),
-                    rng,
-                    comp,
-                );
-            }*/
+        Ok(Self {
+            fbm: Fbm::default(),
+            noise_shader,
+            palette,
         })
-    })
-    .expect("to run composition");
+    }
+
+    fn paint(&mut self, ctx: Context, canvas: &mut Canvas) {
+        if ctx.frame == 0 {
+            canvas.set_color(LinSrgb::new(1., 1., 1.));
+            canvas.paint(Filled(ctx.world));
+        }
+
+        let time = ctx.frame as f32 / 24.;
+
+        let signal = time.rem_euclid(4.) / 4.;
+        let rgb = self.palette.sample(signal);
+        canvas.set_color(rgb);
+
+        let r = 10. + time * 10.;
+        const COLS: usize = 10;
+        const ROWS: usize = 10;
+        for c in GridIter::new(COLS, ROWS)
+            .tiles(ctx.world.width, ctx.world.height)
+            .map(|r| r.center())
+        {
+            let c = Ellipse::circle(c, time * 10.).circumpoint(
+                self.fbm.get([c.x as f64, c.y as f64, time as f64]) as f32
+                    * std::f32::consts::PI
+                    * 2.,
+            );
+            canvas.paint(Filled(Squig { center: c, r: r }));
+        }
+    }
+}
+
+fn main() {
+    let options = Options::from_args();
+    run::<Bloops>(options).expect("to run composition");
 }

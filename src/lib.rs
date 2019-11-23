@@ -5,7 +5,7 @@ mod gpu;
 mod raster;
 mod render;
 
-pub use self::gpu::{Shader, UniformBuffer};
+pub use self::gpu::{Gpu, Shader, UniformBuffer};
 pub use canvas::*;
 pub use glium::program::Program;
 pub use palette::{self, Alpha, Blend, ComponentWise, Hue, IntoColor, LinSrgb, LinSrgba, Saturate};
@@ -20,7 +20,7 @@ use std::{path::PathBuf, time::Duration};
 
 pub type V2 = Point;
 
-type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(StructOpt, Debug, Clone)]
 #[structopt(name = "valora")]
@@ -90,13 +90,13 @@ impl Paint for World {
     }
 }
 
-pub trait Painter {
-    fn setup(&mut self, gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<()>;
-    fn paint(&mut self, frame_context: &FrameContext, canvas: &mut Canvas);
+pub trait Painter: Sized {
+    fn setup(gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<Self>;
+    fn paint(&mut self, ctx: Context, canvas: &mut Canvas);
 }
 
 /// Run a painter.
-pub fn run(options: Options, mut painter: impl Painter) -> Result<()> {
+pub fn run<P: Painter>(options: Options) -> Result<()> {
     let (output_width, output_height) = (
         (options.world.width as f32 * options.world.scale) as u32,
         (options.world.height as f32 * options.world.scale) as u32,
@@ -139,17 +139,18 @@ pub fn run(options: Options, mut painter: impl Painter) -> Result<()> {
         )
     };
 
+    let mut rng = StdRng::seed_from_u64(options.world.seed);
+    let mut painter = P::setup(&gpu, &options.world, &mut rng)?;
+
     let mut renderer = Renderer {
         strategy,
         gpu: &gpu,
         options: options.clone(),
+        rng: &mut rng,
         output_width: output_width,
         output_height: output_height,
     };
-
-    let mut rng = StdRng::seed_from_u64(options.world.seed);
-    painter.setup(&gpu, &options.world, &mut rng)?;
-    renderer.render_frames(|frame_context, canvas| painter.paint(frame_context, canvas))?;
+    renderer.render_frames(|ctx, canvas| painter.paint(ctx, canvas))?;
 
     Ok(())
 }
