@@ -30,29 +30,8 @@ type Result<T> = std::result::Result<T, Error>;
 #[derive(StructOpt, Debug, Clone)]
 #[structopt(name = "valora")]
 pub struct Options {
-    /// Seed for the rng.
-    #[structopt(short = "e", long = "seed", default_value = "0")]
-    pub seed: u64,
-
-    /// Width of view pane.
-    #[structopt(short = "w", long = "width", default_value = "512")]
-    pub width: u32,
-
-    /// Height of view pane.
-    #[structopt(short = "h", long = "height", default_value = "650")]
-    pub height: u32,
-
-    /// Scale of view pane.
-    #[structopt(short = "s", long = "scale", default_value = "1.0")]
-    pub scale: f32,
-
-    /// Frame range to render from the generate scene.
-    #[structopt(short = "f", long = "frames", default_value = "1")]
-    pub frames: usize,
-
-    /// The number of frames (to try) to render per second.
-    #[structopt(short = "r", long = "frames_per_second", default_value = "24")]
-    pub framerate: usize,
+    #[structopt(flatten)]
+    pub world: World,
 
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
@@ -60,20 +39,26 @@ pub struct Options {
 }
 
 /// The world in which the painting takes place.
-#[derive(Debug, Copy, Clone)]
+#[derive(StructOpt, Debug, Copy, Clone)]
+#[structopt(name = "world")]
 pub struct World {
-    /// The RNG seed this painting was given.
+    /// The RNG seed for this painting.
+    #[structopt(short = "e", long = "seed", default_value = "0")]
     pub seed: u64,
+
     /// The width in coordinate space of the painting.
     ///
     /// Coordinate space may differ from output space. If width is 500 but scale is 10, the painting
     /// will have a coordinate space width of 500, but the final output will have a width of 5000 pixels.
+    #[structopt(short = "w", long = "width", default_value = "512")]
     pub width: f32,
     /// The height in coordinate space of the painting.
     ///
     /// Coordinate space may differ from output space. If height is 500 but scale is 10, the painting
     /// will have a coordinate space height of 500, but the final output will have a height of 5000 pixels.
+    #[structopt(short = "h", long = "height", default_value = "650")]
     pub height: f32,
+
     /// The scale of the output.
     ///
     /// The final output space is (width*scale)x(height*scale). This value is useful for painting
@@ -82,21 +67,16 @@ pub struct World {
     ///
     /// This value may be needed when writing shaders or using other raster graphics, to adjust them
     /// for the real output size. Vector painting such as with paths should not need to consider this.
+    #[structopt(short = "s", long = "scale", default_value = "1.0")]
     pub scale: f32,
-    /// The total number of frames in this painting.
-    pub frames: usize,
-}
 
-impl From<&Options> for World {
-    fn from(options: &Options) -> Self {
-        Self {
-            seed: options.seed,
-            width: options.width as f32,
-            height: options.height as f32,
-            scale: options.scale,
-            frames: options.frames,
-        }
-    }
+    /// The total number of frames in this painting.
+    #[structopt(short = "f", long = "frames", default_value = "1")]
+    pub frames: usize,
+
+    /// The number of frames (to try) to render per second.
+    #[structopt(short = "r", long = "frames_per_second", default_value = "24")]
+    pub framerate: usize,
 }
 
 /// The context of the current render frame.
@@ -244,13 +224,11 @@ pub fn run(
     options: Options,
     mut f: impl FnMut(&Gpu, &World, &mut StdRng, Renderer) -> Result<()>,
 ) -> Result<()> {
-    let world = World::from(&options);
-
     let (width, height) = (
-        options.width as f32 * options.scale,
-        options.height as f32 * options.scale,
+        options.world.width as f32 * options.world.scale,
+        options.world.height as f32 * options.world.scale,
     );
-    let mut rng = StdRng::seed_from_u64(options.seed);
+    let mut rng = StdRng::seed_from_u64(options.world.seed);
 
     let (gpu, events_loop) = if options.output.is_some() {
         gpu::Gpu::new()?
@@ -261,15 +239,15 @@ pub fn run(
     let gate = Renderer {
         gpu: &gpu,
         events_loop,
-        world,
+        world: options.world,
         width: width as u32,
         height: height as u32,
-        wait: Duration::from_secs_f64(1. / options.framerate as f64),
+        wait: Duration::from_secs_f64(1. / options.world.framerate as f64),
         save_dir: options.output,
-        frames: options.frames,
+        frames: options.world.frames,
     };
 
     let gpu = Gpu { gpu: &gpu };
 
-    f(&gpu, &world, &mut rng, gate)
+    f(&gpu, &options.world, &mut rng, gate)
 }
