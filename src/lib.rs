@@ -1,4 +1,4 @@
-//! Tools for composing generative fine art.
+//! A brush for generative fine art.
 
 mod canvas;
 mod gpu;
