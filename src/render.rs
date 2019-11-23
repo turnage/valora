@@ -14,6 +14,9 @@ use std::{path::PathBuf, time::Duration};
 /// The context of the current render frame.
 #[derive(Debug)]
 pub struct Context<'a> {
+    /// A random number generator. This is shared between frames.
+    ///
+    /// To branch the rng, keep a clone.
     pub rng: &'a mut StdRng,
     /// The world in which painting takes place.
     pub world: World,

@@ -49,6 +49,7 @@ implement_vertex!(GpuVertex, vpos, vcol);
 pub const VERTEX_SHADER: &str = include_str!("shaders/default.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/default.frag");
 
+/// A shader which can be used to shade paths.
 #[derive(Clone)]
 pub struct Shader {
     id: u64,
@@ -99,6 +100,7 @@ impl FacadeExt for DisplayFacade {
     fn get_frame(&self) -> Option<Frame> { Some(self.0.draw()) }
 }
 
+/// A handle to the GPU for managing buffers and shaders.
 #[derive(Clone)]
 pub struct Gpu {
     ctx: Rc<dyn FacadeExt>,

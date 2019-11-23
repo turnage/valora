@@ -1,5 +1,5 @@
 use std::{convert::*, iter::*};
-use valora::*;
+use valora::prelude::*;
 
 use itertools::{iproduct, Itertools};
 use nalgebra::distance;
@@ -10,14 +10,14 @@ use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ellipse {
-    pub center: V2,
+    pub center: P2,
     pub width: f32,
     pub height: Option<f32>,
     pub phase: f32,
 }
 
 impl Ellipse {
-    pub fn circle(center: V2, radius: f32) -> Self {
+    pub fn circle(center: P2, radius: f32) -> Self {
         Ellipse {
             center,
             width: radius,
@@ -26,7 +26,7 @@ impl Ellipse {
         }
     }
 
-    pub fn new(center: V2, width: f32, height: f32) -> Self {
+    pub fn new(center: P2, width: f32, height: f32) -> Self {
         Self {
             center,
             width,
@@ -37,10 +37,10 @@ impl Ellipse {
 
     pub fn with_phase(self, phase: f32) -> Self { Self { phase, ..self } }
 
-    pub fn circumphase(&self, p: &V2) -> f32 { (p.y - self.center.y).atan2(p.x - self.center.x) }
+    pub fn circumphase(&self, p: &P2) -> f32 { (p.y - self.center.y).atan2(p.x - self.center.x) }
 
-    pub fn circumpoint(&self, angle: f32) -> V2 {
-        V2::new(
+    pub fn circumpoint(&self, angle: f32) -> P2 {
+        P2::new(
             self.center.x + angle.cos() * self.width,
             self.center.y + angle.sin() * self.height.unwrap_or(self.width),
         )
@@ -52,12 +52,12 @@ pub struct NgonIter {
     phase: f32,
     r: f32,
     n: usize,
-    c: V2,
+    c: P2,
     i: usize,
 }
 
 impl NgonIter {
-    pub fn new(phase: f32, r: f32, c: V2, n: usize) -> Self {
+    pub fn new(phase: f32, r: f32, c: P2, n: usize) -> Self {
         Self {
             phase,
             r,
@@ -67,11 +67,11 @@ impl NgonIter {
         }
     }
 
-    pub fn triangle(phase: f32, r: f32, c: V2) -> Self { Self::new(phase, r, c, 3) }
+    pub fn triangle(phase: f32, r: f32, c: P2) -> Self { Self::new(phase, r, c, 3) }
 }
 
 impl Iterator for NgonIter {
-    type Item = V2;
+    type Item = P2;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.i == self.n + 1 {
@@ -82,7 +82,7 @@ impl Iterator for NgonIter {
         let theta = (completion * std::f32::consts::PI * 2.0) + self.phase;
         self.i += 1;
 
-        Some(V2::new(
+        Some(P2::new(
             self.c.x + theta.sin() * self.r,
             self.c.y + theta.cos() * self.r,
         ))
@@ -112,7 +112,7 @@ impl GridIter {
             let x = (i as f32) * tile_width;
             let y = (j as f32) * tile_height;
             Rect {
-                bottom_left: V2::new(x, y),
+                bottom_left: P2::new(x, y),
                 width: tile_width,
                 height: tile_height,
             }
@@ -139,9 +139,9 @@ impl CosineColours {
     }
 }
 
-fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
-    let mut min = V2::new(std::f32::MAX, std::f32::MAX);
-    let mut max = V2::new(std::f32::MIN, std::f32::MIN);
+fn centroid<'a>(vs: impl Iterator<Item = &'a P2>) -> P2 {
+    let mut min = P2::new(std::f32::MAX, std::f32::MAX);
+    let mut max = P2::new(std::f32::MIN, std::f32::MIN);
     for v in vs {
         if v.x < min.x {
             min.x = v.x;
@@ -161,14 +161,14 @@ fn centroid<'a>(vs: impl Iterator<Item = &'a V2>) -> V2 {
 }
 
 pub struct Rect {
-    bottom_left: V2,
+    bottom_left: P2,
     width: f32,
     height: f32,
 }
 
 impl Rect {
-    pub fn center(&self) -> V2 {
-        V2::new(
+    pub fn center(&self) -> P2 {
+        P2::new(
             self.bottom_left.x + self.width / 2.,
             self.bottom_left.y + self.height / 2.,
         )
@@ -179,12 +179,12 @@ impl Paint for Rect {
     fn paint(&self, comp: &mut Canvas) {
         comp.move_to(self.bottom_left);
         for v in [
-            V2::new(self.bottom_left.x + self.width, self.bottom_left.y),
-            V2::new(
+            P2::new(self.bottom_left.x + self.width, self.bottom_left.y),
+            P2::new(
                 self.bottom_left.x + self.width,
                 self.bottom_left.y + self.height,
             ),
-            V2::new(self.bottom_left.x, self.bottom_left.y + self.height),
+            P2::new(self.bottom_left.x, self.bottom_left.y + self.height),
         ]
         .iter()
         .copied()
@@ -217,7 +217,7 @@ impl<D: Paint> Paint for Stroked<D> {
 }
 
 pub struct Squig {
-    center: V2,
+    center: P2,
     r: f32,
 }
 
@@ -253,7 +253,7 @@ pub struct Bloops {
     grid_size: usize,
 }
 
-impl Painter for Bloops {
+impl Artist for Bloops {
     fn setup(gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<Self> {
         let glsl = gpu.compile_glsl(NOISE_SHADER).expect("to compile glsl");
         let stripe_shader = gpu
@@ -287,7 +287,7 @@ impl Painter for Bloops {
         let rgb = self.palette.sample(signal);
         canvas.set_color(rgb);
 
-        canvas.set_shader(self.stripe_shader.clone());
+        //canvas.set_shader(self.stripe_shader.clone());
 
         let r = 10. + time * 10.;
         for c in GridIter::new(self.grid_size, self.grid_size)

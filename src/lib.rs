@@ -5,23 +5,48 @@ mod gpu;
 mod raster;
 mod render;
 
-pub use self::gpu::{Gpu, Shader, UniformBuffer};
-pub use canvas::*;
-pub use glium::program::Program;
-pub use palette::{self, Alpha, Blend, ComponentWise, Hue, IntoColor, LinSrgb, LinSrgba, Saturate};
-pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
-pub use render::*;
-pub use structopt::StructOpt;
+pub mod prelude {
+    pub use super::*;
 
-use self::{gpu::*, raster::Method};
+    pub use palette::{
+        self,
+        Alpha,
+        Blend,
+        ComponentWise,
+        Hue,
+        IntoColor,
+        LinSrgb,
+        LinSrgba,
+        Saturate,
+    };
+    pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
+    pub use structopt::StructOpt;
+}
+
+pub use self::{
+    gpu::{Gpu, Shader, UniformBuffer},
+    render::Context,
+};
+pub use canvas::{Canvas, Paint};
+
+use self::{gpu::*, prelude::*, raster::Method};
 use failure::Error;
 use lyon_path::math::Point;
+use render::*;
 use std::{path::PathBuf, time::Duration};
 
-pub type V2 = Point;
+/// A two dimensional point.
+pub type P2 = Point;
 
+/// A compiled GLSL program.
+pub type Program = glium::program::Program;
+
+/// A value or an error.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Command line options for a painting run.
+///
+/// Construct with `Options::from_args()` to run the CLI.
 #[derive(StructOpt, Debug, Clone)]
 #[structopt(name = "valora")]
 pub struct Options {
@@ -75,28 +100,36 @@ pub struct World {
 }
 
 impl World {
-    pub fn normalize(&self, p: V2) -> V2 { V2::new(p.x / self.width, p.y / self.height) }
+    /// Normalizes coordinates into the range [0, 1] by dividing them by the coordinate space dimensions.
+    pub fn normalize(&self, p: P2) -> P2 { P2::new(p.x / self.width, p.y / self.height) }
 
-    pub fn center(&self) -> V2 { V2::new(self.width / 2.0, self.height / 2.0) }
+    /// Returns the center of the coordinate space.
+    pub fn center(&self) -> P2 { P2::new(self.width / 2.0, self.height / 2.0) }
 }
 
+/// Draws a rectangle path covering the entire canvas.
 impl Paint for World {
     fn paint(&self, comp: &mut Canvas) {
-        comp.line_to(V2::new(0.0, 0.0));
-        comp.line_to(V2::new(self.width, 0.0));
-        comp.line_to(V2::new(self.width, self.height));
-        comp.line_to(V2::new(0.0, self.height));
-        comp.line_to(V2::new(0.0, 0.0));
+        comp.line_to(P2::new(0.0, 0.0));
+        comp.line_to(P2::new(self.width, 0.0));
+        comp.line_to(P2::new(self.width, self.height));
+        comp.line_to(P2::new(0.0, self.height));
+        comp.line_to(P2::new(0.0, 0.0));
     }
 }
 
-pub trait Painter: Sized {
+/// A trait for types which paint canvases.
+pub trait Artist: Sized {
+    /// Constructs the artist.
     fn setup(gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<Self>;
+
+    /// Paints a single frame. Context provides the frame number, and other resources to needed to
+    /// generate the painting.
     fn paint(&mut self, ctx: Context, canvas: &mut Canvas);
 }
 
 /// Run a painter.
-pub fn run<P: Painter>(options: Options) -> Result<()> {
+pub fn run<A: Artist>(options: Options) -> Result<()> {
     let (output_width, output_height) = (
         (options.world.width as f32 * options.world.scale) as u32,
         (options.world.height as f32 * options.world.scale) as u32,
@@ -142,7 +175,7 @@ pub fn run<P: Painter>(options: Options) -> Result<()> {
     let mut current_seed = options.world.seed;
     loop {
         let mut rng = StdRng::seed_from_u64(current_seed);
-        let mut painter = P::setup(&gpu, &options.world, &mut rng)?;
+        let mut artist = A::setup(&gpu, &options.world, &mut rng)?;
 
         let mut renderer = Renderer {
             strategy: &mut strategy,
@@ -153,7 +186,7 @@ pub fn run<P: Painter>(options: Options) -> Result<()> {
             output_height: output_height,
         };
 
-        if let Some(rebuild) = renderer.render_frames(|ctx, canvas| painter.paint(ctx, canvas))? {
+        if let Some(rebuild) = renderer.render_frames(|ctx, canvas| artist.paint(ctx, canvas))? {
             match rebuild {
                 Rebuild::NewSeed(new_seed) => {
                     current_seed = new_seed;

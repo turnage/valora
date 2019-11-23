@@ -1,6 +1,6 @@
 //! A painting surface.
 
-use crate::{gpu::Shader, Element, Method, V2};
+use crate::{gpu::Shader, Element, Method, P2};
 use lyon_path::Builder;
 use palette::{Alpha, IntoColor, LinSrgb, LinSrgba};
 
@@ -49,22 +49,22 @@ impl Canvas {
     }
 
     /// Stats a new path at the given point.
-    pub fn move_to(&mut self, dest: V2) {
+    pub fn move_to(&mut self, dest: P2) {
         self.path = Builder::new();
         self.path.move_to(dest * self.scale);
     }
 
     /// Adds a line to the current path which ends at the given point.
-    pub fn line_to(&mut self, dest: V2) { self.path.line_to(dest * self.scale); }
+    pub fn line_to(&mut self, dest: P2) { self.path.line_to(dest * self.scale); }
 
     /// Adds a quadratic bezier curve to the current path with the given control and end points.
-    pub fn quadratic_to(&mut self, ctrl: V2, end: V2) {
+    pub fn quadratic_to(&mut self, ctrl: P2, end: P2) {
         self.path
             .quadratic_bezier_to(ctrl * self.scale, end * self.scale);
     }
 
     /// Adds a cubic bezier curve to the current path with the given control and end points.
-    pub fn cubic_to(&mut self, ctrl0: V2, ctrl1: V2, end: V2) {
+    pub fn cubic_to(&mut self, ctrl0: P2, ctrl1: P2, end: P2) {
         self.path
             .cubic_bezier_to(ctrl0 * self.scale, ctrl1 * self.scale, end * self.scale);
     }
