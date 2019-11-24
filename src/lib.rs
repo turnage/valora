@@ -2,11 +2,15 @@
 
 mod canvas;
 mod gpu;
+mod paint;
+mod path;
 mod raster;
 mod render;
 
 pub mod prelude {
     pub use super::*;
+    pub use euclid::{self, *};
+    pub use rayon::{self, prelude::*};
 
     pub use palette::{
         self,
@@ -27,9 +31,12 @@ pub use self::{
     gpu::{Gpu, Shader, UniformBuffer},
     render::Context,
 };
-pub use canvas::{Canvas, Paint};
+pub use canvas::Canvas;
+pub use paint::*;
+pub use path::*;
 
 use self::{gpu::*, prelude::*, raster::Method};
+use euclid::{Size2D, UnknownUnit, Vector2D};
 use failure::Error;
 use lyon_path::math::Point;
 use render::*;
@@ -37,6 +44,12 @@ use std::{path::PathBuf, time::Duration};
 
 /// A two dimensional point.
 pub type P2 = Point;
+
+/// A two dimensional vector.
+pub type V2 = Vector2D<f32, UnknownUnit>;
+
+/// A two dimensional size.
+pub type S2 = Size2D<f32, UnknownUnit>;
 
 /// A compiled GLSL program.
 pub type Program = glium::program::Program;

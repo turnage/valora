@@ -1,14 +1,8 @@
 //! A painting surface.
 
-use crate::{gpu::Shader, Element, Method, P2};
+use crate::{gpu::Shader, paint::Paint, Element, Method, P2};
 use lyon_path::Builder;
 use palette::{Alpha, IntoColor, LinSrgb, LinSrgba};
-
-/// A trait for types which can be represented on a `Canvas`.
-pub trait Paint {
-    /// Paints self in the composition.
-    fn paint(&self, comp: &mut Canvas);
-}
 
 /// A painting surface.
 pub struct Canvas {

@@ -57,9 +57,9 @@ pub struct NgonIter {
 }
 
 impl NgonIter {
-    pub fn new(phase: f32, r: f32, c: P2, n: usize) -> Self {
+    pub fn new(r: f32, c: P2, n: usize) -> Self {
         Self {
-            phase,
+            phase: 0.,
             r,
             n,
             c,
@@ -67,7 +67,9 @@ impl NgonIter {
         }
     }
 
-    pub fn triangle(phase: f32, r: f32, c: P2) -> Self { Self::new(phase, r, c, 3) }
+    pub fn triangle(r: f32, c: P2) -> Self { Self::new(r, c, 3) }
+
+    pub fn rotate(&mut self, phase: f32) { self.phase += phase; }
 }
 
 impl Iterator for NgonIter {
@@ -94,29 +96,6 @@ impl Paint for NgonIter {
         for (i, v) in (*self).enumerate() {
             comp.line_to(v);
         }
-    }
-}
-
-pub struct GridIter {
-    cols: usize,
-    rows: usize,
-}
-
-impl GridIter {
-    pub fn new(cols: usize, rows: usize) -> Self { Self { cols, rows } }
-
-    pub fn tiles(&self, region_width: f32, region_height: f32) -> impl Iterator<Item = Rect> {
-        let tile_width = region_width / (self.cols as f32);
-        let tile_height = region_height / (self.rows as f32);
-        iproduct!(0..(self.cols), 0..(self.rows)).map(move |(i, j)| {
-            let x = (i as f32) * tile_width;
-            let y = (j as f32) * tile_height;
-            Rect {
-                bottom_left: P2::new(x, y),
-                width: tile_width,
-                height: tile_height,
-            }
-        })
     }
 }
 
@@ -160,60 +139,14 @@ fn centroid<'a>(vs: impl Iterator<Item = &'a P2>) -> P2 {
     (min + max.to_vector()) / 2.0
 }
 
-pub struct Rect {
-    bottom_left: P2,
-    width: f32,
-    height: f32,
+fn noise_shift(p: P2, noise: f32, amount: f32) -> P2 {
+    let theta = noise * std::f32::consts::PI;
+    Ellipse::circle(p, amount).circumpoint(theta)
 }
 
-impl Rect {
-    pub fn center(&self) -> P2 {
-        P2::new(
-            self.bottom_left.x + self.width / 2.,
-            self.bottom_left.y + self.height / 2.,
-        )
-    }
-}
-
-impl Paint for Rect {
-    fn paint(&self, comp: &mut Canvas) {
-        comp.move_to(self.bottom_left);
-        for v in [
-            P2::new(self.bottom_left.x + self.width, self.bottom_left.y),
-            P2::new(
-                self.bottom_left.x + self.width,
-                self.bottom_left.y + self.height,
-            ),
-            P2::new(self.bottom_left.x, self.bottom_left.y + self.height),
-        ]
-        .iter()
-        .copied()
-        {
-            comp.line_to(v);
-        }
-    }
-}
-
-pub struct Filled<D>(D);
-
-impl<D: Paint> Paint for Filled<D> {
-    fn paint(&self, comp: &mut Canvas) {
-        self.0.paint(comp);
-        comp.fill();
-    }
-}
-
-pub struct Stroked<D> {
-    element: D,
-    thickness: f32,
-}
-
-impl<D: Paint> Paint for Stroked<D> {
-    fn paint(&self, comp: &mut Canvas) {
-        self.element.paint(comp);
-        comp.set_stroke_thickness(self.thickness);
-        comp.stroke();
-    }
+fn random_point_in_circle(c: P2, r: f32, rng: &mut StdRng) -> P2 {
+    Ellipse::circle(c, rng.gen_range(0., r))
+        .circumpoint(rng.gen_range(0., std::f32::consts::PI * 2.))
 }
 
 pub struct Squig {
@@ -259,33 +192,83 @@ fn main() {
         );
         let grid_size = rng.gen_range(2, 20);
         let fbm = Fbm::default();
+        let border = rng.gen_range(10., 100.);
+        let frame = Rect {
+            origin: P2::new(border, border),
+            size: Size2D::new(world.width - border * 2., world.height - border * 2.),
+        };
+
+        #[derive(Clone)]
+        pub struct AimedWalk {
+            start: P2,
+            end: P2,
+            t: f32,
+            step: f32,
+            fbm: Fbm,
+            world: World,
+        }
+
+        impl AimedWalk {
+            pub fn new(start: P2, end: P2, step: f32, world: World) -> Self {
+                Self {
+                    start,
+                    end,
+                    t: 0.,
+                    step,
+                    fbm: Fbm::default(),
+                    world,
+                }
+            }
+        }
+
+        impl Iterator for AimedWalk {
+            type Item = P2;
+            fn next(&mut self) -> Option<Self::Item> {
+                if self.t > 1. {
+                    return None;
+                }
+
+                let next_t = self.t + self.step;
+                let raw_p = self.start.lerp(self.end, self.t);
+                let noise_sample = self.world.normalize(raw_p);
+                let noise = self.fbm.get([noise_sample.x as f64, noise_sample.y as f64]) as f32;
+                let p = noise_shift(raw_p, noise, 100.);
+
+                self.t = next_t;
+                Some(p)
+            }
+        }
+
+        impl Paint for AimedWalk {
+            fn paint(&self, canvas: &mut Canvas) { canvas.paint(FlatIterPath::from(self.clone())) }
+        }
+
+        let initial_line = AimedWalk::new(
+            frame.origin,
+            frame.origin + frame.size.to_vector(),
+            0.01,
+            *world,
+        );
 
         Ok(move |ctx: Context, canvas: &mut Canvas| {
             if ctx.frame == 0 {
                 canvas.set_color(LinSrgb::new(1., 1., 1.));
                 canvas.paint(Filled(ctx.world));
+                canvas.set_color(LinSrgb::new(0., 0., 0.));
+                canvas.paint(Stroked {
+                    element: frame,
+                    thickness: 0.3,
+                });
             }
 
             let time = ctx.frame as f32 / 24.;
+            let rgb = palette.sample(time / 30.);
 
-            let signal = time.rem_euclid(4.) / 4.;
-            let rgb = palette.sample(signal);
             canvas.set_color(rgb);
-
-            //canvas.set_shader(self.stripe_shader.clone());
-
-            let r = 10. + time * 10.;
-            for c in GridIter::new(grid_size, grid_size)
-                .tiles(ctx.world.width, ctx.world.height)
-                .map(|r| r.center())
-            {
-                let c = Ellipse::circle(c, time * 10.).circumpoint(
-                    fbm.get([c.x as f64, c.y as f64, time as f64]) as f32
-                        * std::f32::consts::PI
-                        * 2.,
-                );
-                canvas.paint(Filled(Squig { center: c, r: r }));
-            }
+            canvas.paint(Stroked {
+                element: initial_line.clone(),
+                thickness: 10.,
+            });
         })
     })
     .expect("to run composition");
