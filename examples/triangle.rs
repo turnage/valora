@@ -129,6 +129,8 @@ fn main() {
         let bubble_container = Ellipse::circle(world.center(), 100.);
         let bubble_sampler = bubble_container.uniform_circle_sampler();
 
+        let mut triangle = Polygon::from(Ngon::triangle(world.center(), 100.));
+
         Ok(move |ctx: Context, canvas: &mut Canvas| {
             if ctx.frame == 0 {
                 canvas.set_color(LinSrgb::new(1., 1., 1.));
@@ -136,12 +138,13 @@ fn main() {
             }
 
             let time = ctx.frame as f32 / 24.;
-            let rgb = palette.sample(time / 30.);
+            let rgb = palette.sample(time);
 
-            for spawn_point in bubble_sampler.sample_iter(ctx.rng).take(100) {
+            for v in triangle.vertices() {
                 canvas.set_color(rgb);
-                canvas.paint(Filled(Ngon::triangle(spawn_point, 5.)));
+                canvas.paint(Filled(Ellipse::circle(v, 0.2)));
             }
+            triangle = triangle.clone().subdivide();
 
             canvas.set_color(rgb);
             canvas.paint(Stroked {
