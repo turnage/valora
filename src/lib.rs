@@ -1,16 +1,18 @@
 //! A brush for generative fine art.
 
-mod canvas;
-mod forms;
 mod gpu;
-mod paint;
-mod path;
 mod raster;
 mod render;
-mod transforms;
 
+pub mod canvas;
+pub mod forms;
+pub mod paint;
+pub mod path;
+pub mod transforms;
+
+/// Exhuastive set of imports for painting.
 pub mod prelude {
-    pub use self::{forms::*, transforms::*};
+    pub use self::{canvas::*, forms::*, paint::*, path::*, transforms::*};
     pub use super::*;
     pub use euclid::{self, Rect};
     pub use rayon::{self, prelude::*};
@@ -36,9 +38,6 @@ pub use self::{
     gpu::{Gpu, Shader, UniformBuffer},
     render::Context,
 };
-pub use canvas::Canvas;
-pub use paint::*;
-pub use path::*;
 
 use self::{gpu::*, prelude::*, raster::Method};
 use euclid::{Size2D, UnknownUnit, Vector2D};

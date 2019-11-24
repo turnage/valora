@@ -8,58 +8,6 @@ use palette::encoding::{srgb::Srgb, TransferFn};
 use rand::{distributions::*, prelude::*};
 use std::rc::Rc;
 
-#[derive(Copy, Clone, Debug)]
-pub struct NgonIter {
-    phase: f32,
-    r: f32,
-    n: usize,
-    c: P2,
-    i: usize,
-}
-
-impl NgonIter {
-    pub fn new(r: f32, c: P2, n: usize) -> Self {
-        Self {
-            phase: 0.,
-            r,
-            n,
-            c,
-            i: 0,
-        }
-    }
-
-    pub fn triangle(r: f32, c: P2) -> Self { Self::new(r, c, 3) }
-
-    pub fn rotate(&mut self, phase: f32) { self.phase += phase; }
-}
-
-impl Iterator for NgonIter {
-    type Item = P2;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.i == self.n + 1 {
-            return None;
-        }
-
-        let completion = self.i as f32 / self.n as f32;
-        let theta = (completion * std::f32::consts::PI * 2.0) + self.phase;
-        self.i += 1;
-
-        Some(P2::new(
-            self.c.x + theta.sin() * self.r,
-            self.c.y + theta.cos() * self.r,
-        ))
-    }
-}
-
-impl Paint for NgonIter {
-    fn paint(&self, comp: &mut Canvas) {
-        for (i, v) in (*self).enumerate() {
-            comp.line_to(v);
-        }
-    }
-}
-
 pub struct CosineColours {
     a: LinSrgb,
     b: LinSrgb,
@@ -195,10 +143,9 @@ fn main() {
             let time = ctx.frame as f32 / 24.;
             let rgb = palette.sample(time / 30.);
 
-            for spawn_point in std::iter::from_fn(|| Some(bubble_sampler.sample(ctx.rng))).take(100)
-            {
+            for spawn_point in bubble_sampler.sample_iter(ctx.rng).take(100) {
                 canvas.set_color(rgb);
-                canvas.paint(Filled(Ellipse::circle(spawn_point, 5.)));
+                canvas.paint(Filled(Ngon::triangle(spawn_point, 5.)));
             }
 
             canvas.set_color(rgb);

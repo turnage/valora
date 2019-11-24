@@ -4,11 +4,13 @@ use crate::P2;
 use lyon_geom::LineSegment;
 use lyon_path::PathEvent;
 
+/// A path that can be rasterized and shaded.
 pub trait Path {
     type Iter: Iterator<Item = PathEvent>;
     fn path(&self) -> Self::Iter;
 }
 
+/// An adapter for path iterators that implements `Path` and closes the path at the end.
 #[derive(Clone)]
 pub struct ClosedPath<P> {
     src: P,
@@ -50,7 +52,8 @@ where
     fn path(&self) -> Self::Iter { self.clone() }
 }
 
-#[derive(Clone)]
+/// An adapter for iterators over points that implements `Path`.
+#[derive(Debug, Copy, Clone)]
 pub struct FlatIterPath<I> {
     src: I,
     last: Option<P2>,
@@ -89,6 +92,8 @@ where
     fn path(&self) -> Self::Iter { self.clone() }
 }
 
+/// An adaptor for iterators over path events that implements `Path`.
+#[derive(Copy, Clone, Debug)]
 pub struct IterPath<I>(I);
 
 impl<I> Path for IterPath<I>
