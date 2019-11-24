@@ -1,6 +1,6 @@
 //! A painting surface.
 
-use crate::{gpu::Shader, paint::Paint, Element, Method, P2};
+use crate::{gpu::Shader, paint::Paint, Angle, Element, Method, P2, V2};
 use lyon_path::Builder;
 use palette::{Alpha, IntoColor, LinSrgb, LinSrgba};
 
@@ -61,6 +61,11 @@ impl Canvas {
     pub fn cubic_to(&mut self, ctrl0: P2, ctrl1: P2, end: P2) {
         self.path
             .cubic_bezier_to(ctrl0 * self.scale, ctrl1 * self.scale, end * self.scale);
+    }
+
+    /// Adds an arc segment to the path.
+    pub fn arc(&mut self, center: P2, radii: V2, sweep: Angle, phase: Angle) {
+        self.path.arc(center, radii, sweep, phase);
     }
 
     /// Closes the current path.

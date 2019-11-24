@@ -1,15 +1,18 @@
 //! A brush for generative fine art.
 
 mod canvas;
+mod forms;
 mod gpu;
 mod paint;
 mod path;
 mod raster;
 mod render;
+mod transforms;
 
 pub mod prelude {
+    pub use self::{forms::*, transforms::*};
     pub use super::*;
-    pub use euclid::{self, *};
+    pub use euclid::{self, Rect};
     pub use rayon::{self, prelude::*};
 
     pub use palette::{
@@ -25,6 +28,8 @@ pub mod prelude {
     };
     pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
     pub use structopt::StructOpt;
+
+    pub use std::f32::consts::PI;
 }
 
 pub use self::{
@@ -50,6 +55,9 @@ pub type V2 = Vector2D<f32, UnknownUnit>;
 
 /// A two dimensional size.
 pub type S2 = Size2D<f32, UnknownUnit>;
+
+/// A radian angle.
+pub type Angle = euclid::Angle<f32>;
 
 /// A compiled GLSL program.
 pub type Program = glium::program::Program;
