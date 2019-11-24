@@ -1,10 +1,6 @@
 //! Paint trait and implementations.
 
-use crate::{
-    canvas::Canvas,
-    path::{ClosedPath, Path},
-    P2,
-};
+use crate::{canvas::Canvas, path::ClosedPath, P2};
 use arrayvec::{ArrayVec, IntoIter};
 use euclid::{Rect, UnknownUnit};
 use lyon_geom::LineSegment;
@@ -40,55 +36,18 @@ impl<P: Paint> Paint for Stroked<P> {
     }
 }
 
-impl Paint for PathEvent {
+impl<P> Paint for P
+where
+    P: Iterator<Item = PathEvent> + Clone,
+{
     fn paint(&self, canvas: &mut Canvas) {
-        match *self {
+        let mut iter = self.clone();
+        iter.for_each(|p| match p {
             PathEvent::Line(line) => canvas.line_to(line.to),
             PathEvent::Quadratic(q) => canvas.quadratic_to(q.ctrl, q.to),
             PathEvent::Cubic(c) => canvas.cubic_to(c.ctrl1, c.ctrl2, c.to),
             PathEvent::MoveTo(p) => canvas.move_to(p),
             PathEvent::Close(_) => canvas.close(),
-        }
+        });
     }
-}
-
-impl Path for Rect<f32, UnknownUnit> {
-    type Iter = ClosedPath<IntoIter<[PathEvent; 4]>>;
-    fn path(&self) -> Self::Iter {
-        let points = [
-            self.origin,
-            P2::new(self.origin.x + self.size.width, self.origin.y),
-            P2::new(
-                self.origin.x + self.size.width,
-                self.origin.y + self.size.height,
-            ),
-            P2::new(self.origin.x, self.origin.y + self.size.height),
-        ];
-
-        ClosedPath::from(
-            ArrayVec::from([
-                PathEvent::MoveTo(points[0]),
-                PathEvent::Line(LineSegment {
-                    from: points[0],
-                    to: points[1],
-                }),
-                PathEvent::Line(LineSegment {
-                    from: points[1],
-                    to: points[2],
-                }),
-                PathEvent::Line(LineSegment {
-                    from: points[2],
-                    to: points[3],
-                }),
-            ])
-            .into_iter(),
-        )
-    }
-}
-
-impl<P> Paint for P
-where
-    P: Path,
-{
-    fn paint(&self, canvas: &mut Canvas) { self.path().for_each(|p| p.paint(canvas)) }
 }

@@ -133,11 +133,6 @@ fn main() {
             if ctx.frame == 0 {
                 canvas.set_color(LinSrgb::new(1., 1., 1.));
                 canvas.paint(Filled(ctx.world));
-                canvas.set_color(LinSrgb::new(0., 0., 0.));
-                canvas.paint(Stroked {
-                    element: frame,
-                    thickness: 0.3,
-                });
             }
 
             let time = ctx.frame as f32 / 24.;

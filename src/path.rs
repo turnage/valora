@@ -4,12 +4,6 @@ use crate::P2;
 use lyon_geom::LineSegment;
 use lyon_path::PathEvent;
 
-/// A path that can be rasterized and shaded.
-pub trait Path {
-    type Iter: Iterator<Item = PathEvent>;
-    fn path(&self) -> Self::Iter;
-}
-
 /// An adapter for path iterators that implements `Path` and closes the path at the end.
 #[derive(Clone)]
 pub struct ClosedPath<P> {
@@ -44,14 +38,6 @@ where
     }
 }
 
-impl<P> Path for ClosedPath<P>
-where
-    P: Iterator<Item = PathEvent> + Clone,
-{
-    type Iter = Self;
-    fn path(&self) -> Self::Iter { self.clone() }
-}
-
 /// An adapter for iterators over points that implements `Path`.
 #[derive(Debug, Copy, Clone)]
 pub struct FlatIterPath<I> {
@@ -61,14 +47,14 @@ pub struct FlatIterPath<I> {
 
 impl<I> From<I> for FlatIterPath<I>
 where
-    I: Iterator<Item = P2> + Clone,
+    I: Iterator<Item = P2>,
 {
     fn from(src: I) -> Self { Self { src, last: None } }
 }
 
 impl<I> Iterator for FlatIterPath<I>
 where
-    I: Iterator<Item = P2> + Clone,
+    I: Iterator<Item = P2>,
 {
     type Item = PathEvent;
     fn next(&mut self) -> Option<Self::Item> {
@@ -82,24 +68,4 @@ where
             Some(PathEvent::MoveTo(p))
         }
     }
-}
-
-impl<I> Path for FlatIterPath<I>
-where
-    I: Iterator<Item = P2> + Clone,
-{
-    type Iter = Self;
-    fn path(&self) -> Self::Iter { self.clone() }
-}
-
-/// An adaptor for iterators over path events that implements `Path`.
-#[derive(Copy, Clone, Debug)]
-pub struct IterPath<I>(I);
-
-impl<I> Path for IterPath<I>
-where
-    I: Iterator<Item = PathEvent> + Clone,
-{
-    type Iter = I;
-    fn path(&self) -> Self::Iter { self.0.clone() }
 }
