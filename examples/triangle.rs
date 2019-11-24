@@ -246,19 +246,11 @@ impl Paint for Squig {
 
 const NOISE_SHADER: &str = include_str!("stripe.frag");
 
-pub struct Bloops {
-    fbm: Fbm,
-    stripe_shader: Shader,
-    palette: CosineColours,
-    grid_size: usize,
-}
-
-impl Artist for Bloops {
-    fn setup(gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<Self> {
+fn main() {
+    let options = Options::from_args();
+    run_fn(options, |gpu, world, rng| {
         let glsl = gpu.compile_glsl(NOISE_SHADER).expect("to compile glsl");
-        let stripe_shader = gpu
-            .build_shader(glsl, UniformBuffer::default())
-            .expect("to build noise shader");
+        let stripe_shader = gpu.build_shader(glsl, UniformBuffer::default())?;
         let palette = CosineColours::new(
             LinSrgb::new(0.5, 0.5, 0.5),
             LinSrgb::new(0.5, 0.5, 0.5),
@@ -266,45 +258,35 @@ impl Artist for Bloops {
             LinSrgb::new(0.5, 0.20, 0.25),
         );
         let grid_size = rng.gen_range(2, 20);
+        let fbm = Fbm::default();
 
-        Ok(Self {
-            fbm: Fbm::default(),
-            stripe_shader,
-            palette,
-            grid_size,
+        Ok(move |ctx: Context, canvas: &mut Canvas| {
+            if ctx.frame == 0 {
+                canvas.set_color(LinSrgb::new(1., 1., 1.));
+                canvas.paint(Filled(ctx.world));
+            }
+
+            let time = ctx.frame as f32 / 24.;
+
+            let signal = time.rem_euclid(4.) / 4.;
+            let rgb = palette.sample(signal);
+            canvas.set_color(rgb);
+
+            //canvas.set_shader(self.stripe_shader.clone());
+
+            let r = 10. + time * 10.;
+            for c in GridIter::new(grid_size, grid_size)
+                .tiles(ctx.world.width, ctx.world.height)
+                .map(|r| r.center())
+            {
+                let c = Ellipse::circle(c, time * 10.).circumpoint(
+                    fbm.get([c.x as f64, c.y as f64, time as f64]) as f32
+                        * std::f32::consts::PI
+                        * 2.,
+                );
+                canvas.paint(Filled(Squig { center: c, r: r }));
+            }
         })
-    }
-
-    fn paint(&mut self, ctx: Context, canvas: &mut Canvas) {
-        if ctx.frame == 0 {
-            canvas.set_color(LinSrgb::new(1., 1., 1.));
-            canvas.paint(Filled(ctx.world));
-        }
-
-        let time = ctx.frame as f32 / 24.;
-
-        let signal = time.rem_euclid(4.) / 4.;
-        let rgb = self.palette.sample(signal);
-        canvas.set_color(rgb);
-
-        //canvas.set_shader(self.stripe_shader.clone());
-
-        let r = 10. + time * 10.;
-        for c in GridIter::new(self.grid_size, self.grid_size)
-            .tiles(ctx.world.width, ctx.world.height)
-            .map(|r| r.center())
-        {
-            let c = Ellipse::circle(c, time * 10.).circumpoint(
-                self.fbm.get([c.x as f64, c.y as f64, time as f64]) as f32
-                    * std::f32::consts::PI
-                    * 2.,
-            );
-            canvas.paint(Filled(Squig { center: c, r: r }));
-        }
-    }
-}
-
-fn main() {
-    let options = Options::from_args();
-    run::<Bloops>(options).expect("to run composition");
+    })
+    .expect("to run composition");
 }

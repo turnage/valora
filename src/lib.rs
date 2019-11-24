@@ -134,8 +134,13 @@ pub trait Artist: Sized {
     fn paint(&mut self, ctx: Context, canvas: &mut Canvas);
 }
 
-/// Run a painter.
-pub fn run<A: Artist>(options: Options) -> Result<()> {
+/// Run an artist defined by raw functions.
+///
+/// Takes a function that produces the function that should paint each frame.
+pub fn run_fn<F>(options: Options, f: impl Fn(&Gpu, &World, &mut StdRng) -> Result<F>) -> Result<()>
+where
+    F: FnMut(Context, &mut Canvas),
+{
     let (output_width, output_height) = (
         (options.world.width as f32 * options.world.scale) as u32,
         (options.world.height as f32 * options.world.scale) as u32,
@@ -181,7 +186,7 @@ pub fn run<A: Artist>(options: Options) -> Result<()> {
     let mut current_seed = options.world.seed;
     loop {
         let mut rng = StdRng::seed_from_u64(current_seed);
-        let mut artist = A::setup(&gpu, &options.world, &mut rng)?;
+        let mut paint_fn = f(&gpu, &options.world, &mut rng)?;
 
         let mut renderer = Renderer {
             strategy: &mut strategy,
@@ -198,7 +203,7 @@ pub fn run<A: Artist>(options: Options) -> Result<()> {
             output_height: output_height,
         };
 
-        if let Some(rebuild) = renderer.render_frames(|ctx, canvas| artist.paint(ctx, canvas))? {
+        if let Some(rebuild) = renderer.render_frames(|ctx, canvas| paint_fn(ctx, canvas))? {
             match rebuild {
                 Rebuild::NewSeed(new_seed) => {
                     current_seed = new_seed;
@@ -210,4 +215,12 @@ pub fn run<A: Artist>(options: Options) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Run an artist.
+pub fn run<A: Artist>(options: Options) -> Result<()> {
+    run_fn(options, |gpu, world, rng| {
+        let mut artist = A::setup(gpu, world, rng)?;
+        Ok(move |ctx: Context, canvas: &mut Canvas| artist.paint(ctx, canvas))
+    })
 }
