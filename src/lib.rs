@@ -9,6 +9,7 @@ pub mod forms;
 pub mod paint;
 pub mod path;
 pub mod transforms;
+pub mod uniforms;
 
 /// Exhuastive set of imports for painting.
 pub mod prelude {
@@ -55,7 +56,7 @@ pub type V2 = Vector2D<f32, UnknownUnit>;
 /// A two dimensional size.
 pub type S2 = Size2D<f32, UnknownUnit>;
 
-/// A radian angle.
+/// An angle.
 pub type Angle = euclid::Angle<f32>;
 
 /// A compiled GLSL program.

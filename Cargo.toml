@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 
+[workspace]
+members = ["uniform_derive"]
+
 [dependencies]
 glium = "0.25.1"
 glutin = "0.21.1"
@@ -22,6 +25,7 @@ palette = "0.5.0"
 rayon = "1.2.0"
 arrayvec = "0.5.1"
 lyon_geom = "0.14.1"
+uniform_derive = { path = "uniform_derive" }
 
 [dev-dependencies]
 itertools = "0.8.0"
