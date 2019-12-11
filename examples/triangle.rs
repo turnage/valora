@@ -54,6 +54,25 @@ fn noise_shift(p: P2, noise: f32, amount: f32) -> P2 {
     Ellipse::circle(p, amount).circumpoint(Angle::radians(theta))
 }
 
+struct WarpCfg {
+    fbm: Fbm,
+}
+
+fn warp_polygon(poly: Polygon, cfg: WarpCfg, rng: &mut StdRng) -> Polygon {
+    poly.vertices_with_neighbors()
+        .map(|(left, v, right)| {
+            let strength = (right - left.to_vector()).to_vector().length() / 2.;
+            let noise = cfg.fbm.get([v.x as f64 * 10., v.y as f64 * 10.]) as f32;
+            let strength = strength - (strength / 4.) + noise.abs() * strength / 4.;
+
+            let offset = Normal::new(0., strength as f64).sample(rng) as f32;
+            let theta = Angle::radians(rng.gen_range(0., PI * 2.));
+            let shifted = Ellipse::circle(v, offset).circumpoint(theta);
+            shifted
+        })
+        .collect()
+}
+
 const NOISE_SHADER: &str = include_str!("stripe.frag");
 
 fn main() {
@@ -126,10 +145,24 @@ fn main() {
             0.01,
             *world,
         );
-        let bubble_container = Ellipse::circle(world.center(), 100.);
+        let bubble_container = Ellipse::circle(world.center(), 200.);
         let bubble_sampler = bubble_container.uniform_circle_sampler();
 
-        let mut triangle = Polygon::from(Ngon::triangle(world.center(), 100.));
+        let splotch: Vec<Polygon> = bubble_sampler
+            .sample_iter(&mut rng.clone())
+            .map(|v| {
+                std::iter::successors(Some(Polygon::from(Ngon::new(v, 8, 10.))), |poly| {
+                    Some(warp_polygon(
+                        poly.clone().subdivide(),
+                        WarpCfg { fbm: fbm.clone() },
+                        rng,
+                    ))
+                })
+                .nth(2)
+                .unwrap()
+            })
+            .take(1000)
+            .collect();
 
         Ok(move |ctx: Context, canvas: &mut Canvas| {
             if ctx.frame == 0 {
@@ -138,19 +171,12 @@ fn main() {
             }
 
             let time = ctx.frame as f32 / 24.;
-            let rgb = palette.sample(time);
+            let rgb = palette.sample(time * 10.);
 
-            for v in triangle.vertices() {
-                canvas.set_color(rgb);
-                canvas.paint(Filled(Ellipse::circle(v, 0.2)));
+            for (i, layer) in splotch.iter().enumerate() {
+                canvas.set_color(palette.sample(i as f32 * 0.1));
+                canvas.paint(Filled(layer));
             }
-            triangle = triangle.clone().subdivide();
-
-            canvas.set_color(rgb);
-            canvas.paint(Stroked {
-                element: initial_line.clone(),
-                thickness: 10.,
-            });
         })
     })
     .expect("to run composition");

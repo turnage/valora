@@ -73,6 +73,14 @@ pub struct Options {
     #[structopt(flatten)]
     pub world: World,
 
+    /// In brainstorm mode:
+    ///
+    ///   * When rendering a limited number of frames to screen, the preview will not close.
+    ///
+    ///   * When rendering to file, every frame will be rendered with a different seed.
+    #[structopt(short = "b", long = "brainstorm")]
+    pub brainstorm: bool,
+
     /// The number of frames to delay saving to file. For example, if delay=100,
     /// 100 frames will be rendered silently and then the 101st and those after it
     /// will be saved to file.
@@ -223,13 +231,15 @@ where
             output_height: output_height,
         };
 
-        if let Some(rebuild) = renderer.render_frames(|ctx, canvas| paint_fn(ctx, canvas))? {
+        let report = renderer.render_frames(|ctx, canvas| paint_fn(ctx, canvas))?;
+
+        if let Some(rebuild) = report.rebuild {
             match rebuild {
                 Rebuild::NewSeed(new_seed) => {
                     current_seed = new_seed;
                 }
             }
-        } else {
+        } else if report.explicit_quit || !options.brainstorm {
             break;
         }
     }

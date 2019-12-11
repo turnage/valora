@@ -28,6 +28,13 @@ pub enum Rebuild {
     NewSeed(u64),
 }
 
+pub struct RenderReport {
+    /// Whether the user explicitly quit.
+    pub explicit_quit: bool,
+    /// An instruction to rebuild the render.
+    pub rebuild: Option<Rebuild>,
+}
+
 #[derive(Debug)]
 struct FrameUpdates {
     new_seed: Option<u64>,
@@ -63,12 +70,16 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
     pub fn render_frames(
         &mut self,
         mut f: impl FnMut(Context, &mut Canvas),
-    ) -> Result<Option<Rebuild>> {
+    ) -> Result<RenderReport> {
         let default_shader = self
             .gpu
             .default_shader(self.output_width as f32, self.output_height as f32);
 
-        let end_frame = self.options.world.frames.map(|f| f + self.options.delay);
+        let end_frame = self
+            .options
+            .world
+            .frames
+            .map(|f| f + self.options.delay - 1);
         for frame in std::iter::successors(Some(0), move |last| {
             if let Some(end_frame) = end_frame {
                 if last + 1 <= end_frame {
@@ -92,7 +103,10 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
 
             let updates = self.render_frame(self.options.world.seed, frame, canvas)?;
             if updates.should_quit {
-                break;
+                return Ok(RenderReport {
+                    explicit_quit: true,
+                    rebuild: None,
+                });
             }
 
             if let Some(wait) = updates.wait {
@@ -100,11 +114,17 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
             }
 
             if let Some(new_seed) = updates.new_seed {
-                return Ok(Some(Rebuild::NewSeed(new_seed)));
+                return Ok(RenderReport {
+                    explicit_quit: false,
+                    rebuild: Some(Rebuild::NewSeed(new_seed)),
+                });
             }
         }
 
-        Ok(None)
+        Ok(RenderReport {
+            explicit_quit: false,
+            rebuild: None,
+        })
     }
 
     fn render_frame(

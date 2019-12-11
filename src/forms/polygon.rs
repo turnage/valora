@@ -1,7 +1,8 @@
 //! Polygon.
 
-use crate::{Subdivide, P2};
+use crate::{Canvas, ClosedPath, FlatIterPath, Paint, Subdivide, P2};
 use arrayvec::ArrayVec;
+use itertools::Itertools;
 use std::iter::{DoubleEndedIterator, FromIterator};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,9 +11,29 @@ pub struct Polygon {
 }
 
 impl Polygon {
-    pub fn vertices<'a>(&'a self) -> impl DoubleEndedIterator<Item = P2> + 'a {
+    pub fn vertices<'a>(&'a self) -> impl DoubleEndedIterator<Item = P2> + Clone + 'a {
         self.vertices.iter().copied()
     }
+
+    /// Returns an iterator over each vertex in the form (left neighbor, vertex, right neighbor).
+    pub fn vertices_with_neighbors<'a>(&'a self) -> impl Iterator<Item = (P2, P2, P2)> + 'a {
+        let last_iter = self.vertices().rev().take(1);
+        last_iter
+            .clone()
+            .chain(self.vertices())
+            .chain(last_iter)
+            .tuple_windows()
+    }
+}
+
+impl Paint for Polygon {
+    fn paint(&self, canvas: &mut Canvas) {
+        canvas.paint(ClosedPath::from(FlatIterPath::from(self.vertices())))
+    }
+}
+
+impl Paint for &Polygon {
+    fn paint(&self, canvas: &mut Canvas) { (**self).paint(canvas); }
 }
 
 impl Subdivide for Polygon {
