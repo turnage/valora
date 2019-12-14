@@ -1,6 +1,15 @@
 //! Uniform interface for shaders.
 
-use glium::uniforms::UniformValue;
+pub use uniform_derive::UniformSet;
+
+use glium::{
+    texture::texture2d::Texture2d,
+    uniforms::{SamplerBehavior, UniformValue},
+};
+
+pub trait OwnedUniforms {
+    fn visit_owned_values(&self, f: &mut dyn FnMut(&str, &dyn IntoUniformValue));
+}
 
 pub trait IntoUniformValue {
     fn into_uniform_value<'a>(&'a self) -> UniformValue<'a>;
@@ -55,29 +64,53 @@ primitive_uniform_value!([bool; 2], |v| UniformValue::BoolVec2(v));
 primitive_uniform_value!([bool; 3], |v| UniformValue::BoolVec3(v));
 primitive_uniform_value!([bool; 4], |v| UniformValue::BoolVec4(v));
 
+/// A texture that can be accessed from a shader.
+pub struct UniformTexture {
+    /// The texture.
+    pub texture: Texture2d,
+    /// The behavior of texture sampling.
+    pub sampler_behavior: Option<SamplerBehavior>,
+}
+
+impl IntoUniformValue for UniformTexture {
+    fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
+        UniformValue::Texture2d(&self.texture, self.sampler_behavior)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use glium::uniforms::Uniforms;
     use uniform_derive::UniformSet;
 
     #[derive(UniformSet)]
     pub struct MyUniforms {
         camera: [f32; 3],
+        flipped: bool,
     }
 
     #[test]
     fn test() {
-        let mut visited = std::collections::VecDeque::new();
         let uniforms = MyUniforms {
             camera: [0., 0., 0.],
+            flipped: true,
         };
 
-        Uniforms::visit_values(&uniforms, |name, value| {
-            visited.push_back((name.to_string(), value))
+        let mut i = 0;
+        OwnedUniforms::visit_owned_values(&uniforms, &mut |name: &str, value| {
+            let value = value.into_uniform_value();
+            match i {
+                0 => match (name, value) {
+                    ("camera", UniformValue::Vec3(pos)) if pos == [0., 0., 0.] => {}
+                    _ => panic!("Wrong camera values"),
+                },
+                1 => match (name, value) {
+                    ("flipped", UniformValue::Bool(true)) => {}
+                    _ => panic!("Wrong flipped values"),
+                },
+                _ => panic!("unexpected uniform: {:?}", name),
+            }
+            i += 1;
         });
-
-        let (camera, camera_value) = visited.pop_front().expect("A visited value");
-        assert_eq!(camera, String::from("camera"));
     }
 }

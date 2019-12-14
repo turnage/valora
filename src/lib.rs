@@ -36,7 +36,7 @@ pub mod prelude {
 }
 
 pub use self::{
-    gpu::{Gpu, Shader, UniformBuffer},
+    gpu::{Gpu, Shader},
     render::Context,
 };
 
@@ -156,7 +156,7 @@ impl Paint for World {
 /// A trait for types which paint canvases.
 pub trait Artist: Sized {
     /// Constructs the artist.
-    fn setup(gpu: &Gpu, world: &World, rng: &mut StdRng) -> Result<Self>;
+    fn setup(gpu: Gpu, world: &World, rng: &mut StdRng) -> Result<Self>;
 
     /// Paints a single frame. Context provides the frame number, and other resources to needed to
     /// generate the painting.
@@ -166,7 +166,7 @@ pub trait Artist: Sized {
 /// Run an artist defined by raw functions.
 ///
 /// Takes a function that produces the function that should paint each frame.
-pub fn run_fn<F>(options: Options, f: impl Fn(&Gpu, &World, &mut StdRng) -> Result<F>) -> Result<()>
+pub fn run_fn<F>(options: Options, f: impl Fn(Gpu, &World, &mut StdRng) -> Result<F>) -> Result<()>
 where
     F: FnMut(Context, &mut Canvas),
 {
@@ -215,7 +215,7 @@ where
     let mut current_seed = options.world.seed;
     loop {
         let mut rng = StdRng::seed_from_u64(current_seed);
-        let mut paint_fn = f(&gpu, &options.world, &mut rng)?;
+        let mut paint_fn = f(gpu.clone(), &options.world, &mut rng)?;
 
         let mut renderer = Renderer {
             strategy: &mut strategy,

@@ -1,13 +1,9 @@
 #![recursion_limit = "128"]
 extern crate proc_macro;
 
-use heck::CamelCase;
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::quote;
-use std::convert::TryFrom;
-use syn::{punctuated::*, spanned::Spanned, token::*, *};
-
-type Result<T> = std::result::Result<T, Error>;
+use syn::{spanned::Spanned, *};
 
 #[proc_macro_derive(UniformSet)]
 pub fn validate_fidl_table(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -35,12 +31,12 @@ fn impl_uniform_set(ident: Ident, fields: syn::FieldsNamed) -> proc_macro::Token
 
     field_visits.extend(fields.named.into_iter().map(|field| {
         let ident = field.ident.expect("Unwrapping name of named struct field");
-        quote!(f(stringify!(#ident), self.#ident.into_uniform_value()))
+        quote!(f(stringify!(#ident), &self.#ident);)
     }));
 
     quote!(
-        impl Uniforms for #ident {
-            fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut f: F) {
+        impl OwnedUniforms for #ident {
+            fn visit_owned_values(&self, mut f: &mut dyn FnMut(&str, &dyn IntoUniformValue)) {
                 #field_visits
             }
         }

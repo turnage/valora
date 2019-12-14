@@ -73,13 +73,12 @@ fn warp_polygon(poly: Polygon, cfg: WarpCfg, rng: &mut StdRng) -> Polygon {
         .collect()
 }
 
-const NOISE_SHADER: &str = include_str!("stripe.frag");
+const NOISE_SHADER: &str = include_str!("red.frag");
 
 fn main() {
     let options = Options::from_args();
     run_fn(options, |gpu, world, rng| {
-        let glsl = gpu.compile_glsl(NOISE_SHADER).expect("to compile glsl");
-        let stripe_shader = gpu.build_shader(glsl, UniformBuffer::default())?;
+        let red_glsl = gpu.compile_glsl(NOISE_SHADER).expect("to compile glsl");
         let palette = CosineColours::new(
             LinSrgb::new(0.5, 0.5, 0.5),
             LinSrgb::new(0.5, 0.5, 0.5),
@@ -164,6 +163,12 @@ fn main() {
             .take(1000)
             .collect();
 
+        use valora::uniforms::*;
+        #[derive(UniformSet)]
+        struct RedUniform {
+            red: f32,
+        }
+
         Ok(move |ctx: Context, canvas: &mut Canvas| {
             if ctx.frame == 0 {
                 canvas.set_color(LinSrgb::new(1., 1., 1.));
@@ -172,6 +177,13 @@ fn main() {
 
             let time = ctx.frame as f32 / 24.;
             let rgb = palette.sample(time * 10.);
+
+            canvas.set_shader(gpu.build_shader(
+                red_glsl.clone(),
+                RedUniform {
+                    red: (time * 10.).cos().abs() / PI,
+                },
+            ));
 
             for (i, layer) in splotch.iter().enumerate() {
                 canvas.set_color(palette.sample(i as f32 * 0.1));

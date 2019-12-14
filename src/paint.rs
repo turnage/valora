@@ -1,9 +1,6 @@
 //! Paint trait and implementations.
 
-use crate::{canvas::Canvas, path::ClosedPath, P2};
-use arrayvec::{ArrayVec, IntoIter};
-use euclid::{Rect, UnknownUnit};
-use lyon_geom::LineSegment;
+use crate::canvas::Canvas;
 use lyon_path::PathEvent;
 
 /// A trait for types which can be represented on a `Canvas`.
@@ -41,8 +38,7 @@ where
     P: Iterator<Item = PathEvent> + Clone,
 {
     fn paint(&self, canvas: &mut Canvas) {
-        let mut iter = self.clone();
-        iter.for_each(|p| match p {
+        self.clone().for_each(|p| match p {
             PathEvent::Line(line) => canvas.line_to(line.to),
             PathEvent::Quadratic(q) => canvas.quadratic_to(q.ctrl, q.to),
             PathEvent::Cubic(c) => canvas.cubic_to(c.ctrl1, c.ctrl2, c.to),

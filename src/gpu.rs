@@ -2,6 +2,7 @@
 
 use crate::{
     raster::{raster_path, Method},
+    uniforms::*,
     Result,
 };
 use glium::{
@@ -49,16 +50,15 @@ implement_vertex!(GpuVertex, vpos, vcol);
 pub const VERTEX_SHADER: &str = include_str!("shaders/default.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/default.frag");
 
-/// A shader which can be used to shade paths.
-#[derive(Clone)]
-pub struct Shader {
-    id: u64,
-    program: Rc<Program>,
-    uniforms: UniformBuffer,
+struct NoUniforms;
+
+impl Uniforms for NoUniforms {
+    fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, _f: F) {}
 }
 
 #[derive(Default, Clone)]
 pub struct UniformBuffer {
+    user_uniforms: Option<Rc<dyn OwnedUniforms>>,
     uniforms: Vec<(String, UniformValue<'static>)>,
 }
 
@@ -70,10 +70,37 @@ impl UniformBuffer {
 
 impl Uniforms for UniformBuffer {
     fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut f: F) {
+        if let Some(user_uniforms) = self.user_uniforms.as_ref().map(Rc::as_ref) {
+            user_uniforms.visit_owned_values(&mut |name, v| {
+                let uniform_value = v.into_uniform_value();
+                let uniform_value: UniformValue<'a> = unsafe { std::mem::transmute(uniform_value) };
+                f(name, uniform_value)
+            });
+        }
         for (name, value) in &self.uniforms {
             f(name.as_str(), *value);
         }
     }
+}
+
+impl<U> From<U> for UniformBuffer
+where
+    U: OwnedUniforms + 'static,
+{
+    fn from(src: U) -> Self {
+        UniformBuffer {
+            user_uniforms: Some(Rc::new(src)),
+            uniforms: vec![],
+        }
+    }
+}
+
+/// A shader which can be used to shade paths.
+#[derive(Clone)]
+pub struct Shader {
+    id: u64,
+    program: Rc<Program>,
+    uniforms: UniformBuffer,
 }
 
 /// A rasterable element in a composition.
@@ -108,7 +135,7 @@ pub struct Gpu {
     height_sign: f32,
 }
 
-pub struct GpuCommand<'a, S> {
+struct GpuCommand<'a, S> {
     pub vertices: VertexBuffer<GpuVertex>,
     pub indices: IndexBuffer<u32>,
     pub target: &'a mut S,
@@ -185,6 +212,7 @@ impl Gpu {
             id: random(),
             program: self.program.clone(),
             uniforms: UniformBuffer {
+                user_uniforms: None,
                 uniforms: vec![
                     (String::from("width"), UniformValue::Float(width)),
                     (String::from("height"), UniformValue::Float(height)),
@@ -202,12 +230,12 @@ impl Gpu {
         )?))
     }
 
-    pub fn build_shader(&self, program: Rc<Program>, uniforms: UniformBuffer) -> Result<Shader> {
-        Ok(Shader {
+    pub fn build_shader(&self, program: Rc<Program>, uniforms: impl Into<UniformBuffer>) -> Shader {
+        Shader {
             id: random(),
             program,
-            uniforms,
-        })
+            uniforms: uniforms.into(),
+        }
     }
 
     pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2dMultisample> {
