@@ -27,7 +27,7 @@ palette = "0.5.0"
 rayon = "1.2.0"
 arrayvec = "0.5.1"
 lyon_geom = "0.14.1"
-valora_derive = { path = "valora_derive" }
+valora_derive = "0.1.0"
 noise = "0.6.0"
 glslwatch = "0.1.3"
 
