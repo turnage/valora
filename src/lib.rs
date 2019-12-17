@@ -26,7 +26,7 @@ pub mod prelude {
     };
     pub use super::*;
     pub use euclid::{self, Rect};
-    pub use noise::*;
+    pub use noise::{self, *};
     pub use noise_traits::*;
     pub use rayon::{self, prelude::*};
 
