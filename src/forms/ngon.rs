@@ -1,6 +1,6 @@
 // Regular ngons.
 
-use crate::{Canvas, ClosedPath, FlatIterPath, Paint, P2};
+use crate::{Canvas, ClosedPath, FlatIterPath, Paint, Scale, Translate, P2, V2};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ngon {
@@ -24,7 +24,13 @@ impl Ngon {
 
     pub fn triangle(c: P2, r: f32) -> Self { Self::new(c, 3, r) }
 
-    pub fn square(c: P2, r: f32) -> Self { Self::new(c, 4, r) }
+    pub fn square(c: P2, r: f32) -> Self {
+        let mut diamond = Self::diamond(c, r);
+        diamond.phase -= std::f32::consts::PI / 4.;
+        diamond
+    }
+
+    pub fn diamond(c: P2, r: f32) -> Self { Self::new(c, 4, r) }
 
     pub fn rotate(&mut self, phase: f32) { self.phase += phase; }
 }
@@ -33,7 +39,7 @@ impl Iterator for Ngon {
     type Item = P2;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.i == self.n + 1 {
+        if self.i == self.n {
             return None;
         }
 
@@ -45,6 +51,24 @@ impl Iterator for Ngon {
             self.c.x + theta.sin() * self.r,
             self.c.y + theta.cos() * self.r,
         ))
+    }
+}
+
+impl Scale for Ngon {
+    fn scale(self, factor: f32) -> Self {
+        Self {
+            r: self.r * factor,
+            ..self
+        }
+    }
+}
+
+impl Translate for Ngon {
+    fn translate(self, translation: V2) -> Self {
+        Self {
+            c: self.c + translation,
+            ..self
+        }
     }
 }
 

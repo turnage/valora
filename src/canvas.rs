@@ -9,7 +9,7 @@ pub struct Canvas {
     path: Builder,
     shader: Shader,
     color: LinSrgba,
-    stroke_thickness: f32,
+    stroke_width: f32,
     scale: f32,
     elements: Vec<Element>,
 }
@@ -21,7 +21,7 @@ impl Canvas {
             shader: default_shader,
             color: Alpha::<LinSrgb, _>::new(1., 1., 1., 1.),
             scale,
-            stroke_thickness: 1.,
+            stroke_width: 1.,
             elements: vec![],
         }
     }
@@ -35,10 +35,10 @@ impl Canvas {
     }
 
     /// Sets the current color.
-    pub fn set_color_with_alpha(&mut self, color_alpha: Alpha<impl IntoColor, f32>) {
+    pub fn set_color_alpha(&mut self, color: impl IntoColor, alpha: f32) {
         self.color = Alpha {
-            color: color_alpha.color.into_rgb(),
-            alpha: color_alpha.alpha,
+            color: color.into_rgb(),
+            alpha,
         };
     }
 
@@ -69,18 +69,16 @@ impl Canvas {
     }
 
     /// Closes the current path.
-    pub fn close(&mut self) { self.path.close() }
+    pub fn close_path(&mut self) { self.path.close() }
 
-    /// Sets the thickness of lines drawn with the `stroke()`.
-    pub fn set_stroke_thickness(&mut self, stroke_thickness: f32) {
-        self.stroke_thickness = stroke_thickness;
-    }
+    /// Sets the width of lines drawn with the `stroke()`.
+    pub fn set_stroke_width(&mut self, stroke_width: f32) { self.stroke_width = stroke_width; }
 
     /// Paints the current path by filling the region inside the path.
     pub fn fill(&mut self) { self.push_element(Method::Fill); }
 
     /// Paints the current path by stroking the path.
-    pub fn stroke(&mut self) { self.push_element(Method::Stroke(self.stroke_thickness)); }
+    pub fn stroke(&mut self) { self.push_element(Method::Stroke(self.stroke_width)); }
 
     /// Sets the current shader used to shade rastered paths.
     ///

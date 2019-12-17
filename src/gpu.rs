@@ -207,17 +207,11 @@ impl Gpu {
 
     pub(crate) fn get_frame(&self) -> Option<Frame> { self.ctx.get_frame() }
 
-    pub(crate) fn default_shader(&self, width: f32, height: f32) -> Shader {
+    pub(crate) fn default_shader(&self) -> Shader {
         Shader {
             id: random(),
             program: self.program.clone(),
-            uniforms: UniformBuffer {
-                user_uniforms: None,
-                uniforms: vec![
-                    (String::from("width"), UniformValue::Float(width)),
-                    (String::from("height"), UniformValue::Float(height)),
-                ],
-            },
+            uniforms: UniformBuffer::default(),
         }
     }
 
@@ -299,15 +293,21 @@ impl Gpu {
             };
 
             // TODO: reconcile conflicts between user uniforms and the defaults
-            first
-                .uniforms
-                .push(String::from("width"), UniformValue::Float(width as f32));
-            first
-                .uniforms
-                .push(String::from("height"), UniformValue::Float(height as f32));
             first.uniforms.push(
-                String::from("height_sign"),
+                String::from("_valora_width"),
+                UniformValue::Float(width as f32),
+            );
+            first.uniforms.push(
+                String::from("_valora_height"),
+                UniformValue::Float(height as f32),
+            );
+            first.uniforms.push(
+                String::from("_valora_height_sign"),
                 UniformValue::Float(self.height_sign),
+            );
+            first.uniforms.push(
+                String::from("iResolution"),
+                UniformValue::Vec2([width as f32, height as f32]),
             );
 
             let (_, cpu_vertices, cpu_indices) = batch

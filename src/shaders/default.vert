@@ -1,8 +1,8 @@
 #version 440
 
-uniform float width;
-uniform float height;
-uniform float height_sign;
+uniform float _valora_width;
+uniform float _valora_height;
+uniform float _valora_height_sign;
 
 in vec2 vpos;
 in vec4 vcol;
@@ -11,8 +11,8 @@ out vec4 v_color;
 
 vec2 _project_coordinates() {
   vec2 tmp = vpos;
-  tmp.y = height - tmp.y;
-  return vec2(tmp.x / width * 2. - 1., height_sign * (tmp.y / height * 2. - 1.));
+  tmp.y = _valora_height - tmp.y;
+  return vec2(tmp.x / _valora_width * 2. - 1., _valora_height_sign * (tmp.y / _valora_height * 2. - 1.));
 }
 
 void main() {

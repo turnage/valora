@@ -1,6 +1,6 @@
 //! Ellipses
 
-use crate::{transforms::Scale, Angle, Canvas, Paint, P2, PI, V2};
+use crate::{transforms::Scale, Angle, Canvas, Paint, Translate, P2, PI, V2};
 use rand::{distributions::Distribution, Rng};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -54,7 +54,16 @@ impl Paint for Ellipse {
     fn paint(&self, canvas: &mut Canvas) {
         canvas.move_to(self.circumpoint(self.phase));
         canvas.arc(self.center, self.radii, Angle::radians(PI * 2.), self.phase);
-        canvas.close();
+        canvas.close_path();
+    }
+}
+
+impl Translate for Ellipse {
+    fn translate(self, translation: V2) -> Self {
+        Self {
+            center: self.center + translation,
+            ..self
+        }
     }
 }
 

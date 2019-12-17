@@ -26,8 +26,9 @@ rayon = "1.2.0"
 arrayvec = "0.5.1"
 lyon_geom = "0.14.1"
 uniform_derive = { path = "uniform_derive" }
+noise = "0.6.0"
+glslwatch = "0.1.3"
 
 [dev-dependencies]
 itertools = "0.8.0"
 nalgebra = "0.18.0"
-noise = "0.6.0"

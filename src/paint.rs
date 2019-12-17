@@ -22,13 +22,13 @@ impl<P: Paint> Paint for Filled<P> {
 /// Paints a path with a stroke.
 pub struct Stroked<D> {
     pub element: D,
-    pub thickness: f32,
+    pub width: f32,
 }
 
 impl<P: Paint> Paint for Stroked<P> {
     fn paint(&self, comp: &mut Canvas) {
         self.element.paint(comp);
-        comp.set_stroke_thickness(self.thickness);
+        comp.set_stroke_width(self.width);
         comp.stroke();
     }
 }
@@ -43,7 +43,7 @@ where
             PathEvent::Quadratic(q) => canvas.quadratic_to(q.ctrl, q.to),
             PathEvent::Cubic(c) => canvas.cubic_to(c.ctrl1, c.ctrl2, c.to),
             PathEvent::MoveTo(p) => canvas.move_to(p),
-            PathEvent::Close(_) => canvas.close(),
+            PathEvent::Close(_) => canvas.close_path(),
         });
     }
 }

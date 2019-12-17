@@ -22,6 +22,8 @@ pub struct Context<'a> {
     pub world: World,
     /// The current frame in the composition.
     pub frame: usize,
+    /// The elapsed time in the composition.
+    pub time: Duration,
 }
 
 pub enum Rebuild {
@@ -71,15 +73,9 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
         &mut self,
         mut f: impl FnMut(Context, &mut Canvas),
     ) -> Result<RenderReport> {
-        let default_shader = self
-            .gpu
-            .default_shader(self.output_width as f32, self.output_height as f32);
+        let default_shader = self.gpu.default_shader();
 
-        let end_frame = self
-            .options
-            .world
-            .frames
-            .map(|f| f + self.options.delay - 1);
+        let end_frame = self.options.world.frames.map(|f| f + self.options.delay);
         for frame in std::iter::successors(Some(0), move |last| {
             if let Some(end_frame) = end_frame {
                 if last + 1 <= end_frame {
@@ -97,6 +93,9 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                     rng: self.rng,
                     world: self.options.world,
                     frame,
+                    time: Duration::from_secs_f32(
+                        frame as f32 / self.options.world.framerate as f32,
+                    ),
                 },
                 &mut canvas,
             );

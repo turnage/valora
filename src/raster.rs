@@ -22,7 +22,7 @@ pub enum Method {
     /// last to the first vertex.
     Fill,
     /// In stroke method, the rasterizer will treat the area immediately adjacent the path within
-    /// the given thickness as part of the rastered area. In this method, paths are left open
+    /// the given width as part of the rastered area. In this method, paths are left open
     /// and no edge between the last and first vertex is assumed.
     Stroke(f32),
 }
@@ -63,14 +63,14 @@ pub fn raster_path(
                 buffers.indices,
             ))
         }
-        Method::Stroke(thickness) => {
+        Method::Stroke(width) => {
             let mut buffers: VertexBuffers<StrokeVertex, u32> = VertexBuffers::new();
             let mut tessellator = StrokeTessellator::new();
             tessellator
                 .tessellate_path(
                     &builder.build(),
                     &StrokeOptions::default()
-                        .with_line_width(thickness)
+                        .with_line_width(width)
                         .with_tolerance(0.05),
                     &mut vertex_builder(&mut buffers, |v| v),
                 )

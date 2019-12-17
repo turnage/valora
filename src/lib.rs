@@ -1,6 +1,7 @@
 //! A brush for generative fine art.
 
 mod gpu;
+mod noise_traits;
 mod raster;
 mod render;
 
@@ -8,14 +9,25 @@ pub mod canvas;
 pub mod forms;
 pub mod paint;
 pub mod path;
+pub mod shaders;
 pub mod transforms;
 pub mod uniforms;
 
 /// Exhuastive set of imports for painting.
 pub mod prelude {
-    pub use self::{canvas::*, forms::*, paint::*, path::*, transforms::*};
+    pub use self::{
+        canvas::*,
+        forms::*,
+        paint::*,
+        path::*,
+        shaders::*,
+        transforms::*,
+        uniforms::*,
+    };
     pub use super::*;
     pub use euclid::{self, Rect};
+    pub use noise::*;
+    pub use noise_traits::*;
     pub use rayon::{self, prelude::*};
 
     pub use palette::{
@@ -41,7 +53,7 @@ pub use self::{
 };
 
 use self::{gpu::*, prelude::*, raster::Method};
-use euclid::{Size2D, UnknownUnit, Vector2D};
+use euclid::{Point3D, Size2D, UnknownUnit, Vector2D, Vector3D};
 use failure::Error;
 use lyon_path::math::Point;
 use render::*;
@@ -50,8 +62,14 @@ use std::{path::PathBuf, time::Duration};
 /// A two dimensional point.
 pub type P2 = Point;
 
+/// A three dimensional point.
+pub type P3 = Point3D<f32, UnknownUnit>;
+
 /// A two dimensional vector.
 pub type V2 = Vector2D<f32, UnknownUnit>;
+
+/// A three dimensional vector.
+pub type V3 = Vector3D<f32, UnknownUnit>;
 
 /// A two dimensional size.
 pub type S2 = Size2D<f32, UnknownUnit>;
@@ -156,17 +174,19 @@ impl Paint for World {
 /// A trait for types which paint canvases.
 pub trait Artist: Sized {
     /// Constructs the artist.
-    fn setup(gpu: Gpu, world: &World, rng: &mut StdRng) -> Result<Self>;
+    ///
+    /// This would be a place to compile any GLSL or construct any expensive
+    /// resources needed across the whole composition.
+    fn setup(gpu: Gpu, world: World, rng: &mut StdRng) -> Result<Self>;
 
-    /// Paints a single frame. Context provides the frame number, and other resources to needed to
-    /// generate the painting.
+    /// Paints a single frame.
     fn paint(&mut self, ctx: Context, canvas: &mut Canvas);
 }
 
 /// Run an artist defined by raw functions.
 ///
 /// Takes a function that produces the function that should paint each frame.
-pub fn run_fn<F>(options: Options, f: impl Fn(Gpu, &World, &mut StdRng) -> Result<F>) -> Result<()>
+pub fn run_fn<F>(options: Options, f: impl Fn(Gpu, World, &mut StdRng) -> Result<F>) -> Result<()>
 where
     F: FnMut(Context, &mut Canvas),
 {
@@ -174,6 +194,14 @@ where
         (options.world.width as f32 * options.world.scale) as u32,
         (options.world.height as f32 * options.world.scale) as u32,
     );
+
+    let number_width = options
+        .world
+        .frames
+        .unwrap_or(0)
+        .to_string()
+        .chars()
+        .count();
 
     let (gpu, mut strategy) = if let Some(base_path) = options.output.clone() {
         let (gpu, _) = Gpu::new()?;
@@ -188,7 +216,11 @@ where
                     base_path.push(format!("{}", seed));
                     std::fs::create_dir_all(&base_path)
                         .expect(&format!("To create save directory {:?}", base_path));
-                    base_path.push(format!("{}.png", frame_number));
+                    base_path.push(format!(
+                        "{number:>0width$}.png",
+                        number = frame_number,
+                        width = number_width
+                    ));
                     base_path
                 },
             },
@@ -215,7 +247,7 @@ where
     let mut current_seed = options.world.seed;
     loop {
         let mut rng = StdRng::seed_from_u64(current_seed);
-        let mut paint_fn = f(gpu.clone(), &options.world, &mut rng)?;
+        let mut paint_fn = f(gpu.clone(), options.world, &mut rng)?;
 
         let mut renderer = Renderer {
             strategy: &mut strategy,

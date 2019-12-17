@@ -1,6 +1,6 @@
 //! Polygon.
 
-use crate::{Canvas, ClosedPath, FlatIterPath, Paint, Subdivide, P2};
+use crate::{Canvas, ClosedPath, FlatIterPath, Paint, Subdivide, Translate, P2, V2};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::iter::{DoubleEndedIterator, FromIterator};
@@ -11,8 +11,14 @@ pub struct Polygon {
 }
 
 impl Polygon {
+    /// Returns an iterator over the polygon's vertices.
     pub fn vertices<'a>(&'a self) -> impl DoubleEndedIterator<Item = P2> + Clone + 'a {
         self.vertices.iter().copied()
+    }
+
+    /// Returns an iterator over unique references to the polgyon's vertices.
+    pub fn vertices_mut<'a>(&'a mut self) -> impl DoubleEndedIterator<Item = &'a mut P2> + 'a {
+        self.vertices.iter_mut()
     }
 
     /// Returns an iterator over each vertex in the form (left neighbor, vertex, right neighbor).
@@ -39,7 +45,7 @@ impl Paint for &Polygon {
 impl Subdivide for Polygon {
     fn subdivide(self) -> Self {
         let from_start = self.vertices();
-        let skipped = self.vertices().skip(1).chain(self.vertices().rev().take(1));
+        let skipped = self.vertices().skip(1).chain(self.vertices().take(1));
 
         from_start
             .zip(skipped)
@@ -48,6 +54,13 @@ impl Subdivide for Polygon {
                 ArrayVec::from([a, midpoint]).into_iter()
             })
             .collect::<Self>()
+    }
+}
+
+impl Translate for Polygon {
+    fn translate(mut self, translation: V2) -> Self {
+        self.vertices.iter_mut().for_each(|p| *p += translation);
+        self
     }
 }
 
