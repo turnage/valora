@@ -1,4 +1,4 @@
-//! Forms
+//! Forms.
 
 mod ellipse;
 mod ngon;

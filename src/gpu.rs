@@ -95,7 +95,7 @@ where
     }
 }
 
-/// A shader which can be used to shade paths.
+/// A shader which can be used to shade paths. See `ShaderProgram` for construction.
 #[derive(Clone)]
 pub struct Shader {
     id: u64,
@@ -215,7 +215,7 @@ impl Gpu {
         }
     }
 
-    pub fn compile_glsl(&self, source: &str) -> Result<Rc<Program>> {
+    pub(crate) fn compile_glsl(&self, source: &str) -> Result<Rc<Program>> {
         Ok(Rc::new(Program::from_source(
             self.ctx.as_ref(),
             VERTEX_SHADER,
@@ -224,7 +224,11 @@ impl Gpu {
         )?))
     }
 
-    pub fn build_shader(&self, program: Rc<Program>, uniforms: impl Into<UniformBuffer>) -> Shader {
+    pub(crate) fn build_shader(
+        &self,
+        program: Rc<Program>,
+        uniforms: impl Into<UniformBuffer>,
+    ) -> Shader {
         Shader {
             id: random(),
             program,

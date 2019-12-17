@@ -52,6 +52,7 @@ pub mod prelude {
 pub use self::{
     gpu::{Gpu, Shader},
     render::Context,
+    shaders::ShaderProgram,
 };
 
 use self::{gpu::*, prelude::*, raster::Method};

@@ -7,7 +7,7 @@ description = "A brush for generative fine art."
 license = "MIT"
 
 [workspace]
-members = ["uniform_derive"]
+members = ["valora_derive"]
 
 [dependencies]
 glium = "0.25.1"
@@ -27,7 +27,7 @@ palette = "0.5.0"
 rayon = "1.2.0"
 arrayvec = "0.5.1"
 lyon_geom = "0.14.1"
-valora_derive = { path = "uniform_derive" }
+valora_derive = { path = "valora_derive" }
 noise = "0.6.0"
 glslwatch = "0.1.3"
 

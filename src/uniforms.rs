@@ -144,7 +144,7 @@ impl IntoUniformValue for UniformTexture {
 #[cfg(test)]
 mod test {
     use super::*;
-    use uniform_derive::UniformSet;
+    use valora_derive::UniformSet;
 
     #[derive(UniformSet)]
     pub struct MyUniforms {
