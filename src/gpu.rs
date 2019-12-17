@@ -305,10 +305,6 @@ impl Gpu {
                 String::from("_valora_height_sign"),
                 UniformValue::Float(self.height_sign),
             );
-            first.uniforms.push(
-                String::from("iResolution"),
-                UniformValue::Vec2([width as f32, height as f32]),
-            );
 
             let (_, cpu_vertices, cpu_indices) = batch
                 .try_fold::<_, _, Result<(u32, Vec<GpuVertex>, Vec<u32>)>>(

@@ -1,8 +1,10 @@
 [package]
-name = "uniform_derive"
+name = "valora_derive"
 version = "0.1.0"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
+description = "Derives for valora."
+license = "MIT"
 
 [lib]
 proc-macro = true

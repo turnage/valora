@@ -32,6 +32,7 @@ pub mod prelude {
 
     pub use palette::{
         self,
+        encoding::Srgb,
         Alpha,
         Blend,
         ComponentWise,
@@ -40,6 +41,7 @@ pub mod prelude {
         LinSrgb,
         LinSrgba,
         Saturate,
+        *,
     };
     pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
     pub use structopt::StructOpt;

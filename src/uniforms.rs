@@ -1,6 +1,6 @@
 //! Uniform interface for shaders.
 
-pub use uniform_derive::UniformSet;
+pub use valora_derive::UniformSet;
 
 use glium::{
     texture::texture2d::Texture2d,
