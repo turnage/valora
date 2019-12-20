@@ -1,5 +1,3 @@
-#![feature(clamp)]
-
 use valora::prelude::*;
 
 #[derive(UniformSet, Copy, Clone, Debug)]
@@ -15,7 +13,7 @@ struct Uniforms {
 }
 
 fn main() -> Result<()> {
-    run_fn(Options::from_args(), |gpu, world, rng| {
+    run_fn(Options::from_args(), |gpu, world, _rng| {
         let mut program = ShaderProgram::new(&gpu, "examples/pattern.frag")?;
         let mut uniforms = Uniforms {
             color: Hsv::new(0., 0.7, 0.7).into_rgb::<Srgb>().into_components(),
