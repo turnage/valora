@@ -65,7 +65,7 @@ impl Canvas {
 
     /// Adds an arc segment to the path.
     pub fn arc(&mut self, center: P2, radii: V2, sweep: Angle, phase: Angle) {
-        self.path.arc(center, radii, sweep, phase);
+        self.path.arc(center * self.scale, radii * self.scale, sweep, phase);
     }
 
     /// Closes the current path.
