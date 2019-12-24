@@ -1,4 +1,4 @@
-#version 440
+#version 400
 
 uniform float _valora_width;
 uniform float _valora_height;
