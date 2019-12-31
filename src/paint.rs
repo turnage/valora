@@ -40,8 +40,10 @@ where
     fn paint(&self, canvas: &mut Canvas) {
         self.clone().for_each(|p| match p {
             PathEvent::Line { to, .. } => canvas.line_to(to),
-            PathEvent::Quadratic {ctrl, to, .. } => canvas.quadratic_to(ctrl, to),
-            PathEvent::Cubic {ctrl1, ctrl2, to, ..} => canvas.cubic_to(ctrl1, ctrl2, to),
+            PathEvent::Quadratic { ctrl, to, .. } => canvas.quadratic_to(ctrl, to),
+            PathEvent::Cubic {
+                ctrl1, ctrl2, to, ..
+            } => canvas.cubic_to(ctrl1, ctrl2, to),
             PathEvent::Begin { at } => canvas.move_to(at),
             PathEvent::End { close, .. } if close => canvas.close_path(),
             _ => {}

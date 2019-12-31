@@ -27,9 +27,13 @@ impl Ellipse {
         }
     }
 
-    pub fn with_phase(self, phase: Angle) -> Self { Self { phase, ..self } }
+    pub fn with_phase(self, phase: Angle) -> Self {
+        Self { phase, ..self }
+    }
 
-    pub fn circumphase(&self, p: &P2) -> f32 { (p.y - self.center.y).atan2(p.x - self.center.x) }
+    pub fn circumphase(&self, p: &P2) -> f32 {
+        (p.y - self.center.y).atan2(p.x - self.center.x)
+    }
 
     pub fn circumpoint(&self, angle: Angle) -> P2 {
         P2::new(
@@ -38,7 +42,9 @@ impl Ellipse {
         )
     }
 
-    pub fn uniform_circle_sampler(&self) -> UniformCircleSampler { UniformCircleSampler(*self) }
+    pub fn uniform_circle_sampler(&self) -> UniformCircleSampler {
+        UniformCircleSampler(*self)
+    }
 }
 
 impl Scale for Ellipse {

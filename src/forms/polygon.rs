@@ -34,12 +34,14 @@ impl Polygon {
 
 impl Paint for Polygon {
     fn paint(&self, canvas: &mut Canvas) {
-        canvas.paint(FlatIterPath::new(self.vertices(), /*closed=*/true))
+        canvas.paint(FlatIterPath::new(self.vertices(), /*closed=*/ true))
     }
 }
 
 impl Paint for &Polygon {
-    fn paint(&self, canvas: &mut Canvas) { (**self).paint(canvas); }
+    fn paint(&self, canvas: &mut Canvas) {
+        (**self).paint(canvas);
+    }
 }
 
 impl Subdivide for Polygon {

@@ -8,29 +8,18 @@ use crate::{
 use glium::{
     backend::{
         glutin::{headless::Headless, Display},
-        Context,
-        Facade,
+        Context, Facade,
     },
     glutin::EventsLoop,
     implement_vertex,
     index::PrimitiveType,
     texture::{
-        texture2d::Texture2d,
-        texture2d_multisample::Texture2dMultisample,
-        MipmapsOption,
-        RawImage2d,
-        UncompressedFloatFormat,
+        texture2d::Texture2d, texture2d_multisample::Texture2dMultisample, MipmapsOption,
+        RawImage2d, UncompressedFloatFormat,
     },
     uniforms::{MagnifySamplerFilter, UniformValue, Uniforms},
-    Blend,
-    BlendingFunction,
-    DrawParameters,
-    Frame,
-    IndexBuffer,
-    LinearBlendingFactor,
-    Program,
-    Surface,
-    VertexBuffer,
+    Blend, BlendingFunction, DrawParameters, Frame, IndexBuffer, LinearBlendingFactor, Program,
+    Surface, VertexBuffer,
 };
 use glutin::dpi::PhysicalSize;
 use itertools::Itertools;
@@ -46,6 +35,8 @@ pub struct GpuVertex {
 }
 
 implement_vertex!(GpuVertex, vpos, vcol);
+
+pub(crate) const TEXTURE_FORMAT: UncompressedFloatFormat = UncompressedFloatFormat::F32F32F32F32;
 
 pub const VERTEX_SHADER: &str = include_str!("shaders/default.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/default.frag");
@@ -114,23 +105,29 @@ pub struct Element {
 pub struct DisplayFacade(Display);
 
 impl Facade for DisplayFacade {
-    fn get_context(&self) -> &Rc<Context> { self.0.get_context() }
+    fn get_context(&self) -> &Rc<Context> {
+        self.0.get_context()
+    }
 }
 
 pub trait FacadeExt: Facade {
-    fn get_frame(&self) -> Option<Frame> { None }
+    fn get_frame(&self) -> Option<Frame> {
+        None
+    }
 }
 
 impl FacadeExt for Headless {}
 
 impl FacadeExt for DisplayFacade {
-    fn get_frame(&self) -> Option<Frame> { Some(self.0.draw()) }
+    fn get_frame(&self) -> Option<Frame> {
+        Some(self.0.draw())
+    }
 }
 
 /// A handle to the GPU for managing buffers and shaders.
 #[derive(Clone)]
 pub struct Gpu {
-    ctx: Rc<dyn FacadeExt>,
+    pub(crate) ctx: Rc<dyn FacadeExt>,
     program: Rc<Program>,
     height_sign: f32,
 }
@@ -174,7 +171,7 @@ impl Gpu {
         ))
     }
 
-    pub(crate) fn with_window(width: u32, height: u32) -> Result<(Self, EventsLoop)> {
+    pub(crate) fn with_window(width: u32, height: u32) -> Result<(Self, EventsLoop, (u32, u32))> {
         let events_loop = EventsLoop::new();
         let wb = glium::glutin::WindowBuilder::new()
             .with_dimensions(glutin::dpi::LogicalSize {
@@ -186,6 +183,7 @@ impl Gpu {
             .with_srgb(false)
             .with_multisampling(8);
         let display = glium::Display::new(wb, cb, &events_loop).unwrap();
+        let dimensions = display.get_framebuffer_dimensions();
         let ctx = Rc::new(DisplayFacade(display));
 
         let program = Rc::new(Program::from_source(
@@ -202,10 +200,13 @@ impl Gpu {
                 height_sign: -1.,
             },
             events_loop,
+            dimensions,
         ))
     }
 
-    pub(crate) fn get_frame(&self) -> Option<Frame> { self.ctx.get_frame() }
+    pub(crate) fn get_frame(&self) -> Option<Frame> {
+        self.ctx.get_frame()
+    }
 
     pub(crate) fn default_shader(&self) -> Shader {
         Shader {
@@ -239,7 +240,7 @@ impl Gpu {
     pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2dMultisample> {
         Ok(Texture2dMultisample::empty_with_format(
             self.ctx.as_ref(),
-            UncompressedFloatFormat::F32F32F32F32,
+            TEXTURE_FORMAT,
             MipmapsOption::NoMipmap,
             width,
             height,
@@ -250,7 +251,7 @@ impl Gpu {
     fn build_ram_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
         Ok(Texture2d::empty_with_format(
             self.ctx.as_ref(),
-            UncompressedFloatFormat::F32F32F32F32,
+            TEXTURE_FORMAT,
             MipmapsOption::NoMipmap,
             width,
             height,

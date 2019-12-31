@@ -1,7 +1,12 @@
 //! Canvas rendering.
 
-use crate::{canvas::*, gpu::*, Options, Result, World};
-use glium::{glutin::EventsLoop, texture::texture2d_multisample::Texture2dMultisample, Frame};
+use crate::{canvas::*, gpu::*, paint::*, uniforms::*, Options, Result, World};
+use glium::{
+    glutin::EventsLoop,
+    texture::texture2d_multisample::Texture2dMultisample,
+    texture::{Dimensions, MipmapsOption},
+    Frame, GlObject, Program,
+};
 use image::{ImageBuffer, Rgba};
 use palette::{
     encoding::{srgb::Srgb, TransferFn},
@@ -9,7 +14,7 @@ use palette::{
 };
 use rand::{random, rngs::StdRng};
 use rayon::prelude::*;
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, rc::Rc, time::Duration};
 
 /// The context of the current render frame.
 #[derive(Debug)]
@@ -49,6 +54,8 @@ pub enum RenderStrategy<F1, F2> {
         get_frame: F1,
         events_loop: EventsLoop,
         wait: Duration,
+        texture_program: Rc<Program>,
+        buffer: Texture2dMultisample,
     },
     File {
         output_path: F2,
@@ -136,12 +143,55 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
             RenderStrategy::Screen {
                 get_frame,
                 events_loop,
+                buffer,
+                texture_program,
                 wait,
             } => {
+                self.gpu.render(
+                    self.output_width,
+                    self.output_height,
+                    canvas,
+                    &mut buffer.as_surface(),
+                )?;
+
+                #[derive(UniformSet)]
+                struct QuadUniforms {
+                    texture_in: Texture2dMultisample,
+                }
+
+                let shader = self.gpu.build_shader(
+                    texture_program.clone(),
+                    QuadUniforms {
+                        texture_in: unsafe {
+                            // Create a weak reference to the intermediate buffer, which we will draw
+                            // to the frame buffer with a quad.
+                            Texture2dMultisample::from_id(
+                                self.gpu.ctx.get_context(),
+                                TEXTURE_FORMAT,
+                                buffer.get_id(),
+                                /*owned=*/ false,
+                                MipmapsOption::NoMipmap,
+                                Dimensions::Texture2dMultisample {
+                                    width: buffer.dimensions().0,
+                                    height: buffer.dimensions().1,
+                                    samples: buffer.samples(),
+                                },
+                            )
+                        },
+                    },
+                );
+                let mut quad_canvas = Canvas::new(shader.clone(), self.options.world.scale);
+                quad_canvas.paint(Filled(self.options.world));
+
                 let mut frame = get_frame();
                 frame.set_finish()?;
-                self.gpu
-                    .render(self.output_width, self.output_height, canvas, &mut frame)?;
+
+                self.gpu.render(
+                    self.output_width,
+                    self.output_height,
+                    quad_canvas,
+                    &mut frame,
+                )?;
 
                 let mut new_seed = None;
                 let mut should_quit = false;

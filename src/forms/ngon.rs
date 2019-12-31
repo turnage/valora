@@ -22,7 +22,9 @@ impl Ngon {
         }
     }
 
-    pub fn triangle(c: P2, r: f32) -> Self { Self::new(c, 3, r) }
+    pub fn triangle(c: P2, r: f32) -> Self {
+        Self::new(c, 3, r)
+    }
 
     pub fn square(c: P2, r: f32) -> Self {
         let mut diamond = Self::diamond(c, r);
@@ -30,9 +32,13 @@ impl Ngon {
         diamond
     }
 
-    pub fn diamond(c: P2, r: f32) -> Self { Self::new(c, 4, r) }
+    pub fn diamond(c: P2, r: f32) -> Self {
+        Self::new(c, 4, r)
+    }
 
-    pub fn rotate(&mut self, phase: f32) { self.phase += phase; }
+    pub fn rotate(&mut self, phase: f32) {
+        self.phase += phase;
+    }
 }
 
 impl Iterator for Ngon {
@@ -73,5 +79,7 @@ impl Translate for Ngon {
 }
 
 impl Paint for Ngon {
-    fn paint(&self, comp: &mut Canvas) { comp.paint(FlatIterPath::new(*self, /*closed=*/true)) }
+    fn paint(&self, comp: &mut Canvas) {
+        comp.paint(FlatIterPath::new(*self, /*closed=*/ true))
+    }
 }

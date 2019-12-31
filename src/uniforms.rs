@@ -3,7 +3,7 @@
 pub use valora_derive::UniformSet;
 
 use glium::{
-    texture::texture2d::Texture2d,
+    texture::{texture2d::Texture2d, texture2d_multisample::Texture2dMultisample},
     uniforms::{SamplerBehavior, UniformValue},
 };
 
@@ -20,7 +20,19 @@ pub trait IntoUniformValue {
 macro_rules! primitive_uniform_value {
     ($primitive:ty, $wrapper:expr) => {
         impl IntoUniformValue for $primitive {
-            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> { $wrapper(*self) }
+            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
+                $wrapper(*self)
+            }
+        }
+    };
+}
+
+macro_rules! referenced_uniform_value {
+    ($base:ty, $wrapper:expr) => {
+        impl IntoUniformValue for $base {
+            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
+                $wrapper(self)
+            }
         }
     };
 }
@@ -127,19 +139,11 @@ primitive_uniform_value!([bool; 2], |v| UniformValue::BoolVec2(v));
 primitive_uniform_value!([bool; 3], |v| UniformValue::BoolVec3(v));
 primitive_uniform_value!([bool; 4], |v| UniformValue::BoolVec4(v));
 
-/// A texture that can be accessed from a shader.
-pub struct UniformTexture {
-    /// The texture.
-    pub texture: Texture2d,
-    /// The behavior of texture sampling.
-    pub sampler_behavior: Option<SamplerBehavior>,
-}
-
-impl IntoUniformValue for UniformTexture {
-    fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
-        UniformValue::Texture2d(&self.texture, self.sampler_behavior)
-    }
-}
+referenced_uniform_value!(Texture2d, |t| UniformValue::Texture2d(t, None));
+referenced_uniform_value!(
+    Texture2dMultisample,
+    |t| UniformValue::Texture2dMultisample(t, Some(SamplerBehavior::default()))
+);
 
 #[cfg(test)]
 mod test {

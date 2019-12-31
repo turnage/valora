@@ -3,14 +3,8 @@
 use crate::{gpu::GpuVertex, Result, P2};
 use lyon_path::Builder;
 use lyon_tessellation::{
-    FillOptions,
-    FillTessellator,
-    StrokeOptions,
-    StrokeTessellator,
-    BuffersBuilder,
-    VertexBuffers,
-    FillAttributes,
-    StrokeAttributes
+    BuffersBuilder, FillAttributes, FillOptions, FillTessellator, StrokeAttributes, StrokeOptions,
+    StrokeTessellator, VertexBuffers,
 };
 use palette::LinSrgba;
 
@@ -32,7 +26,6 @@ pub fn raster_path(
     method: Method,
     color: LinSrgba,
 ) -> Result<(Vec<GpuVertex>, Vec<u32>)> {
-
     match method {
         Method::Fill => {
             let ctor = |v: P2, _: FillAttributes| -> P2 { v };

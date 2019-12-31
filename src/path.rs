@@ -9,12 +9,12 @@ pub struct FlatIterPath<I> {
     src: I,
     last: Option<P2>,
     first: Option<P2>,
-    closed: bool
+    closed: bool,
 }
 
 impl<I> FlatIterPath<I>
 where
-    I: Iterator<Item = P2> 
+    I: Iterator<Item = P2>,
 {
     pub fn new(src: I, closed: bool) -> Self {
         Self {
@@ -34,14 +34,16 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let p = match self.src.next() {
             Some(p) => p,
-            None => {
-                match (self.first.take(), self.last.take()) {
-                    (Some(first), Some(last)) => return Some(PathEvent::End {
-                        last, first, close: self.closed
-                    }),
-                    _ => return None,
+            None => match (self.first.take(), self.last.take()) {
+                (Some(first), Some(last)) => {
+                    return Some(PathEvent::End {
+                        last,
+                        first,
+                        close: self.closed,
+                    })
                 }
-            }
+                _ => return None,
+            },
         };
 
         let result = if let Some(last) = self.last {
@@ -49,7 +51,7 @@ where
         } else {
             assert!(self.first.is_none());
             self.first = Some(p);
-            Some(PathEvent::Begin {at: p})
+            Some(PathEvent::Begin { at: p })
         };
 
         self.last = Some(p);

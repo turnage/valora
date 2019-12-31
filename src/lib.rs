@@ -16,13 +16,7 @@ pub mod uniforms;
 /// Exhuastive set of imports for painting.
 pub mod prelude {
     pub use self::{
-        canvas::*,
-        forms::*,
-        paint::*,
-        path::*,
-        shaders::*,
-        transforms::*,
-        uniforms::*,
+        canvas::*, forms::*, paint::*, path::*, shaders::*, transforms::*, uniforms::*,
     };
     pub use super::*;
     pub use euclid::{self, Rect};
@@ -31,17 +25,8 @@ pub mod prelude {
     pub use rayon::{self, prelude::*};
 
     pub use palette::{
-        self,
-        encoding::Srgb,
-        Alpha,
-        Blend,
-        ComponentWise,
-        Hue,
-        IntoColor,
-        LinSrgb,
-        LinSrgba,
-        Saturate,
-        *,
+        self, encoding::Srgb, Alpha, Blend, ComponentWise, Hue, IntoColor, LinSrgb, LinSrgba,
+        Saturate, *,
     };
     pub use rand::{self, rngs::StdRng, Rng, SeedableRng};
     pub use structopt::StructOpt;
@@ -157,10 +142,14 @@ pub struct World {
 
 impl World {
     /// Normalizes coordinates into the range [0, 1] by dividing them by the coordinate space dimensions.
-    pub fn normalize(&self, p: P2) -> P2 { P2::new(p.x / self.width, p.y / self.height) }
+    pub fn normalize(&self, p: P2) -> P2 {
+        P2::new(p.x / self.width, p.y / self.height)
+    }
 
     /// Returns the center of the coordinate space.
-    pub fn center(&self) -> P2 { P2::new(self.width / 2.0, self.height / 2.0) }
+    pub fn center(&self) -> P2 {
+        P2::new(self.width / 2.0, self.height / 2.0)
+    }
 }
 
 /// Draws a rectangle path covering the entire canvas.
@@ -229,15 +218,23 @@ where
             },
         )
     } else {
-        let (gpu, events_loop) = Gpu::with_window(output_width, output_height)?;
+        let (gpu, events_loop, (screen_width, screen_height)) =
+            Gpu::with_window(output_width, output_height)?;
+        let buffer = gpu.build_texture(screen_width, screen_height)?;
+
         let wait = Duration::from_secs_f64(1. / options.world.framerate as f64);
         let gpu_clone = gpu.clone();
+
+        let texture_glsl = include_str!("shaders/texture.frag");
+        let texture_program = gpu.compile_glsl(texture_glsl)?;
 
         (
             gpu,
             RenderStrategy::Screen {
                 events_loop,
                 wait,
+                buffer,
+                texture_program,
                 get_frame: move || {
                     gpu_clone
                         .get_frame()
