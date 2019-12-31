@@ -1,16 +1,16 @@
 //! Path rasterization.
 
-use crate::{gpu::GpuVertex, Result};
+use crate::{gpu::GpuVertex, Result, P2};
 use lyon_path::Builder;
 use lyon_tessellation::{
-    geometry_builder::vertex_builder,
     FillOptions,
     FillTessellator,
-    FillVertex,
     StrokeOptions,
     StrokeTessellator,
-    StrokeVertex,
+    BuffersBuilder,
     VertexBuffers,
+    FillAttributes,
+    StrokeAttributes
 };
 use palette::LinSrgba;
 
@@ -32,14 +32,18 @@ pub fn raster_path(
     method: Method,
     color: LinSrgba,
 ) -> Result<(Vec<GpuVertex>, Vec<u32>)> {
+
     match method {
         Method::Fill => {
-            let mut buffers: VertexBuffers<FillVertex, u32> = VertexBuffers::new();
+            let ctor = |v: P2, _: FillAttributes| -> P2 { v };
+            let mut buffers: VertexBuffers<P2, u32> = VertexBuffers::new();
+            let mut buffers_builder = BuffersBuilder::new(&mut buffers, ctor);
+
             let mut tessellator = FillTessellator::new();
             let result = tessellator.tessellate_path(
                 &builder.build(),
                 &FillOptions::default().with_tolerance(0.05),
-                &mut vertex_builder(&mut buffers, |v| v),
+                &mut buffers_builder,
             );
             match result {
                 Ok(_) => {}
@@ -51,7 +55,7 @@ pub fn raster_path(
                     .vertices
                     .into_iter()
                     .map(|v| GpuVertex {
-                        vpos: [v.position.x, v.position.y],
+                        vpos: [v.x, v.y],
                         vcol: [
                             color.color.red,
                             color.color.green,
@@ -64,7 +68,10 @@ pub fn raster_path(
             ))
         }
         Method::Stroke(width) => {
-            let mut buffers: VertexBuffers<StrokeVertex, u32> = VertexBuffers::new();
+            let ctor = |v: P2, _: StrokeAttributes| -> P2 { v };
+            let mut buffers: VertexBuffers<P2, u32> = VertexBuffers::new();
+            let mut buffers_builder = BuffersBuilder::new(&mut buffers, ctor);
+
             let mut tessellator = StrokeTessellator::new();
             tessellator
                 .tessellate_path(
@@ -72,7 +79,7 @@ pub fn raster_path(
                     &StrokeOptions::default()
                         .with_line_width(width)
                         .with_tolerance(0.05),
-                    &mut vertex_builder(&mut buffers, |v| v),
+                    &mut buffers_builder,
                 )
                 .expect("TODO: wrap error");
 
@@ -81,7 +88,7 @@ pub fn raster_path(
                     .vertices
                     .into_iter()
                     .map(|v| GpuVertex {
-                        vpos: [v.position.x, v.position.y],
+                        vpos: [v.x, v.y],
                         vcol: [
                             color.color.red,
                             color.color.green,

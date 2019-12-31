@@ -1,6 +1,6 @@
 // Regular ngons.
 
-use crate::{Canvas, ClosedPath, FlatIterPath, Paint, Scale, Translate, P2, V2};
+use crate::{Canvas, FlatIterPath, Paint, Scale, Translate, P2, V2};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ngon {
@@ -73,5 +73,5 @@ impl Translate for Ngon {
 }
 
 impl Paint for Ngon {
-    fn paint(&self, comp: &mut Canvas) { comp.paint(ClosedPath::from(FlatIterPath::from(*self))) }
+    fn paint(&self, comp: &mut Canvas) { comp.paint(FlatIterPath::new(*self, /*closed=*/true)) }
 }

@@ -1,6 +1,6 @@
 //! Polygon.
 
-use crate::{Canvas, ClosedPath, FlatIterPath, Paint, Subdivide, Translate, P2, V2};
+use crate::{Canvas, FlatIterPath, Paint, Subdivide, Translate, P2, V2};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::iter::{DoubleEndedIterator, FromIterator};
@@ -34,7 +34,7 @@ impl Polygon {
 
 impl Paint for Polygon {
     fn paint(&self, canvas: &mut Canvas) {
-        canvas.paint(ClosedPath::from(FlatIterPath::from(self.vertices())))
+        canvas.paint(FlatIterPath::new(self.vertices(), /*closed=*/true))
     }
 }
 
