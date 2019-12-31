@@ -4,36 +4,36 @@ use crate::{Canvas, FlatIterPath, Paint, Scale, Translate, P2, V2};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ngon {
-    phase: f32,
-    r: f32,
-    n: usize,
-    c: P2,
+    pub phase: f32,
+    pub radius: f32,
+    pub n: usize,
+    pub center: P2,
     i: usize,
 }
 
 impl Ngon {
-    pub fn new(c: P2, n: usize, r: f32) -> Self {
+    pub fn new(center: P2, n: usize, radius: f32) -> Self {
         Self {
             phase: 0.,
-            r,
+            radius,
             n,
-            c,
+            center,
             i: 0,
         }
     }
 
-    pub fn triangle(c: P2, r: f32) -> Self {
-        Self::new(c, 3, r)
+    pub fn triangle(center: P2, radius: f32) -> Self {
+        Self::new(center, 3, radius)
     }
 
-    pub fn square(c: P2, r: f32) -> Self {
-        let mut diamond = Self::diamond(c, r);
+    pub fn square(center: P2, radius: f32) -> Self {
+        let mut diamond = Self::diamond(center, radius);
         diamond.phase -= std::f32::consts::PI / 4.;
         diamond
     }
 
-    pub fn diamond(c: P2, r: f32) -> Self {
-        Self::new(c, 4, r)
+    pub fn diamond(center: P2, radius: f32) -> Self {
+        Self::new(center, 4, radius)
     }
 
     pub fn rotate(&mut self, phase: f32) {
@@ -54,8 +54,8 @@ impl Iterator for Ngon {
         self.i += 1;
 
         Some(P2::new(
-            self.c.x + theta.sin() * self.r,
-            self.c.y + theta.cos() * self.r,
+            self.center.x + theta.sin() * self.radius,
+            self.center.y + theta.cos() * self.radius,
         ))
     }
 }
@@ -63,7 +63,7 @@ impl Iterator for Ngon {
 impl Scale for Ngon {
     fn scale(self, factor: f32) -> Self {
         Self {
-            r: self.r * factor,
+            radius: self.radius * factor,
             ..self
         }
     }
@@ -72,7 +72,7 @@ impl Scale for Ngon {
 impl Translate for Ngon {
     fn translate(self, translation: V2) -> Self {
         Self {
-            c: self.c + translation,
+            center: self.center + translation,
             ..self
         }
     }
