@@ -1,10 +1,10 @@
 // Regular ngons.
 
-use crate::{Canvas, FlatIterPath, Paint, Scale, Translate, P2, V2};
+use crate::{Angle, Canvas, FlatIterPath, Paint, Rotate, Scale, Translate, P2, V2};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ngon {
-    pub phase: f32,
+    pub phase: Angle,
     pub radius: f32,
     pub n: usize,
     pub center: P2,
@@ -14,7 +14,7 @@ pub struct Ngon {
 impl Ngon {
     pub fn new(center: P2, n: usize, radius: f32) -> Self {
         Self {
-            phase: 0.,
+            phase: Angle::radians(0.),
             radius,
             n,
             center,
@@ -28,7 +28,7 @@ impl Ngon {
 
     pub fn square(center: P2, radius: f32) -> Self {
         let mut diamond = Self::diamond(center, radius);
-        diamond.phase -= std::f32::consts::PI / 4.;
+        diamond.phase -= Angle::radians(std::f32::consts::PI / 4.);
         diamond
     }
 
@@ -36,7 +36,7 @@ impl Ngon {
         Self::new(center, 4, radius)
     }
 
-    pub fn rotate(&mut self, phase: f32) {
+    pub fn rotate(&mut self, phase: Angle) {
         self.phase += phase;
     }
 }
@@ -50,12 +50,12 @@ impl Iterator for Ngon {
         }
 
         let completion = self.i as f32 / self.n as f32;
-        let theta = (completion * std::f32::consts::PI * 2.0) + self.phase;
+        let theta = Angle::radians(completion * std::f32::consts::PI * 2.0) + self.phase;
         self.i += 1;
 
         Some(P2::new(
-            self.center.x + theta.sin() * self.radius,
-            self.center.y + theta.cos() * self.radius,
+            self.center.x + theta.get().sin() * self.radius,
+            self.center.y + theta.get().cos() * self.radius,
         ))
     }
 }
@@ -73,6 +73,16 @@ impl Translate for Ngon {
     fn translate(self, translation: V2) -> Self {
         Self {
             center: self.center + translation,
+            ..self
+        }
+    }
+}
+
+impl Rotate for Ngon {
+    fn rotate(self, pivot: P2, theta: Angle) -> Self {
+        Self {
+            center: self.center.rotate(pivot, theta),
+            phase: self.phase + theta,
             ..self
         }
     }

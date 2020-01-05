@@ -28,7 +28,8 @@ fn main() -> Result<()> {
                         .abs();
 
                     (
-                        Ngon::diamond(center, diamond_radius * (0.2 + animated_scale)),
+                        Ngon::diamond(center, diamond_radius * (0.2 + animated_scale))
+                            .rotate(center, Angle::radians(ctx.time.as_secs_f32())),
                         x + y,
                     )
                 })

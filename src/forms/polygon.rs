@@ -1,6 +1,6 @@
 //! Polygon.
 
-use crate::{Canvas, FlatIterPath, Paint, Subdivide, Translate, P2, V2};
+use crate::{Angle, Canvas, Ellipse, FlatIterPath, Paint, Rotate, Subdivide, Translate, P2, V2};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::iter::{DoubleEndedIterator, FromIterator};
@@ -56,6 +56,16 @@ impl Subdivide for Polygon {
                 ArrayVec::from([a, midpoint]).into_iter()
             })
             .collect::<Self>()
+    }
+}
+
+impl Rotate for Polygon {
+    fn rotate(mut self, pivot: P2, theta: Angle) -> Self {
+        self.vertices_mut().for_each(|v| {
+            *v = v.rotate(pivot, theta);
+        });
+
+        self
     }
 }
 

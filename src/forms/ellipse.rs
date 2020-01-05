@@ -1,6 +1,6 @@
 //! Ellipses
 
-use crate::{transforms::Scale, Angle, Canvas, Paint, Translate, P2, PI, V2};
+use crate::{transforms::Scale, Angle, Canvas, Paint, Rotate, Translate, P2, PI, V2};
 use rand::{distributions::Distribution, Rng};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -31,10 +31,13 @@ impl Ellipse {
         Self { phase, ..self }
     }
 
-    pub fn circumphase(&self, p: &P2) -> f32 {
-        (p.y - self.center.y).atan2(p.x - self.center.x)
+    /// Returns the phase of `p` on the circle relative to its center. (E.g.
+    /// to the right is 0, to the left is PI.)
+    pub fn circumphase(&self, p: &P2) -> Angle {
+        Angle::radians((p.y - self.center.y).atan2(p.x - self.center.x))
     }
 
+    /// Returns a point on the circumference of the circle at `angle`.
     pub fn circumpoint(&self, angle: Angle) -> P2 {
         P2::new(
             self.center.x + angle.radians.cos() * self.radii.x,
@@ -68,6 +71,16 @@ impl Translate for Ellipse {
     fn translate(self, translation: V2) -> Self {
         Self {
             center: self.center + translation,
+            ..self
+        }
+    }
+}
+
+impl Rotate for Ellipse {
+    fn rotate(self, pivot: P2, theta: Angle) -> Self {
+        Self {
+            center: self.center.rotate(pivot, theta),
+            phase: self.phase + theta,
             ..self
         }
     }
