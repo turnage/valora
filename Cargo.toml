@@ -1,6 +1,6 @@
 [package]
 name = "valora"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 description = "A brush for generative fine art."
@@ -22,7 +22,7 @@ failure_derive = "0.1.5"
 image = "0.22.3"
 nalgebra = "0.18.0"
 lyon_path = "0.15.*"
-lyon_tessellation = "0.15.4"
+lyon_tessellation = "0.15.*"
 euclid = "0.20.4"
 palette = "0.5.0"
 rayon = "1.2.0"
