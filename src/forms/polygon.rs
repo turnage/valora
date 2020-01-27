@@ -1,6 +1,6 @@
 //! Polygon.
 
-use crate::{Angle, Canvas, Ellipse, FlatIterPath, Paint, Rotate, Subdivide, Translate, P2, V2};
+use crate::{Angle, Canvas, FlatIterPath, Paint, Rotate, Subdivide, Translate, P2, V2};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::iter::{DoubleEndedIterator, FromIterator};
