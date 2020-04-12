@@ -1,6 +1,6 @@
 [package]
 name = "valora"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 description = "A brush for generative fine art."
