@@ -80,7 +80,7 @@ impl Canvas {
 
     /// Sets the width of lines drawn with the `stroke()`.
     pub fn set_stroke_width(&mut self, stroke_width: f32) {
-        self.stroke_width = stroke_width;
+        self.stroke_width = stroke_width * self.scale;
     }
 
     /// Paints the current path by filling the region inside the path.
