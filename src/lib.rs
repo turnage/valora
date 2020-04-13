@@ -283,7 +283,7 @@ where
                     current_seed = new_seed;
                 }
             }
-        } else if report.explicit_quit || !options.brainstorm {
+        } else if report.explicit_quit || !options.brainstorm || options.output.is_some() {
             break;
         }
     }
