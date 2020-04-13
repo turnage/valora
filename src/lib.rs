@@ -256,6 +256,7 @@ where
     };
 
     let mut current_seed = options.world.seed;
+    let mut render_count = 0;
     loop {
         let mut rng = StdRng::seed_from_u64(current_seed);
         let mut paint_fn = f(gpu.clone(), options.world, &mut rng)?;
@@ -266,6 +267,10 @@ where
             options: Options {
                 world: World {
                     seed: current_seed,
+                    frames: match (options.brainstorm, options.output.as_ref()) {
+                        (true, Some(_)) => Some(1),
+                        _ => options.world.frames,
+                    },
                     ..options.world
                 },
                 ..options.clone()
@@ -283,9 +288,16 @@ where
                     current_seed = new_seed;
                 }
             }
+        } else if options.brainstorm
+            && options.output.is_some()
+            && render_count < options.world.frames.unwrap_or(usize::max_value())
+        {
+            current_seed += 1;
         } else if report.explicit_quit || !options.brainstorm || options.output.is_some() {
             break;
         }
+
+        render_count += 1;
     }
 
     Ok(())
