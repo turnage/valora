@@ -39,9 +39,7 @@ impl Paint for Polygon {
 }
 
 impl Paint for &Polygon {
-    fn paint(&self, canvas: &mut Canvas) {
-        (**self).paint(canvas);
-    }
+    fn paint(&self, canvas: &mut Canvas) { (**self).paint(canvas); }
 }
 
 impl Subdivide for Polygon {
