@@ -3,9 +3,10 @@
 use crate::{canvas::*, gpu::*, paint::*, uniforms::*, Options, Result, World};
 use glium::{
     glutin::EventsLoop,
-    texture::texture2d_multisample::Texture2dMultisample,
-    texture::{Dimensions, MipmapsOption},
-    Frame, GlObject, Program,
+    texture::{texture2d_multisample::Texture2dMultisample, Dimensions, MipmapsOption},
+    Frame,
+    GlObject,
+    Program,
 };
 use image::{ImageBuffer, Rgba};
 use palette::{

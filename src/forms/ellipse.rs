@@ -27,9 +27,7 @@ impl Ellipse {
         }
     }
 
-    pub fn with_phase(self, phase: Angle) -> Self {
-        Self { phase, ..self }
-    }
+    pub fn with_phase(self, phase: Angle) -> Self { Self { phase, ..self } }
 
     /// Returns the phase of `p` on the circle relative to its center. (E.g.
     /// to the right is 0, to the left is PI.)
@@ -45,9 +43,7 @@ impl Ellipse {
         )
     }
 
-    pub fn uniform_circle_sampler(&self) -> UniformCircleSampler {
-        UniformCircleSampler(*self)
-    }
+    pub fn uniform_circle_sampler(&self) -> UniformCircleSampler { UniformCircleSampler(*self) }
 }
 
 impl Scale for Ellipse {

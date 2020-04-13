@@ -8,18 +8,29 @@ use crate::{
 use glium::{
     backend::{
         glutin::{headless::Headless, Display},
-        Context, Facade,
+        Context,
+        Facade,
     },
     glutin::EventsLoop,
     implement_vertex,
     index::PrimitiveType,
     texture::{
-        texture2d::Texture2d, texture2d_multisample::Texture2dMultisample, MipmapsOption,
-        RawImage2d, UncompressedFloatFormat,
+        texture2d::Texture2d,
+        texture2d_multisample::Texture2dMultisample,
+        MipmapsOption,
+        RawImage2d,
+        UncompressedFloatFormat,
     },
     uniforms::{MagnifySamplerFilter, UniformValue, Uniforms},
-    Blend, BlendingFunction, DrawParameters, Frame, IndexBuffer, LinearBlendingFactor, Program,
-    Surface, VertexBuffer,
+    Blend,
+    BlendingFunction,
+    DrawParameters,
+    Frame,
+    IndexBuffer,
+    LinearBlendingFactor,
+    Program,
+    Surface,
+    VertexBuffer,
 };
 use glutin::dpi::PhysicalSize;
 use itertools::Itertools;
@@ -105,23 +116,17 @@ pub struct Element {
 pub struct DisplayFacade(Display);
 
 impl Facade for DisplayFacade {
-    fn get_context(&self) -> &Rc<Context> {
-        self.0.get_context()
-    }
+    fn get_context(&self) -> &Rc<Context> { self.0.get_context() }
 }
 
 pub trait FacadeExt: Facade {
-    fn get_frame(&self) -> Option<Frame> {
-        None
-    }
+    fn get_frame(&self) -> Option<Frame> { None }
 }
 
 impl FacadeExt for Headless {}
 
 impl FacadeExt for DisplayFacade {
-    fn get_frame(&self) -> Option<Frame> {
-        Some(self.0.draw())
-    }
+    fn get_frame(&self) -> Option<Frame> { Some(self.0.draw()) }
 }
 
 /// A handle to the GPU for managing buffers and shaders.
@@ -204,9 +209,7 @@ impl Gpu {
         ))
     }
 
-    pub(crate) fn get_frame(&self) -> Option<Frame> {
-        self.ctx.get_frame()
-    }
+    pub(crate) fn get_frame(&self) -> Option<Frame> { self.ctx.get_frame() }
 
     pub(crate) fn default_shader(&self) -> Shader {
         Shader {
