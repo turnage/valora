@@ -216,11 +216,11 @@ where
                 buffer,
                 output_path: move |frame_number: usize, seed: u64| {
                     let mut base_path = base_path.clone();
-                    base_path.push(format!("{}", seed));
                     std::fs::create_dir_all(&base_path)
                         .expect(&format!("To create save directory {:?}", base_path));
                     base_path.push(format!(
-                        "{number:>0width$}.png",
+                        "{}_{number:>0width$}.png",
+                        seed,
                         number = frame_number,
                         width = number_width
                     ));
