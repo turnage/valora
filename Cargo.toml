@@ -1,11 +1,12 @@
 [package]
 name = "valora"
-version = "0.2.8"
+version = "0.2.9"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 description = "A brush for generative fine art."
 license = "MIT"
 homepage = "https://github.com/turnage/valora"
+repository = "https://github.com/turnage/valora.git"
 readme = "readme.md"
 
 [workspace]
