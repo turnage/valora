@@ -197,7 +197,14 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 let mut new_seed = None;
                 let mut should_quit = false;
                 events_loop.poll_events(|event| {
-                    use glutin::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode};
+                    use glutin::{
+                        DeviceEvent,
+                        ElementState,
+                        Event,
+                        KeyboardInput,
+                        VirtualKeyCode,
+                        WindowEvent,
+                    };
                     match event {
                         Event::DeviceEvent {
                             event:
@@ -219,6 +226,12 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                             ..
                         } => {
                             new_seed = Some(random());
+                        }
+                        Event::WindowEvent {
+                            event: WindowEvent::CloseRequested,
+                            ..
+                        } => {
+                            should_quit = true;
                         }
                         _ => {}
                     }
