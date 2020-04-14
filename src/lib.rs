@@ -5,6 +5,7 @@ mod noise_traits;
 mod raster;
 mod render;
 
+pub mod attributes;
 pub mod canvas;
 pub mod forms;
 pub mod paint;
@@ -16,10 +17,11 @@ pub mod uniforms;
 /// Exhuastive set of imports for painting.
 pub mod prelude {
     pub use self::{
-        canvas::*, forms::*, paint::*, path::*, shaders::*, transforms::*, uniforms::*,
+        attributes::*, canvas::*, forms::*, paint::*, path::*, shaders::*, transforms::*,
+        uniforms::*,
     };
     pub use super::*;
-    pub use euclid::{self, Rect};
+    pub use euclid;
     pub use noise::{self, *};
     pub use noise_traits::*;
     pub use rayon::{self, prelude::*};
@@ -149,6 +151,15 @@ impl World {
     /// Returns the center of the coordinate space.
     pub fn center(&self) -> P2 {
         P2::new(self.width / 2.0, self.height / 2.0)
+    }
+
+    /// Returns a `Rect` representing the entire frame.
+    pub fn rect(&self) -> Rect {
+        Rect {
+            bottom_left: P2::new(0., 0.),
+            width: self.width,
+            height: self.height,
+        }
     }
 }
 

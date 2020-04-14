@@ -1,6 +1,9 @@
 //! Polygon.
 
-use crate::{Angle, Canvas, FlatIterPath, Paint, Rotate, Subdivide, Translate, P2, V2};
+use crate::{
+    Angle, Canvas, Center, Ellipse, FlatIterPath, Paint, Rect, Rotate, Scale, Subdivide, Translate,
+    P2, V2,
+};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::iter::{DoubleEndedIterator, FromIterator};
@@ -72,6 +75,28 @@ impl Rotate for Polygon {
 impl Translate for Polygon {
     fn translate(mut self, translation: V2) -> Self {
         self.vertices.iter_mut().for_each(|p| *p += translation);
+        self
+    }
+}
+
+impl Center for Polygon {
+    fn center(&self) -> P2 {
+        Rect::extent(self.vertices()).center()
+    }
+}
+
+impl Scale for Polygon {
+    fn scale(mut self, factor: f32) -> Self {
+        let scale_vertex_from = |anchor: P2, v: P2| -> P2 {
+            let distance = (anchor - v).length();
+            let phase = Ellipse::circle(anchor, distance).circumphase(&v);
+            Ellipse::circle(anchor, distance * factor).circumpoint(phase)
+        };
+
+        let center = self.center();
+        self.vertices
+            .iter_mut()
+            .for_each(|p| *p = scale_vertex_from(center, *p));
         self
     }
 }
