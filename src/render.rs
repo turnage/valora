@@ -2,10 +2,11 @@
 
 use crate::{canvas::*, gpu::*, paint::*, uniforms::*, Options, Result, World};
 use glium::{
-    glutin::EventsLoop,
+    glutin::event_loop::{ControlFlow, EventLoop},
     texture::{texture2d_multisample::Texture2dMultisample, Dimensions, MipmapsOption},
     Frame, GlObject, Program,
 };
+use glutin::platform::desktop::EventLoopExtDesktop;
 use image::{ImageBuffer, Rgba};
 use palette::{
     encoding::{srgb::Srgb, TransferFn},
@@ -51,7 +52,7 @@ struct FrameUpdates {
 pub enum RenderStrategy<F1, F2> {
     Screen {
         get_frame: F1,
-        events_loop: EventsLoop,
+        events_loop: EventLoop<()>,
         wait: Duration,
         texture_program: Rc<Program>,
         buffer: Texture2dMultisample,
@@ -194,8 +195,8 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
 
                 let mut new_seed = None;
                 let mut should_quit = false;
-                events_loop.poll_events(|event| {
-                    use glutin::{
+                events_loop.run_return(|event, _, control_flow| {
+                    use glutin::event::{
                         DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode,
                         WindowEvent,
                     };
@@ -229,6 +230,8 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                         }
                         _ => {}
                     }
+
+                    *control_flow = ControlFlow::Exit;
                 });
 
                 Ok(FrameUpdates {

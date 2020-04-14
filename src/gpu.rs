@@ -10,7 +10,7 @@ use glium::{
         glutin::{headless::Headless, Display},
         Context, Facade,
     },
-    glutin::EventsLoop,
+    glutin::event_loop::EventLoop,
     implement_vertex,
     index::PrimitiveType,
     texture::{
@@ -141,15 +141,15 @@ struct GpuCommand<'a, S> {
 }
 
 impl Gpu {
-    pub(crate) fn new() -> Result<(Self, EventsLoop)> {
-        let events_loop = EventsLoop::new();
+    pub(crate) fn new() -> Result<(Self, EventLoop<()>)> {
+        let events_loop = EventLoop::new();
         let ctx = glium::glutin::ContextBuilder::new()
             .with_multisampling(0)
             .build_headless(
                 &events_loop,
                 PhysicalSize {
-                    width: 0.0,
-                    height: 0.0,
+                    width: 0,
+                    height: 0,
                 },
             )?;
         let ctx = Rc::new(Headless::new(ctx)?);
@@ -171,10 +171,13 @@ impl Gpu {
         ))
     }
 
-    pub(crate) fn with_window(width: u32, height: u32) -> Result<(Self, EventsLoop, (u32, u32))> {
-        let events_loop = EventsLoop::new();
-        let wb = glium::glutin::WindowBuilder::new()
-            .with_dimensions(glutin::dpi::LogicalSize {
+    pub(crate) fn with_window(
+        width: u32,
+        height: u32,
+    ) -> Result<(Self, EventLoop<()>, (u32, u32))> {
+        let events_loop = EventLoop::new();
+        let wb = winit::window::WindowBuilder::new()
+            .with_inner_size(glutin::dpi::LogicalSize {
                 width: width as f64,
                 height: height as f64,
             })
