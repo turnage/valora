@@ -3,14 +3,8 @@
 use crate::{gpu::GpuVertex, Result, P2};
 use lyon_path::Builder;
 use lyon_tessellation::{
-    BuffersBuilder,
-    FillAttributes,
-    FillOptions,
-    FillTessellator,
-    StrokeAttributes,
-    StrokeOptions,
-    StrokeTessellator,
-    VertexBuffers,
+    BuffersBuilder, FillAttributes, FillOptions, FillTessellator, StrokeAttributes, StrokeOptions,
+    StrokeTessellator, VertexBuffers,
 };
 use palette::LinSrgba;
 

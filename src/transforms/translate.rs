@@ -9,5 +9,7 @@ pub trait Translate {
 }
 
 impl Translate for P2 {
-    fn translate(self, translation: V2) -> Self { self + translation }
+    fn translate(self, translation: V2) -> Self {
+        self + translation
+    }
 }

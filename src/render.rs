@@ -4,9 +4,7 @@ use crate::{canvas::*, gpu::*, paint::*, uniforms::*, Options, Result, World};
 use glium::{
     glutin::EventsLoop,
     texture::{texture2d_multisample::Texture2dMultisample, Dimensions, MipmapsOption},
-    Frame,
-    GlObject,
-    Program,
+    Frame, GlObject, Program,
 };
 use image::{ImageBuffer, Rgba};
 use palette::{
@@ -198,11 +196,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 let mut should_quit = false;
                 events_loop.poll_events(|event| {
                     use glutin::{
-                        DeviceEvent,
-                        ElementState,
-                        Event,
-                        KeyboardInput,
-                        VirtualKeyCode,
+                        DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode,
                         WindowEvent,
                     };
                     match event {

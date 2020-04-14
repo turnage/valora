@@ -20,7 +20,9 @@ pub trait IntoUniformValue {
 macro_rules! primitive_uniform_value {
     ($primitive:ty, $wrapper:expr) => {
         impl IntoUniformValue for $primitive {
-            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> { $wrapper(*self) }
+            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
+                $wrapper(*self)
+            }
         }
     };
 }
@@ -28,7 +30,9 @@ macro_rules! primitive_uniform_value {
 macro_rules! referenced_uniform_value {
     ($base:ty, $wrapper:expr) => {
         impl IntoUniformValue for $base {
-            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> { $wrapper(self) }
+            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
+                $wrapper(self)
+            }
         }
     };
 }

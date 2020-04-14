@@ -27,7 +27,9 @@ impl Canvas {
     }
 
     /// Paints an element.
-    pub fn paint(&mut self, element: impl Paint) { element.paint(self); }
+    pub fn paint(&mut self, element: impl Paint) {
+        element.paint(self);
+    }
 
     /// Sets the current color.
     pub fn set_color(&mut self, color: impl IntoColor) {
@@ -49,7 +51,9 @@ impl Canvas {
     }
 
     /// Adds a line to the current path which ends at the given point.
-    pub fn line_to(&mut self, dest: P2) { self.path.line_to(dest * self.scale); }
+    pub fn line_to(&mut self, dest: P2) {
+        self.path.line_to(dest * self.scale);
+    }
 
     /// Adds a quadratic bezier curve to the current path with the given control and end points.
     pub fn quadratic_to(&mut self, ctrl: P2, end: P2) {
@@ -70,7 +74,9 @@ impl Canvas {
     }
 
     /// Closes the current path.
-    pub fn close_path(&mut self) { self.path.close() }
+    pub fn close_path(&mut self) {
+        self.path.close()
+    }
 
     /// Sets the width of lines drawn with the `stroke()`.
     pub fn set_stroke_width(&mut self, stroke_width: f32) {
@@ -78,17 +84,23 @@ impl Canvas {
     }
 
     /// Paints the current path by filling the region inside the path.
-    pub fn fill(&mut self) { self.push_element(Method::Fill); }
+    pub fn fill(&mut self) {
+        self.push_element(Method::Fill);
+    }
 
     /// Paints the current path by stroking the path.
-    pub fn stroke(&mut self) { self.push_element(Method::Stroke(self.stroke_width)); }
+    pub fn stroke(&mut self) {
+        self.push_element(Method::Stroke(self.stroke_width));
+    }
 
     /// Sets the current shader used to shade rastered paths.
     ///
     /// Changing shaders requires making a new draw call to the GPU and tearing down some state.
     /// Changing shaders 0-10 times per frame is likely to be fast enough. Changing shaders 500
     /// times per frame will be slow.
-    pub fn set_shader(&mut self, shader: Shader) { self.shader = shader; }
+    pub fn set_shader(&mut self, shader: Shader) {
+        self.shader = shader;
+    }
 
     fn push_element(&mut self, raster_method: Method) {
         let mut path = Builder::new();
@@ -107,5 +119,7 @@ impl IntoIterator for Canvas {
     type Item = Element;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
-    fn into_iter(self) -> Self::IntoIter { self.elements.into_iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.elements.into_iter()
+    }
 }

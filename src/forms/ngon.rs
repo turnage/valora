@@ -22,7 +22,9 @@ impl Ngon {
         }
     }
 
-    pub fn triangle(center: P2, radius: f32) -> Self { Self::new(center, 3, radius) }
+    pub fn triangle(center: P2, radius: f32) -> Self {
+        Self::new(center, 3, radius)
+    }
 
     pub fn square(center: P2, radius: f32) -> Self {
         let mut diamond = Self::diamond(center, radius);
@@ -30,9 +32,13 @@ impl Ngon {
         diamond
     }
 
-    pub fn diamond(center: P2, radius: f32) -> Self { Self::new(center, 4, radius) }
+    pub fn diamond(center: P2, radius: f32) -> Self {
+        Self::new(center, 4, radius)
+    }
 
-    pub fn rotate(&mut self, phase: Angle) { self.phase += phase; }
+    pub fn rotate(&mut self, phase: Angle) {
+        self.phase += phase;
+    }
 }
 
 impl Iterator for Ngon {

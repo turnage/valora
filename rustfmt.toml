@@ -1,3 +1,0 @@
-imports_layout = "HorizontalVertical"
-merge_imports = true
-fn_single_line = true
