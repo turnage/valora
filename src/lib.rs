@@ -210,14 +210,15 @@ where
         let (gpu, _) = Gpu::new()?;
         let buffer = gpu.build_texture(output_width, output_height)?;
 
+        std::fs::create_dir_all(&base_path)
+            .expect(&format!("To create save directory {}", base_path.display()));
+
         (
             gpu,
             RenderStrategy::File {
                 buffer,
                 output_path: move |frame_number: usize, seed: u64| {
                     let mut base_path = base_path.clone();
-                    std::fs::create_dir_all(&base_path)
-                        .expect(&format!("To create save directory {:?}", base_path));
                     base_path.push(format!(
                         "{}_{number:>0width$}.png",
                         seed,

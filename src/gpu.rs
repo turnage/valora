@@ -183,6 +183,7 @@ impl Gpu {
                 width: width as f64,
                 height: height as f64,
             })
+            .with_resizable(false)
             .with_title("Hello world");
         let cb = glium::glutin::ContextBuilder::new()
             .with_srgb(false)
