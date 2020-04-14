@@ -184,7 +184,7 @@ impl Gpu {
                 height: height as f64,
             })
             .with_resizable(false)
-            .with_title("Hello world");
+            .with_title("valora");
         let cb = glium::glutin::ContextBuilder::new()
             .with_srgb(false)
             .with_multisampling(8);
