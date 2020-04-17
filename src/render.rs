@@ -150,7 +150,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 self.gpu.render(
                     self.output_width,
                     self.output_height,
-                    canvas,
+                    canvas.elements(),
                     &mut buffer.as_surface(),
                 )?;
 
@@ -189,7 +189,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 self.gpu.render(
                     self.output_width,
                     self.output_height,
-                    quad_canvas,
+                    quad_canvas.elements(),
                     &mut frame,
                 )?;
 
@@ -247,7 +247,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 self.gpu.render(
                     self.output_width,
                     self.output_height,
-                    canvas,
+                    canvas.elements(),
                     &mut buffer.as_surface(),
                 )?;
 

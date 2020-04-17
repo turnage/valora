@@ -13,6 +13,7 @@ readme = "readme.md"
 members = ["valora_derive"]
 
 [dependencies]
+amicola = { path = "amicola" }
 glium = "0.27"
 glutin = "0.24"
 structopt = "0.3.0"

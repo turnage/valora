@@ -1,6 +1,7 @@
 //! Path rasterization.
 
 use crate::{gpu::GpuVertex, Result, P2};
+use glium::index::PrimitiveType;
 use lyon_path::Builder;
 use lyon_tessellation::{
     BuffersBuilder, FillAttributes, FillOptions, FillTessellator, StrokeAttributes, StrokeOptions,
@@ -21,45 +22,79 @@ pub enum Method {
     Stroke(f32),
 }
 
-pub fn raster_path(
-    builder: Builder,
-    method: Method,
+pub struct RasterResult {
+    pub primitive: PrimitiveType,
+    pub vertices: Vec<GpuVertex>,
+    pub indices: Vec<u32>,
+}
+
+pub fn format_shade_commands(
     color: LinSrgba,
-) -> Result<(Vec<GpuVertex>, Vec<u32>)> {
-    match method {
-        Method::Fill => {
-            let ctor = |v: P2, _: FillAttributes| -> P2 { v };
-            let mut buffers: VertexBuffers<P2, u32> = VertexBuffers::new();
-            let mut buffers_builder = BuffersBuilder::new(&mut buffers, ctor);
+    shade_commands: impl Iterator<Item = amicola::ShadeCommand>,
+) -> RasterResult {
+    let mut vertices = vec![];
+    for cmd in shade_commands {
+        match cmd {
+            amicola::ShadeCommand::Boundary { x, y, coverage } => {
+                let mut color = color;
+                color.alpha *= coverage;
+                vertices.push(GpuVertex {
+                    vpos: [x as f32, y as f32],
+                    vcol: [
+                        color.color.red,
+                        color.color.green,
+                        color.color.blue,
+                        color.alpha,
+                    ],
+                });
 
-            let mut tessellator = FillTessellator::new();
-            let result = tessellator.tessellate_path(
-                &builder.build(),
-                &FillOptions::default().with_tolerance(0.05),
-                &mut buffers_builder,
-            );
-            match result {
-                Ok(_) => {}
-                Err(e) => panic!("Tessellation failed: {:?}", e),
+                vertices.push(GpuVertex {
+                    vpos: [x as f32 + 1., y as f32],
+                    vcol: [
+                        color.color.red,
+                        color.color.green,
+                        color.color.blue,
+                        color.alpha,
+                    ],
+                });
             }
+            amicola::ShadeCommand::Span { x, y } => {
+                vertices.push(GpuVertex {
+                    vpos: [x.start as f32, y as f32],
+                    vcol: [
+                        color.color.red,
+                        color.color.green,
+                        color.color.blue,
+                        color.alpha,
+                    ],
+                });
 
-            Ok((
-                buffers
-                    .vertices
-                    .into_iter()
-                    .map(|v| GpuVertex {
-                        vpos: [v.x, v.y],
-                        vcol: [
-                            color.color.red,
-                            color.color.green,
-                            color.color.blue,
-                            color.alpha,
-                        ],
-                    })
-                    .collect(),
-                buffers.indices,
-            ))
+                vertices.push(GpuVertex {
+                    vpos: [x.end as f32, y as f32],
+                    vcol: [
+                        color.color.red,
+                        color.color.green,
+                        color.color.blue,
+                        color.alpha,
+                    ],
+                });
+            }
         }
+    }
+
+    RasterResult {
+        primitive: PrimitiveType::LinesList,
+        indices: (0..(vertices.len() as u32)).collect(),
+        vertices,
+    }
+}
+
+pub fn raster_path(builder: Builder, method: Method, color: LinSrgba) -> Result<RasterResult> {
+    match method {
+        Method::Fill => Ok(format_shade_commands(
+            color,
+            amicola::fill_path(builder, amicola::SampleDepth::Super8),
+        )),
         Method::Stroke(width) => {
             let ctor = |v: P2, _: StrokeAttributes| -> P2 { v };
             let mut buffers: VertexBuffers<P2, u32> = VertexBuffers::new();
@@ -76,8 +111,9 @@ pub fn raster_path(
                 )
                 .expect("TODO: wrap error");
 
-            Ok((
-                buffers
+            Ok(RasterResult {
+                primitive: PrimitiveType::TrianglesList,
+                vertices: buffers
                     .vertices
                     .into_iter()
                     .map(|v| GpuVertex {
@@ -90,8 +126,8 @@ pub fn raster_path(
                         ],
                     })
                     .collect(),
-                buffers.indices,
-            ))
+                indices: buffers.indices,
+            })
         }
     }
 }

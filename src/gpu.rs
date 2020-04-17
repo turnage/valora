@@ -177,7 +177,7 @@ impl Gpu {
     ) -> Result<(Self, EventLoop<()>, (u32, u32))> {
         let events_loop = EventLoop::new();
         let wb = winit::window::WindowBuilder::new()
-            .with_inner_size(glutin::dpi::LogicalSize {
+            .with_inner_size(glutin::dpi::PhysicalSize {
                 width: width as f64,
                 height: height as f64,
             })
@@ -288,7 +288,7 @@ impl Gpu {
         &self,
         width: u32,
         height: u32,
-        elements: impl IntoIterator<Item = Element>,
+        elements: Vec<Element>,
         target: &mut impl Surface,
     ) -> Result<()> {
         let elements = elements.into_iter();
@@ -315,32 +315,48 @@ impl Gpu {
                 UniformValue::Float(self.height_sign),
             );
 
-            let (_, cpu_vertices, cpu_indices) = batch
-                .try_fold::<_, _, Result<(u32, Vec<GpuVertex>, Vec<u32>)>>(
-                    (0, vec![], vec![]),
-                    |(idx, mut vertices, mut indices), element| {
-                        let (mut new_vertices, new_indices) =
-                            raster_path(element.path, element.raster_method, element.color)?;
-                        vertices.append(&mut new_vertices);
-                        indices.extend(new_indices.into_iter().map(|i| i + idx));
-                        Ok((vertices.len() as u32, vertices, indices))
-                    },
-                )?;
+            let mut vertices = vec![];
+            let mut indices = vec![];
+            let mut primitive = None;
+            let mut draw_call = |primitive: PrimitiveType,
+                                 vertices: &mut Vec<GpuVertex>,
+                                 indices: &mut Vec<u32>|
+             -> Result<()> {
+                let gpu_vertices = VertexBuffer::new(self.ctx.as_ref(), vertices.as_slice())?;
+                let gpu_indices =
+                    IndexBuffer::new(self.ctx.as_ref(), primitive, indices.as_slice())?;
 
-            let vertices = VertexBuffer::new(self.ctx.as_ref(), cpu_vertices.as_slice())?;
-            let indices = IndexBuffer::new(
-                self.ctx.as_ref(),
-                PrimitiveType::TrianglesList,
-                cpu_indices.as_slice(),
-            )?;
+                self.draw_to_texture(GpuCommand {
+                    indices: gpu_indices,
+                    vertices: gpu_vertices,
+                    target,
+                    program: first.program.as_ref(),
+                    uniforms: &first.uniforms,
+                })?;
 
-            self.draw_to_texture(GpuCommand {
-                indices,
-                vertices,
-                target,
-                program: first.program.as_ref(),
-                uniforms: &first.uniforms,
-            })?;
+                *vertices = vec![];
+                *indices = vec![];
+
+                Ok(())
+            };
+
+            for (i, element) in batch.into_iter().enumerate() {
+                let mut result = raster_path(element.path, element.raster_method, element.color)?;
+
+                if primitive != Some(result.primitive) && primitive.is_some() {
+                    draw_call(primitive.take().unwrap(), &mut vertices, &mut indices)?;
+                }
+
+                primitive = Some(result.primitive);
+
+                let idx = vertices.len() as u32;
+                vertices.append(&mut result.vertices);
+                indices.extend(result.indices.into_iter().map(|i| i + idx));
+            }
+
+            if let Some(primitive) = primitive {
+                draw_call(primitive, &mut vertices, &mut indices)?;
+            }
         }
 
         Ok(())

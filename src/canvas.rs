@@ -113,13 +113,8 @@ impl Canvas {
             raster_method,
         });
     }
-}
 
-impl IntoIterator for Canvas {
-    type Item = Element;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.elements.into_iter()
+    pub(crate) fn elements(self) -> Vec<Element> {
+        self.elements
     }
 }
