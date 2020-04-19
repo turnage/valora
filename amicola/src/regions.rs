@@ -1,14 +1,13 @@
 //! Raster region search and enumeration.
 
 use crate::{ext, grid_lines::*, sampling::*, V2};
-use bitvec::bitvec;
 use float_ord::FloatOrd;
 use itertools::Itertools;
 use log::trace;
 use lyon_geom::LineSegment;
 use std::{
     cmp::Ordering,
-    collections::BTreeSet,
+    collections::{BTreeSet, HashSet},
     hash::{Hash, Hasher},
     ops::Range,
 };
@@ -45,12 +44,20 @@ enum WindingDir {
     Down,
 }
 
+impl WindingDir {
+    fn wind_term(&self) -> isize {
+        match self {
+            WindingDir::Up => 1,
+            WindingDir::Down => -1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Hit {
-    x: isize,
-    left_x: f32,
-    right_x: f32,
-    y: isize,
+    x: f32,
+    pixel_x: isize,
+    pixel_y: isize,
     segment_id: usize,
     dir: WindingDir,
 }
@@ -61,14 +68,8 @@ fn epsilon_equal(a: f32, b: f32) -> bool {
 
 impl PartialOrd for Hit {
     fn partial_cmp(&self, other: &Hit) -> Option<Ordering> {
-        match self.y.cmp(&other.y) {
-            Ordering::Equal => Some(match FloatOrd(self.left_x).cmp(&FloatOrd(other.left_x)) {
-                Ordering::Equal => match FloatOrd(self.right_x).cmp(&FloatOrd(other.right_x)) {
-                    Ordering::Equal => self.segment_id.cmp(&other.segment_id),
-                    other => other,
-                },
-                other => other,
-            }),
+        match self.pixel_y.cmp(&other.pixel_y) {
+            Ordering::Equal => Some(FloatOrd(self.x).cmp(&FloatOrd(other.x))),
             o => Some(o),
         }
     }
@@ -82,7 +83,9 @@ impl Ord for Hit {
 
 impl PartialEq for Hit {
     fn eq(&self, other: &Hit) -> bool {
-        self.x == other.x && self.y == other.y && self.segment_id == other.segment_id
+        self.pixel_x == other.pixel_x
+            && self.pixel_y == other.pixel_y
+            && self.segment_id == other.segment_id
     }
 }
 
@@ -90,16 +93,22 @@ impl Eq for Hit {}
 
 impl Hash for Hit {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.x.hash(state);
-        self.y.hash(state);
+        self.pixel_x.hash(state);
+        self.pixel_y.hash(state);
         self.segment_id.hash(state);
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
+pub enum Axis {
+    X(isize),
+    Y(isize),
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct RawHit {
-    position: V2,
     t: f32,
+    axis: Option<Axis>,
 }
 
 impl PartialOrd for RawHit {
@@ -110,11 +119,7 @@ impl PartialOrd for RawHit {
 
 impl Ord for RawHit {
     fn cmp(&self, RawHit { t: other, .. }: &RawHit) -> Ordering {
-        if epsilon_equal(self.t, *other) {
-            Ordering::Equal
-        } else {
-            FloatOrd(self.t).cmp(&FloatOrd(*other))
-        }
+        FloatOrd(self.t).cmp(&FloatOrd(*other))
     }
 }
 
@@ -123,6 +128,7 @@ impl Eq for RawHit {}
 #[derive(Debug, Default, Clone)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
+    boundaries: HashSet<(isize, isize)>,
     segments: Vec<LineSegment<f32>>,
 }
 
@@ -133,6 +139,7 @@ where
     fn from(segment_iter: I) -> Self {
         let mut segments = vec![];
         let mut hits = BTreeSet::new();
+        let mut boundaries = HashSet::new();
 
         for (segment_id, segment) in segment_iter
             .filter(|line| line.to.y != line.from.y)
@@ -141,28 +148,22 @@ where
             trace!("Considering segment: {:#?}", segment);
 
             let bounds = segment.bounding_rect();
-            let dir = match segment.to.y > segment.from.y {
+            let (left, right) = ext::min_max_by(segment.to, segment.from, |s| FloatOrd(s.x));
+            let dir = match left.y < right.y {
                 true => WindingDir::Up,
                 false => WindingDir::Down,
             };
 
             let mut segment_hits = BTreeSet::new();
-            let (start, end) = (segment.from, segment.to);
-            segment_hits.insert(RawHit {
-                t: 0.001,
-                position: start,
-            });
-            segment_hits.insert(RawHit {
-                t: 0.999,
-                position: end,
-            });
+            segment_hits.insert(RawHit { t: 0., axis: None });
+            segment_hits.insert(RawHit { t: 1., axis: None });
 
             for horizontal_line in horizontal_grid_lines(bounds) {
                 let y = horizontal_line as f32;
                 if let Some(t) = segment.horizontal_line_intersection_t(y) {
                     segment_hits.insert(RawHit {
-                        position: segment.sample(t),
                         t,
+                        axis: Some(Axis::X(horizontal_line)),
                     });
                 }
             }
@@ -171,44 +172,49 @@ where
                 let x = vertical_line as f32;
                 if let Some(t) = segment.vertical_line_intersection_t(x) {
                     segment_hits.insert(RawHit {
-                        position: segment.sample(t),
                         t,
+                        axis: Some(Axis::Y(vertical_line)),
                     });
                 }
             }
 
-            for (left_x, right_x, hit_point) in segment_hits
+            segment_hits
                 .into_iter()
                 .tuple_windows::<(_, _)>()
-                .filter_map(|(raw_hit1, raw_hit2)| {
-                    trace!("\tJoining {:?} and {:?}", raw_hit1, raw_hit2);
+                .filter_map(|(h1, h2)| {
+                    let p1 = segment.sample(h1.t);
+                    let p2 = segment.sample(h2.t);
+                    let midpoint = (p1 + p2.to_vector()) / 2.;
 
-                    let x1 = raw_hit1.position.x;
-                    let x2 = raw_hit2.position.x;
-                    let (FloatOrd(left_x), FloatOrd(right_x)) =
-                        ext::min_max(FloatOrd(x1), FloatOrd(x2));
-                    Some((
-                        left_x,
-                        right_x,
-                        (raw_hit1.position + raw_hit2.position.to_vector()) / 2.,
-                    ))
+                    let x = midpoint.x.floor() as isize;
+                    let y = midpoint.y.floor() as isize;
+                    let pixel = (x, y);
+
+                    boundaries.insert(pixel);
+
+                    h1.axis.and_then(|axis| match axis {
+                        Axis::X(pixel_y) => Some((p1.x, pixel_y)),
+                        _ => None,
+                    })
                 })
-            {
-                let (x, y) = (hit_point.x.floor() as isize, hit_point.y.floor() as isize);
-                let hit = Hit {
-                    x,
-                    y,
-                    left_x,
-                    right_x,
-                    segment_id,
-                    dir,
-                };
-                hits.insert(hit);
-            }
+                .for_each(|(x, pixel_y)| {
+                    hits.insert(Hit {
+                        pixel_y,
+                        pixel_x: x.floor() as isize,
+                        x,
+                        segment_id,
+                        dir,
+                    });
+                });
+
             segments.push(segment);
         }
 
-        Self { segments, hits }
+        Self {
+            segments,
+            boundaries,
+            hits,
+        }
     }
 }
 
@@ -237,113 +243,69 @@ impl RegionList {
         #[derive(Debug)]
         struct Winding {
             hit: Hit,
-            number: usize,
+            number: isize,
         }
-
-        let segment_count = self.segments.len();
-        let segments_distant_neighbors = move |a, b| {
-            let (min, max) = ext::min_max(a, b);
-            let wrap_around = min == 0 && max == (segment_count - 1);
-            let neighbors = max - min <= 1;
-            !wrap_around && !neighbors
-        };
 
         let mut y = 0;
         let mut last_wind = None;
-        let mut last_pixel = None;
-        let mut segments_in_last_wind = bitvec![0; segment_count];
-        let mut segments_in_this_wind = bitvec![0; segment_count];
-        self.hits.into_iter().flat_map(move |hit| {
-            if hit.y != y {
-                last_wind = None;
-                y = hit.y;
-
-                segments_in_last_wind.clear();
-                segments_in_last_wind.resize(segment_count, false);
-                segments_in_this_wind.clear();
-                segments_in_this_wind.resize(segment_count, false);
-            }
-
-            let should_log = y == 335;
-
-            let mut last_wind = last_wind.get_or_insert(Winding {
-                number: 1,
-                hit: hit.clone(),
-            });
-            let last_pixel = last_pixel.get_or_insert(last_wind.hit.x);
-
-            if hit.x != last_wind.hit.x {
-                segments_in_last_wind.clear();
-                segments_in_last_wind.append(&mut segments_in_this_wind);
-                segments_in_this_wind.resize(segment_count, false);
-                *last_pixel = last_wind.hit.x;
-            }
-            segments_in_this_wind.set(hit.segment_id, true);
-
-            let in_last_pixel = hit.x - *last_pixel == 1 && segments_in_last_wind[hit.segment_id];
-
-            if should_log {
-                println!(
-                    "wind memor;: {:?}",
-                    segments_in_last_wind
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, t)| **t)
-                        .collect::<Vec<_>>()
-                );
-            }
-
-            let mut span = None;
-
-            // This changes our winding because our scan line has encountered
-            // an edge moving in the opposite direction of the last one we
-            // hit. This is sufficient for simple convex polygons.
-            let classic_wind = last_wind.hit.dir != hit.dir;
-
-            // We only want to emit a span when it would contain pixels.
-            let gap_between_edges = hit.x - last_wind.hit.x > 1;
-
-            // Whether we are current in a shader region of the polygon.
-            // We must track this to handle concave polygons, as the scanline
-            // may encounter many polygon edges, entering and exiting the
-            // polygon during the scan.
-            let inside_poly = last_wind.number % 2 == 1;
-
-            let wind = last_wind.hit.dir == hit.dir
-                && segments_distant_neighbors(last_wind.hit.segment_id, hit.segment_id);
-
-            if should_log {
-                println!("Considering new hit:");
-                println!("New hit: {:?}", hit);
-                println!("Winding: {:?}", last_wind);
-                println!("classic_wind: {}", classic_wind);
-                println!("wind: {}", wind);
-                println!("gap: {}", gap_between_edges);
-                println!("in_last_pixel: {}", in_last_pixel);
-            }
-
-            if (classic_wind || wind) && !in_last_pixel {
-                if inside_poly && gap_between_edges {
-                    span = Some(Region::Span {
-                        start_x: last_wind.hit.x + 1,
-                        end_x: hit.x,
-                        y: hit.y,
-                    });
-                    if should_log {
-                        println!("\tEmitting span: {:?}", span);
-                    }
+        self.hits
+            .into_iter()
+            .filter_map(move |hit| {
+                if hit.pixel_y != y {
+                    last_wind = None;
+                    y = hit.pixel_y;
                 }
-                last_wind.number += 1;
+
+                let should_log = false; //y == 221;
+
+                let mut last_wind = last_wind.get_or_insert(Winding {
+                    number: 1,
+                    hit: hit.clone(),
+                });
+
+                // We only want to emit a span when it would contain pixels.
+                let gap_between_edges = hit.pixel_x - last_wind.hit.pixel_x > 1;
+
+                // Whether we are current in a shader region of the polygon.
+                // We must track this to handle concave polygons, as the scanline
+                // may encounter many polygon edges, entering and exiting the
+                // polygon during the scan.
+                let inside_poly = last_wind.number % 2 == 1;
+
                 if should_log {
+                    println!("Considering new hit:");
+                    println!("New hit: {:?}", hit);
+                    println!("Winding: {:?}", last_wind);
+                    println!("gap: {}", gap_between_edges);
+                }
+
+                let span = if inside_poly && gap_between_edges {
+                    Some(Region::Span {
+                        start_x: last_wind.hit.pixel_x + 1,
+                        end_x: hit.pixel_x,
+                        y: hit.pixel_y,
+                    })
+                } else {
+                    None
+                };
+
+                if last_wind.hit.segment_id != hit.segment_id {
+                    last_wind.number += 1;
+                }
+                last_wind.hit = hit.clone();
+
+                if should_log {
+                    println!("\tEmitting span: {:?}", span);
                     println!("\tincrementing winding nubmer; now {}", last_wind.number);
                 }
-            }
-            last_wind.hit = hit.clone();
 
-            std::iter::successors(Some(Region::Boundary { x: hit.x, y: hit.y }), move |_| {
-                span.take()
+                span
             })
-        })
+            .chain(
+                self.boundaries
+                    .into_iter()
+                    .map(|(x, y)| Region::Boundary { x, y }),
+            )
     }
 }
 
