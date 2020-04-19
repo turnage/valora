@@ -1,6 +1,7 @@
 //! Raster region search and enumeration.
 
 use crate::{ext, grid_lines::*, sampling::*, V2};
+use bitvec::bitvec;
 use float_ord::FloatOrd;
 use itertools::Itertools;
 use log::trace;
@@ -47,7 +48,8 @@ enum WindingDir {
 #[derive(Debug, Clone, Copy)]
 struct Hit {
     x: isize,
-    fx: f32,
+    left_x: f32,
+    right_x: f32,
     y: isize,
     segment_id: usize,
     dir: WindingDir,
@@ -60,8 +62,11 @@ fn epsilon_equal(a: f32, b: f32) -> bool {
 impl PartialOrd for Hit {
     fn partial_cmp(&self, other: &Hit) -> Option<Ordering> {
         match self.y.cmp(&other.y) {
-            Ordering::Equal => Some(match FloatOrd(self.fx).cmp(&FloatOrd(other.fx)) {
-                Ordering::Equal => self.segment_id.cmp(&other.segment_id),
+            Ordering::Equal => Some(match FloatOrd(self.left_x).cmp(&FloatOrd(other.left_x)) {
+                Ordering::Equal => match FloatOrd(self.right_x).cmp(&FloatOrd(other.right_x)) {
+                    Ordering::Equal => self.segment_id.cmp(&other.segment_id),
+                    other => other,
+                },
                 other => other,
             }),
             o => Some(o),
@@ -172,15 +177,19 @@ where
                 }
             }
 
-            for (fx, hit_point) in segment_hits
+            for (left_x, right_x, hit_point) in segment_hits
                 .into_iter()
                 .tuple_windows::<(_, _)>()
                 .filter_map(|(raw_hit1, raw_hit2)| {
                     trace!("\tJoining {:?} and {:?}", raw_hit1, raw_hit2);
 
+                    let x1 = raw_hit1.position.x;
+                    let x2 = raw_hit2.position.x;
+                    let (FloatOrd(left_x), FloatOrd(right_x)) =
+                        ext::min_max(FloatOrd(x1), FloatOrd(x2));
                     Some((
-                        std::cmp::min(FloatOrd(raw_hit1.position.x), FloatOrd(raw_hit2.position.x))
-                            .0,
+                        left_x,
+                        right_x,
                         (raw_hit1.position + raw_hit2.position.to_vector()) / 2.,
                     ))
                 })
@@ -189,7 +198,8 @@ where
                 let hit = Hit {
                     x,
                     y,
-                    fx,
+                    left_x,
+                    right_x,
                     segment_id,
                     dir,
                 };
@@ -240,19 +250,50 @@ impl RegionList {
 
         let mut y = 0;
         let mut last_wind = None;
+        let mut last_pixel = None;
+        let mut segments_in_last_wind = bitvec![0; segment_count];
+        let mut segments_in_this_wind = bitvec![0; segment_count];
         self.hits.into_iter().flat_map(move |hit| {
             if hit.y != y {
                 last_wind = None;
                 y = hit.y;
+
+                segments_in_last_wind.clear();
+                segments_in_last_wind.resize(segment_count, false);
+                segments_in_this_wind.clear();
+                segments_in_this_wind.resize(segment_count, false);
             }
+
+            let should_log = y == 335;
 
             let mut last_wind = last_wind.get_or_insert(Winding {
                 number: 1,
                 hit: hit.clone(),
             });
+            let last_pixel = last_pixel.get_or_insert(last_wind.hit.x);
+
+            if hit.x != last_wind.hit.x {
+                segments_in_last_wind.clear();
+                segments_in_last_wind.append(&mut segments_in_this_wind);
+                segments_in_this_wind.resize(segment_count, false);
+                *last_pixel = last_wind.hit.x;
+            }
+            segments_in_this_wind.set(hit.segment_id, true);
+
+            let in_last_pixel = hit.x - *last_pixel == 1 && segments_in_last_wind[hit.segment_id];
+
+            if should_log {
+                println!(
+                    "wind memor;: {:?}",
+                    segments_in_last_wind
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, t)| **t)
+                        .collect::<Vec<_>>()
+                );
+            }
 
             let mut span = None;
-            let should_log = false;
 
             // This changes our winding because our scan line has encountered
             // an edge moving in the opposite direction of the last one we
@@ -278,9 +319,10 @@ impl RegionList {
                 println!("classic_wind: {}", classic_wind);
                 println!("wind: {}", wind);
                 println!("gap: {}", gap_between_edges);
+                println!("in_last_pixel: {}", in_last_pixel);
             }
 
-            if classic_wind || wind {
+            if (classic_wind || wind) && !in_last_pixel {
                 if inside_poly && gap_between_edges {
                     span = Some(Region::Span {
                         start_x: last_wind.hit.x + 1,

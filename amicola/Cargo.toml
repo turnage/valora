@@ -24,6 +24,7 @@ pathfinder_path_utils = "0.2.0"
 lyon_path = "0.15"
 euclid = "0.20.4"
 lyon_geom = "0.15"
+bitvec = "0.17.4"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"
