@@ -8,7 +8,6 @@ pub struct Ngon {
     pub radius: f32,
     pub n: usize,
     pub center: P2,
-    i: usize,
 }
 
 impl Ngon {
@@ -18,7 +17,6 @@ impl Ngon {
             radius,
             n,
             center,
-            i: 0,
         }
     }
 
@@ -39,23 +37,33 @@ impl Ngon {
     pub fn rotate(&mut self, phase: Angle) {
         self.phase += phase;
     }
+
+    pub fn vertices(&self) -> impl Iterator<Item = P2> + Copy {
+        NgonIter { ngon: *self, i: 0 }
+    }
 }
 
-impl Iterator for Ngon {
+#[derive(Copy, Clone, Debug)]
+struct NgonIter {
+    ngon: Ngon,
+    i: usize,
+}
+
+impl Iterator for NgonIter {
     type Item = P2;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.i == self.n {
+        if self.i == self.ngon.n {
             return None;
         }
 
-        let completion = self.i as f32 / self.n as f32;
-        let theta = Angle::radians(completion * std::f32::consts::PI * 2.0) + self.phase;
+        let completion = self.i as f32 / self.ngon.n as f32;
+        let theta = Angle::radians(completion * std::f32::consts::PI * 2.0) + self.ngon.phase;
         self.i += 1;
 
         Some(P2::new(
-            self.center.x + theta.get().sin() * self.radius,
-            self.center.y + theta.get().cos() * self.radius,
+            self.ngon.center.x + theta.get().sin() * self.ngon.radius,
+            self.ngon.center.y + theta.get().cos() * self.ngon.radius,
         ))
     }
 }
@@ -90,6 +98,6 @@ impl Rotate for Ngon {
 
 impl Paint for Ngon {
     fn paint(&self, comp: &mut Canvas) {
-        comp.paint(FlatIterPath::new(*self, /*closed=*/ true))
+        comp.paint(FlatIterPath::new(self.vertices(), /*closed=*/ true))
     }
 }

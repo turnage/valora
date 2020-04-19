@@ -38,18 +38,32 @@ pub enum ShadeCommand {
     Span { x: Range<isize>, y: isize },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum WindingDir {
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone, Copy)]
 struct Hit {
     x: isize,
+    fx: f32,
     y: isize,
-    y_range: Range<f32>,
     segment_id: usize,
+    dir: WindingDir,
+}
+
+fn epsilon_equal(a: f32, b: f32) -> bool {
+    (a - b).abs() <= std::f32::EPSILON
 }
 
 impl PartialOrd for Hit {
     fn partial_cmp(&self, other: &Hit) -> Option<Ordering> {
         match self.y.cmp(&other.y) {
-            Ordering::Equal => Some(self.x.cmp(&other.x)),
+            Ordering::Equal => Some(match FloatOrd(self.fx).cmp(&FloatOrd(other.fx)) {
+                Ordering::Equal => self.segment_id.cmp(&other.segment_id),
+                other => other,
+            }),
             o => Some(o),
         }
     }
@@ -63,7 +77,7 @@ impl Ord for Hit {
 
 impl PartialEq for Hit {
     fn eq(&self, other: &Hit) -> bool {
-        self.x == other.x && self.y == other.y
+        self.x == other.x && self.y == other.y && self.segment_id == other.segment_id
     }
 }
 
@@ -73,6 +87,7 @@ impl Hash for Hit {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.x.hash(state);
         self.y.hash(state);
+        self.segment_id.hash(state);
     }
 }
 
@@ -90,7 +105,7 @@ impl PartialOrd for RawHit {
 
 impl Ord for RawHit {
     fn cmp(&self, RawHit { t: other, .. }: &RawHit) -> Ordering {
-        if (self.t - *other).abs() <= std::f32::EPSILON {
+        if epsilon_equal(self.t, *other) {
             Ordering::Equal
         } else {
             FloatOrd(self.t).cmp(&FloatOrd(*other))
@@ -100,7 +115,7 @@ impl Ord for RawHit {
 
 impl Eq for RawHit {}
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
     segments: Vec<LineSegment<f32>>,
@@ -121,15 +136,19 @@ where
             trace!("Considering segment: {:#?}", segment);
 
             let bounds = segment.bounding_rect();
+            let dir = match segment.to.y > segment.from.y {
+                true => WindingDir::Up,
+                false => WindingDir::Down,
+            };
 
             let mut segment_hits = BTreeSet::new();
             let (start, end) = (segment.from, segment.to);
             segment_hits.insert(RawHit {
-                t: 0.0,
+                t: 0.001,
                 position: start,
             });
             segment_hits.insert(RawHit {
-                t: 1.0,
+                t: 0.999,
                 position: end,
             });
 
@@ -153,21 +172,15 @@ where
                 }
             }
 
-            trace!(
-                "For segment {:?}; got raw hits: {:#?}",
-                segment_id,
-                segment_hits.iter().map(|hit| hit.t).collect::<Vec<f32>>()
-            );
-
-            for (y_range, hit_point) in segment_hits
+            for (fx, hit_point) in segment_hits
                 .into_iter()
                 .tuple_windows::<(_, _)>()
                 .filter_map(|(raw_hit1, raw_hit2)| {
                     trace!("\tJoining {:?} and {:?}", raw_hit1, raw_hit2);
 
-                    let (start, end) = ext::min_max(raw_hit1.position.y, raw_hit2.position.y);
                     Some((
-                        Range { start, end },
+                        std::cmp::min(FloatOrd(raw_hit1.position.x), FloatOrd(raw_hit2.position.x))
+                            .0,
                         (raw_hit1.position + raw_hit2.position.to_vector()) / 2.,
                     ))
                 })
@@ -176,10 +189,10 @@ where
                 let hit = Hit {
                     x,
                     y,
-                    y_range,
+                    fx,
                     segment_id,
+                    dir,
                 };
-                trace!("\tJoined hit: {:#?}", hit);
                 hits.insert(hit);
             }
             segments.push(segment);
@@ -191,8 +204,9 @@ where
 
 impl RegionList {
     pub fn shade_commands(self, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
-        let segments = self.segments;
-        Self::regions(self.hits).map(move |region| match region {
+        let segments = self.segments.clone();
+
+        self.regions().map(move |region| match region {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
                 x: x,
                 y: y,
@@ -209,84 +223,80 @@ impl RegionList {
         })
     }
 
-    fn regions(hits: BTreeSet<Hit>) -> impl Iterator<Item = Region> {
+    fn regions(self) -> impl Iterator<Item = Region> {
+        #[derive(Debug)]
+        struct Winding {
+            hit: Hit,
+            number: usize,
+        }
+
+        let segment_count = self.segments.len();
+        let segments_distant_neighbors = move |a, b| {
+            let (min, max) = ext::min_max(a, b);
+            let wrap_around = min == 0 && max == (segment_count - 1);
+            let neighbors = max - min <= 1;
+            !wrap_around && !neighbors
+        };
+
         let mut y = 0;
-        let mut last_hit = None;
-        let mut winding_number = 0;
-        hits.into_iter().flat_map(move |hit| {
+        let mut last_wind = None;
+        self.hits.into_iter().flat_map(move |hit| {
             if hit.y != y {
-                last_hit = None;
-                winding_number = 0;
+                last_wind = None;
                 y = hit.y;
             }
 
+            let mut last_wind = last_wind.get_or_insert(Winding {
+                number: 1,
+                hit: hit.clone(),
+            });
+
             let mut span = None;
+            let should_log = false;
 
-            trace!("Considering new hit:");
-            trace!("Last hit: {:?}", last_hit);
-            trace!("New hit: {:?}", hit);
-            trace!("Winding number: {:?}", winding_number);
+            // This changes our winding because our scan line has encountered
+            // an edge moving in the opposite direction of the last one we
+            // hit. This is sufficient for simple convex polygons.
+            let classic_wind = last_wind.hit.dir != hit.dir;
 
-            let is_gap_between_hits = last_hit
-                .as_ref()
-                .map(|last_hit: &Hit| (last_hit.x - hit.x).abs() > 1)
-                .unwrap_or(false);
+            // We only want to emit a span when it would contain pixels.
+            let gap_between_edges = hit.x - last_wind.hit.x > 1;
 
-            trace!("gap between hits: {:?}", is_gap_between_hits);
-            if let Some(last_hit) = last_hit.as_ref() {
-                trace!(
-                    "last contains start {:?}",
-                    last_hit.y_range.contains(&hit.y_range.start)
-                );
-                trace!(
-                    "last contains end {:?}",
-                    last_hit
-                        .y_range
-                        .contains(&(hit.y_range.end - std::f32::EPSILON))
-                );
-                trace!(
-                    "contains last start {:?}",
-                    hit.y_range.contains(&last_hit.y_range.start)
-                );
-                trace!(
-                    "contains last end {:?}",
-                    hit.y_range
-                        .contains(&(last_hit.y_range.end - std::f32::EPSILON))
-                );
+            // Whether we are current in a shader region of the polygon.
+            // We must track this to handle concave polygons, as the scanline
+            // may encounter many polygon edges, entering and exiting the
+            // polygon during the scan.
+            let inside_poly = last_wind.number % 2 == 1;
+
+            let wind = last_wind.hit.dir == hit.dir
+                && segments_distant_neighbors(last_wind.hit.segment_id, hit.segment_id);
+
+            if should_log {
+                println!("Considering new hit:");
+                println!("New hit: {:?}", hit);
+                println!("Winding: {:?}", last_wind);
+                println!("classic_wind: {}", classic_wind);
+                println!("wind: {}", wind);
+                println!("gap: {}", gap_between_edges);
             }
 
-            let is_new_edge = last_hit
-                .as_ref()
-                .map(|last_hit: &Hit| {
-                    last_hit.segment_id != hit.segment_id
-                        && (is_gap_between_hits
-                            || last_hit.y_range.contains(&hit.y_range.start)
-                            || last_hit
-                                .y_range
-                                .contains(&(hit.y_range.end - std::f32::EPSILON))
-                            || hit.y_range.contains(&last_hit.y_range.start)
-                            || hit
-                                .y_range
-                                .contains(&(last_hit.y_range.end - std::f32::EPSILON)))
-                })
-                .unwrap_or(true);
-            if is_new_edge {
-                winding_number += 1;
-                trace!("Incrementing winding number; now: {:?}\n\n", winding_number);
-            }
-
-            match last_hit.take() {
-                Some(last_hit) if is_new_edge && is_gap_between_hits && winding_number % 2 == 0 => {
+            if classic_wind || wind {
+                if inside_poly && gap_between_edges {
                     span = Some(Region::Span {
-                        start_x: last_hit.x + 1,
+                        start_x: last_wind.hit.x + 1,
                         end_x: hit.x,
                         y: hit.y,
                     });
-                    trace!("\tEmitting span: {:?}", span);
+                    if should_log {
+                        println!("\tEmitting span: {:?}", span);
+                    }
                 }
-                _ => {}
-            };
-            last_hit.replace(hit.clone());
+                last_wind.number += 1;
+                if should_log {
+                    println!("\tincrementing winding nubmer; now {}", last_wind.number);
+                }
+            }
+            last_wind.hit = hit.clone();
 
             std::iter::successors(Some(Region::Boundary { x: hit.x, y: hit.y }), move |_| {
                 span.take()
@@ -317,7 +327,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 1, y: 0 },
@@ -341,7 +351,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: -1, y: 0 },
                 Region::Boundary { x: 0, y: 0 },
@@ -380,7 +390,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 0, y: 0 },
                 Region::Boundary { x: 4, y: 0 },
@@ -425,7 +435,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 1, y: 0 },
                 Region::Boundary { x: 2, y: 0 },
@@ -460,7 +470,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 2, y: 2 },
                 Region::Boundary { x: 3, y: 2 },
@@ -513,7 +523,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 3, y: 1 },
                 Region::Boundary { x: 4, y: 1 },
@@ -570,7 +580,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Region::Boundary { x: 6, y: 1 },
                 Region::Boundary { x: 7, y: 1 },
@@ -647,7 +657,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 6, y: 2 },
                 Boundary { x: 7, y: 2 },
@@ -717,7 +727,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 3, y: 0 },
                 Boundary { x: 4, y: 0 },
@@ -828,7 +838,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 5, y: 0 },
@@ -864,7 +874,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 4, y: 0 },
@@ -898,7 +908,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 1, y: 0 },
@@ -929,7 +939,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 1, y: 0 },
@@ -956,7 +966,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 2, y: 0 },
@@ -998,7 +1008,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 1, y: 0 },
@@ -1035,7 +1045,7 @@ mod test {
         println!("Regions: {:#?}", regions);
 
         assert_eq!(
-            RegionList::regions(regions.hits).collect::<Vec<Region>>(),
+            regions.regions().collect::<Vec<Region>>(),
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 12, y: 0 },

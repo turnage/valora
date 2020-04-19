@@ -9,6 +9,7 @@ pub struct FlatIterPath<I> {
     src: I,
     last: Option<P2>,
     first: Option<P2>,
+    should_close: bool,
     closed: bool,
 }
 
@@ -21,6 +22,7 @@ where
             src,
             last: None,
             first: None,
+            should_close: closed,
             closed,
         }
     }
@@ -34,15 +36,24 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let p = match self.src.next() {
             Some(p) => p,
-            None => match (self.first.take(), self.last.take()) {
-                (Some(first), Some(last)) => {
-                    return Some(PathEvent::End {
-                        last,
-                        first,
-                        close: self.closed,
-                    })
+            None => match self.should_close {
+                true => {
+                    self.should_close = false;
+                    match self.first {
+                        Some(first) => first,
+                        None => return None,
+                    }
                 }
-                _ => return None,
+                false => match (self.first.take(), self.last.take()) {
+                    (Some(first), Some(last)) => {
+                        return Some(PathEvent::End {
+                            last,
+                            first,
+                            close: self.closed,
+                        })
+                    }
+                    _ => return None,
+                },
             },
         };
 
