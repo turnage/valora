@@ -13,10 +13,7 @@ use glium::{
     glutin::event_loop::EventLoop,
     implement_vertex,
     index::PrimitiveType,
-    texture::{
-        texture2d::Texture2d, texture2d_multisample::Texture2dMultisample, MipmapsOption,
-        RawImage2d, UncompressedFloatFormat,
-    },
+    texture::{texture2d::Texture2d, MipmapsOption, RawImage2d, UncompressedFloatFormat},
     uniforms::{MagnifySamplerFilter, UniformValue, Uniforms},
     Blend, BlendingFunction, DrawParameters, Frame, IndexBuffer, LinearBlendingFactor, Program,
     Surface, VertexBuffer,
@@ -241,14 +238,13 @@ impl Gpu {
         }
     }
 
-    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2dMultisample> {
-        Ok(Texture2dMultisample::empty_with_format(
+    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
+        Ok(Texture2d::empty_with_format(
             self.ctx.as_ref(),
             TEXTURE_FORMAT,
             MipmapsOption::NoMipmap,
             width,
             height,
-            /*samples=*/ 16,
         )?)
     }
 
@@ -262,7 +258,7 @@ impl Gpu {
         )?)
     }
 
-    pub fn read_to_ram(&self, texture: &Texture2dMultisample) -> Result<RawImage2d<u8>> {
+    pub fn read_to_ram(&self, texture: &Texture2d) -> Result<RawImage2d<u8>> {
         let (width, height) = texture.dimensions();
         let target = self.build_ram_texture(width, height)?;
         texture.as_surface().blit_color(
@@ -279,7 +275,7 @@ impl Gpu {
                 width: width as i32,
                 height: height as i32,
             },
-            MagnifySamplerFilter::Linear,
+            MagnifySamplerFilter::Nearest,
         );
         Ok(target.read())
     }
@@ -290,6 +286,7 @@ impl Gpu {
         height: u32,
         elements: Vec<Element>,
         target: &mut impl Surface,
+        sample_depth: amicola::SampleDepth,
     ) -> Result<()> {
         let elements = elements.into_iter();
         for (_id, batch) in &elements.group_by(|e| e.shader.id) {
@@ -341,7 +338,12 @@ impl Gpu {
             };
 
             for (i, element) in batch.into_iter().enumerate() {
-                let mut result = raster_path(element.path, element.raster_method, element.color)?;
+                let mut result = raster_path(
+                    element.path,
+                    element.raster_method,
+                    element.color,
+                    sample_depth,
+                )?;
 
                 if primitive != Some(result.primitive) && primitive.is_some() {
                     draw_call(primitive.take().unwrap(), &mut vertices, &mut indices)?;
@@ -381,9 +383,9 @@ impl Gpu {
                     constant_value: (0.0, 0.0, 0.0, 0.0),
                 },
                 line_width: Some(1.0),
-                multisampling: true,
+                multisampling: false,
                 dithering: false,
-                smooth: Some(glium::draw_parameters::Smooth::Nicest),
+                smooth: None, //Some(glium::draw_parameters::Smooth::Nicest),
                 ..Default::default()
             },
         )?)

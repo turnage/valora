@@ -99,6 +99,13 @@ pub struct Options {
     /// Prefix of output path. Output is <prefix>/<seed>/<frame_number>.png
     #[structopt(short = "o", long = "output", parse(from_os_str))]
     pub output: Option<PathBuf>,
+
+    /// Sample depth is the number of times of subdivide and sample pixels at
+    /// the boundaries of paths. This controls the antialiasing quality of the
+    /// rasterizer. It recommended to leave this at 1 for quick iteration and
+    /// turn it up for final output. The highest value is "super64".
+    #[structopt(subcommand)]
+    pub sample_depth: Option<amicola::SampleDepth>,
 }
 
 /// The world in which the painting takes place.

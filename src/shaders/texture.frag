@@ -2,7 +2,7 @@
 
 out vec4 frag;
 
-uniform sampler2DMS texture_in;
+uniform sampler2D texture_in;
 
 void main() {
   ivec2 texel = ivec2(floor(gl_FragCoord.x), floor(gl_FragCoord.y)); 

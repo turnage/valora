@@ -89,11 +89,16 @@ pub fn format_shade_commands(
     }
 }
 
-pub fn raster_path(builder: Builder, method: Method, color: LinSrgba) -> Result<RasterResult> {
+pub fn raster_path(
+    builder: Builder,
+    method: Method,
+    color: LinSrgba,
+    sample_depth: amicola::SampleDepth,
+) -> Result<RasterResult> {
     match method {
         Method::Fill => Ok(format_shade_commands(
             color,
-            amicola::fill_path(builder, amicola::SampleDepth::Super8),
+            amicola::fill_path(builder, sample_depth),
         )),
         Method::Stroke(width) => {
             let ctor = |v: P2, _: StrokeAttributes| -> P2 { v };

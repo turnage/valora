@@ -3,7 +3,7 @@
 use crate::{canvas::*, gpu::*, paint::*, uniforms::*, Options, Result, World};
 use glium::{
     glutin::event_loop::{ControlFlow, EventLoop},
-    texture::{texture2d_multisample::Texture2dMultisample, Dimensions, MipmapsOption},
+    texture::{texture2d::Texture2d, Dimensions, MipmapsOption},
     Frame, GlObject, Program,
 };
 use glutin::platform::desktop::EventLoopExtDesktop;
@@ -55,11 +55,11 @@ pub enum RenderStrategy<F1, F2> {
         events_loop: EventLoop<()>,
         wait: Duration,
         texture_program: Rc<Program>,
-        buffer: Texture2dMultisample,
+        buffer: Texture2d,
     },
     File {
         output_path: F2,
-        buffer: Texture2dMultisample,
+        buffer: Texture2d,
     },
 }
 
@@ -139,6 +139,11 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
         frame_number: usize,
         canvas: Canvas,
     ) -> Result<FrameUpdates> {
+        let sample_depth = self
+            .options
+            .sample_depth
+            .unwrap_or(amicola::SampleDepth::Single);
+
         match self.strategy {
             RenderStrategy::Screen {
                 get_frame,
@@ -152,11 +157,12 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                     self.output_height,
                     canvas.elements(),
                     &mut buffer.as_surface(),
+                    sample_depth,
                 )?;
 
                 #[derive(UniformSet)]
                 struct QuadUniforms {
-                    texture_in: Texture2dMultisample,
+                    texture_in: Texture2d,
                 }
 
                 let shader = self.gpu.build_shader(
@@ -165,16 +171,15 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                         texture_in: unsafe {
                             // Create a weak reference to the intermediate buffer, which we will draw
                             // to the frame buffer with a quad.
-                            Texture2dMultisample::from_id(
+                            Texture2d::from_id(
                                 self.gpu.ctx.get_context(),
                                 TEXTURE_FORMAT,
                                 buffer.get_id(),
                                 /*owned=*/ false,
                                 MipmapsOption::NoMipmap,
-                                Dimensions::Texture2dMultisample {
+                                Dimensions::Texture2d {
                                     width: buffer.dimensions().0,
                                     height: buffer.dimensions().1,
-                                    samples: buffer.samples(),
                                 },
                             )
                         },
@@ -191,6 +196,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                     self.output_height,
                     quad_canvas.elements(),
                     &mut frame,
+                    amicola::SampleDepth::Single,
                 )?;
 
                 let mut new_seed = None;
@@ -249,6 +255,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                     self.output_height,
                     canvas.elements(),
                     &mut buffer.as_surface(),
+                    sample_depth,
                 )?;
 
                 if frame_number > self.options.delay {
