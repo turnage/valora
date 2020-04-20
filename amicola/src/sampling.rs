@@ -2,9 +2,10 @@
 
 use crate::V2;
 use lyon_geom::LineSegment;
+use structopt::StructOpt;
 
 /// Super sampling depths for the hammersley pattern.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, StructOpt)]
 pub enum SampleDepth {
     Single,
     Super4,
@@ -41,8 +42,8 @@ pub fn coverage(
     }) {
         let mut pass_count = 0;
         for segment in path.clone() {
-            if let Some(x) = segment.horizontal_line_intersection(command.y).map(|p| p.x) {
-                if x <= command.x {
+            if let Some(y) = segment.vertical_line_intersection(command.x).map(|p| p.y) {
+                if y <= command.y {
                     pass_count += 1;
                 }
             }

@@ -25,6 +25,7 @@ lyon_path = "0.15"
 euclid = "0.20.4"
 lyon_geom = "0.15"
 bitvec = "0.17.4"
+structopt = "0.3.13"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

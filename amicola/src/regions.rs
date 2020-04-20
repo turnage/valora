@@ -38,28 +38,11 @@ pub enum ShadeCommand {
     Span { x: Range<isize>, y: isize },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum WindingDir {
-    Up,
-    Down,
-}
-
-impl WindingDir {
-    fn wind_term(&self) -> isize {
-        match self {
-            WindingDir::Up => 1,
-            WindingDir::Down => -1,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 struct Hit {
     x: f32,
     pixel_x: isize,
     pixel_y: isize,
-    segment_id: usize,
-    dir: WindingDir,
 }
 
 fn epsilon_equal(a: f32, b: f32) -> bool {
@@ -83,9 +66,7 @@ impl Ord for Hit {
 
 impl PartialEq for Hit {
     fn eq(&self, other: &Hit) -> bool {
-        self.pixel_x == other.pixel_x
-            && self.pixel_y == other.pixel_y
-            && self.segment_id == other.segment_id
+        self.pixel_x == other.pixel_x && self.pixel_y == other.pixel_y
     }
 }
 
@@ -95,7 +76,6 @@ impl Hash for Hit {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.pixel_x.hash(state);
         self.pixel_y.hash(state);
-        self.segment_id.hash(state);
     }
 }
 
@@ -125,10 +105,31 @@ impl Ord for RawHit {
 
 impl Eq for RawHit {}
 
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
+struct Pixel {
+    x: isize,
+    y: isize,
+}
+
+impl PartialOrd for Pixel {
+    fn partial_cmp(&self, other: &Pixel) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Pixel {
+    fn cmp(&self, other: &Pixel) -> Ordering {
+        match self.y.cmp(&other.y) {
+            Ordering::Equal => self.x.cmp(&other.x),
+            other => other,
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
-    boundaries: HashSet<(isize, isize)>,
+    boundaries: BTreeSet<Pixel>,
     segments: Vec<LineSegment<f32>>,
 }
 
@@ -139,7 +140,7 @@ where
     fn from(segment_iter: I) -> Self {
         let mut segments = vec![];
         let mut hits = BTreeSet::new();
-        let mut boundaries = HashSet::new();
+        let mut boundaries = BTreeSet::new();
 
         for (segment_id, segment) in segment_iter
             .filter(|line| line.to.y != line.from.y)
@@ -148,11 +149,6 @@ where
             trace!("Considering segment: {:#?}", segment);
 
             let bounds = segment.bounding_rect();
-            let (left, right) = ext::min_max_by(segment.to, segment.from, |s| FloatOrd(s.x));
-            let dir = match left.y < right.y {
-                true => WindingDir::Up,
-                false => WindingDir::Down,
-            };
 
             let mut segment_hits = BTreeSet::new();
             segment_hits.insert(RawHit { t: 0., axis: None });
@@ -188,9 +184,7 @@ where
 
                     let x = midpoint.x.floor() as isize;
                     let y = midpoint.y.floor() as isize;
-                    let pixel = (x, y);
-
-                    boundaries.insert(pixel);
+                    boundaries.insert(Pixel { x, y });
 
                     h1.axis.and_then(|axis| match axis {
                         Axis::X(pixel_y) => Some((p1.x, pixel_y)),
@@ -202,8 +196,6 @@ where
                         pixel_y,
                         pixel_x: x.floor() as isize,
                         x,
-                        segment_id,
-                        dir,
                     });
                 });
 
@@ -222,7 +214,7 @@ impl RegionList {
     pub fn shade_commands(self, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
         let segments = self.segments.clone();
 
-        self.regions().map(move |region| match region {
+        self.regions2().map(move |region| match region {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
                 x: x,
                 y: y,
@@ -239,73 +231,98 @@ impl RegionList {
         })
     }
 
-    fn regions(self) -> impl Iterator<Item = Region> {
-        #[derive(Debug)]
-        struct Winding {
-            hit: Hit,
-            number: isize,
+    fn regions2(self) -> impl Iterator<Item = Region> {
+        let boundary_spans = BoundarySpans {
+            boundaries: self.boundaries.clone().into_iter(),
+            cached: None,
+        };
+
+        let mut cached = None;
+        let mut hits = self.hits.into_iter();
+        let mut wind = 0;
+        let span_winds = boundary_spans.map(move |span| {
+            let BoundarySpan { y, xs } = &span;
+            let mut row_end = false;
+            while let Some(hit) = cached.take().or_else(|| hits.next()) {
+                row_end = hit.pixel_y != *y;
+                let span_end = !xs.contains(&hit.pixel_x);
+                let hit_is_ahead = row_end || (span_end && hit.pixel_x > xs.start);
+                if hit_is_ahead {
+                    cached = Some(hit);
+                }
+
+                if row_end || span_end {
+                    break;
+                }
+
+                wind += 1;
+            }
+
+            let result = (wind, span);
+            if row_end {
+                wind = 0;
+            }
+
+            result
+        });
+
+        let potential_fill_spans = span_winds.tuple_windows::<(_, _)>();
+        let wound_in = |wind| wind % 2 == 1;
+        let fill_spans = potential_fill_spans.filter_map(move |((wind1, span1), (_, span2))| {
+            match wound_in(wind1) {
+                true => Some(Region::Span {
+                    start_x: span1.xs.end,
+                    end_x: span2.xs.start,
+                    y: span1.y,
+                }),
+                false => None,
+            }
+        });
+
+        fill_spans.chain(
+            self.boundaries
+                .into_iter()
+                .map(|Pixel { x, y }| Region::Boundary { x, y }),
+        )
+    }
+}
+
+struct BoundarySpans {
+    boundaries: std::collections::btree_set::IntoIter<Pixel>,
+    cached: Option<Pixel>,
+}
+
+#[derive(Debug, Clone)]
+struct BoundarySpan {
+    y: isize,
+    xs: Range<isize>,
+}
+
+impl Iterator for BoundarySpans {
+    type Item = BoundarySpan;
+    fn next(&mut self) -> Option<Self::Item> {
+        let (range_start, range_y) = match self.cached.take() {
+            Some(Pixel { x, y }) => (x, y),
+            None => {
+                let Pixel { x, y } = self.boundaries.next()?;
+                (x, y)
+            }
+        };
+
+        let mut range_end = range_start + 1;
+        while let Some(Pixel { x, y }) = self.boundaries.next() {
+            if y != range_y || x != range_end {
+                self.cached = Some(Pixel { x, y });
+                break;
+            }
+
+            range_end += 1;
         }
 
-        let mut y = 0;
-        let mut last_wind = None;
-        self.hits
-            .into_iter()
-            .filter_map(move |hit| {
-                if hit.pixel_y != y {
-                    last_wind = None;
-                    y = hit.pixel_y;
-                }
-
-                let should_log = false; //y == 221;
-
-                let mut last_wind = last_wind.get_or_insert(Winding {
-                    number: 1,
-                    hit: hit.clone(),
-                });
-
-                // We only want to emit a span when it would contain pixels.
-                let gap_between_edges = hit.pixel_x - last_wind.hit.pixel_x > 1;
-
-                // Whether we are current in a shader region of the polygon.
-                // We must track this to handle concave polygons, as the scanline
-                // may encounter many polygon edges, entering and exiting the
-                // polygon during the scan.
-                let inside_poly = last_wind.number % 2 == 1;
-
-                if should_log {
-                    println!("Considering new hit:");
-                    println!("New hit: {:?}", hit);
-                    println!("Winding: {:?}", last_wind);
-                    println!("gap: {}", gap_between_edges);
-                }
-
-                let span = if inside_poly && gap_between_edges {
-                    Some(Region::Span {
-                        start_x: last_wind.hit.pixel_x + 1,
-                        end_x: hit.pixel_x,
-                        y: hit.pixel_y,
-                    })
-                } else {
-                    None
-                };
-
-                if last_wind.hit.segment_id != hit.segment_id {
-                    last_wind.number += 1;
-                }
-                last_wind.hit = hit.clone();
-
-                if should_log {
-                    println!("\tEmitting span: {:?}", span);
-                    println!("\tincrementing winding nubmer; now {}", last_wind.number);
-                }
-
-                span
-            })
-            .chain(
-                self.boundaries
-                    .into_iter()
-                    .map(|(x, y)| Region::Boundary { x, y }),
-            )
+        Some(BoundarySpan {
+            y: range_y,
+            xs: range_start..range_end,
+        })
     }
 }
 
