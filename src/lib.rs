@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "ci", deny(warnings))]
+
 //! A brush for generative fine art.
 
 mod gpu;
