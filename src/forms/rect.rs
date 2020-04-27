@@ -1,6 +1,4 @@
-use crate::{
-    Angle, Canvas, Center, Ellipse, FlatIterPath, Paint, Rotate, Scale, Translate, P2, V2,
-};
+use crate::{Canvas, Center, Ellipse, FlatIterPath, Paint, Scale, Translate, P2, V2};
 use arrayvec::ArrayVec;
 use float_ord::FloatOrd;
 
