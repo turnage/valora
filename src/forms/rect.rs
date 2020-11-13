@@ -1,4 +1,4 @@
-use crate::{Canvas, Center, Ellipse, FlatIterPath, Paint, Scale, Translate, P2, V2};
+use crate::{Canvas, Center, Contains, Ellipse, FlatIterPath, Paint, Scale, Translate, P2, V2};
 use arrayvec::ArrayVec;
 use float_ord::FloatOrd;
 
@@ -45,6 +45,15 @@ impl Rect {
             self.bottom_left.translate(V2::new(self.width, 0.)),
         ])
         .into_iter()
+    }
+}
+
+impl Contains for Rect {
+    fn contains(&self, p: P2) -> bool {
+        p.x >= self.bottom_left.x
+            && p.x < self.bottom_left.x + self.width
+            && p.y >= self.bottom_left.y
+            && p.y < self.bottom_left.y + self.height
     }
 }
 
