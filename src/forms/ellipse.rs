@@ -1,6 +1,9 @@
 //! Ellipses
 
-use crate::{transforms::Scale, Angle, Canvas, Paint, Rotate, Translate, P2, PI, V2};
+use crate::{
+    transforms::Scale, Angle, Canvas, Center, Collides, Contains, Paint, Rect, Rotate, Translate,
+    P2, PI, V2,
+};
 use rand::{distributions::Distribution, Rng};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -45,8 +48,42 @@ impl Ellipse {
         )
     }
 
+    /// Returns the radius length at `phase`.
+    pub fn radius_at(&self, phase: Angle) -> f32 {
+        let circumpoint = self.circumpoint(phase);
+        (self.center - circumpoint).length()
+    }
+
     pub fn uniform_circle_sampler(&self) -> UniformCircleSampler {
         UniformCircleSampler(*self)
+    }
+}
+
+impl Center for Ellipse {
+    fn center(&self) -> P2 {
+        self.center
+    }
+}
+
+impl Collides<Ellipse> for Ellipse {
+    fn collides(&self, other: &Ellipse) -> bool {
+        let distance = (self.center - other.center).length();
+        let r1 = self.radius_at(self.circumphase(&other.center));
+        let r2 = other.radius_at(other.circumphase(&self.center));
+        distance < r1 + r2
+    }
+}
+
+impl Collides<Rect> for Ellipse {
+    fn collides(&self, other: &Rect) -> bool {
+        other.vertices().any(|v| self.contains(v))
+    }
+}
+
+impl Contains for Ellipse {
+    fn contains(&self, p: P2) -> bool {
+        let distance = (self.center - p).length();
+        distance > self.radius_at(self.circumphase(&p))
     }
 }
 
