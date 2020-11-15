@@ -1,5 +1,5 @@
 use crate::{
-    Angle, Canvas, Center, Ellipse, FlatIterPath, Paint, Rotate, Scale, Translate, P2, V2,
+    Canvas, Center, Collides, Contains, Ellipse, FlatIterPath, Paint, Scale, Translate, P2, V2,
 };
 use arrayvec::ArrayVec;
 use float_ord::FloatOrd;
@@ -47,6 +47,27 @@ impl Rect {
             self.bottom_left.translate(V2::new(self.width, 0.)),
         ])
         .into_iter()
+    }
+}
+
+impl Contains for Rect {
+    fn contains(&self, p: P2) -> bool {
+        p.x >= self.bottom_left.x
+            && p.x < self.bottom_left.x + self.width
+            && p.y >= self.bottom_left.y
+            && p.y < self.bottom_left.y + self.height
+    }
+}
+
+impl Collides<Rect> for Rect {
+    fn collides(&self, other: &Rect) -> bool {
+        other.vertices().any(|v| self.contains(v))
+    }
+}
+
+impl Collides<Ellipse> for Rect {
+    fn collides(&self, other: &Ellipse) -> bool {
+        self.vertices().any(|v| other.contains(v))
     }
 }
 

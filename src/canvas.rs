@@ -31,6 +31,11 @@ impl Canvas {
         element.paint(self);
     }
 
+    /// Sets the alpha of the paint color.
+    pub fn set_alpha(&mut self, alpha: f32) {
+        self.color.alpha = alpha;
+    }
+
     /// Sets the current color.
     pub fn set_color(&mut self, color: impl IntoColor) {
         self.color = Alpha::from(color.into_rgb());

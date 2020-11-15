@@ -4,8 +4,8 @@ use crate::{gpu::GpuVertex, Result, P2};
 use glium::index::PrimitiveType;
 use lyon_path::Builder;
 use lyon_tessellation::{
-    BuffersBuilder, FillAttributes, FillOptions, FillTessellator, StrokeAttributes, StrokeOptions,
-    StrokeTessellator, VertexBuffers,
+    BuffersBuilder, FillAttributes, FillOptions, FillTessellator, LineJoin, StrokeAttributes,
+    StrokeOptions, StrokeTessellator, VertexBuffers,
 };
 use palette::LinSrgba;
 
@@ -110,6 +110,7 @@ pub fn raster_path(
                 .tessellate_path(
                     &builder.build(),
                     &StrokeOptions::default()
+                        .with_line_join(LineJoin::MiterClip)
                         .with_line_width(width)
                         .with_tolerance(0.05),
                     &mut buffers_builder,

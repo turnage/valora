@@ -1,4 +1,7 @@
-/// Spatial attributes.
-mod center;
+//! Spatial attributes.
 
-pub use self::center::*;
+mod center;
+mod collides;
+mod contains;
+
+pub use self::{center::*, collides::*, contains::*};

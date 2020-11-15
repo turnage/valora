@@ -1,6 +1,6 @@
 [package]
 name = "valora"
-version = "0.2.10"
+version = "0.2.12"
 authors = ["Payton Turnage <paytonturnage@gmail.com>"]
 edition = "2018"
 description = "A brush for generative fine art."
@@ -39,3 +39,6 @@ float-ord = "0.2.0"
 [dev-dependencies]
 itertools = "0.8.0"
 nalgebra = "0.18.0"
+
+[features]
+ci = []
