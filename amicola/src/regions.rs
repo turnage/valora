@@ -269,9 +269,12 @@ impl RegionList {
             result
         });
 
-        let potential_fill_spans = span_winds.tuple_windows::<(_, _)>();
         let wound_in = |wind| wind % 2 == 1;
+        let potential_fill_spans = span_winds.tuple_windows::<(_, _)>();
         let fill_spans = potential_fill_spans.filter_map(move |((wind1, span1), (_, span2))| {
+            if span1.y != span2.y {
+                return None;
+            }
             match wound_in(wind1) {
                 true => Some(Region::Span {
                     start_x: span1.xs.end,
