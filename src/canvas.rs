@@ -38,7 +38,10 @@ impl Canvas {
 
     /// Sets the current color.
     pub fn set_color(&mut self, color: impl IntoColor) {
-        self.color = Alpha::from(color.into_rgb());
+        self.color = Alpha {
+            color: color.into_rgb(),
+            ..self.color
+        };
     }
 
     /// Sets the current color.

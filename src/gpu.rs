@@ -385,7 +385,7 @@ impl Gpu {
                 line_width: Some(1.0),
                 multisampling: false,
                 dithering: false,
-                smooth: None, //Some(glium::draw_parameters::Smooth::Nicest),
+                smooth: None,
                 ..Default::default()
             },
         )?)

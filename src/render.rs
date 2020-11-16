@@ -2,9 +2,11 @@
 
 use crate::{canvas::*, gpu::*, paint::*, uniforms::*, Options, Result, World};
 use glium::{
+    framebuffer::SimpleFrameBuffer,
     glutin::event_loop::{ControlFlow, EventLoop},
     texture::{texture2d::Texture2d, Dimensions, MipmapsOption},
-    Frame, GlObject, Program,
+    uniforms::MagnifySamplerFilter,
+    Frame, GlObject, Program, Surface,
 };
 use glutin::platform::desktop::EventLoopExtDesktop;
 use image::{ImageBuffer, Rgba};
@@ -49,31 +51,41 @@ struct FrameUpdates {
     should_quit: bool,
 }
 
-pub enum RenderStrategy<F1, F2> {
+pub enum RenderStrategy<'a> {
     Screen {
-        get_frame: F1,
         events_loop: EventLoop<()>,
         wait: Duration,
-        texture_program: Rc<Program>,
-        buffer: Texture2d,
+        buffer: SimpleFrameBuffer<'a>,
     },
     File {
-        output_path: F2,
+        base_path: PathBuf,
+        number_width: usize,
         buffer: Texture2d,
     },
 }
 
+fn output_path(base_path: PathBuf, number_width: usize, frame_number: usize, seed: u64) -> PathBuf {
+    let mut base_path = base_path.clone();
+    base_path.push(format!(
+        "{}_{number:>0width$}.png",
+        seed,
+        number = frame_number,
+        width = number_width
+    ));
+    base_path
+}
+
 /// A render gate renders frames.
-pub struct Renderer<'a, F1, F2> {
-    pub strategy: &'a mut RenderStrategy<F1, F2>,
+pub struct Renderer<'a> {
+    pub strategy: RenderStrategy<'a>,
     pub gpu: &'a Gpu,
     pub options: Options,
-    pub rng: &'a mut StdRng,
+    pub rng: StdRng,
     pub output_width: u32,
     pub output_height: u32,
 }
 
-impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1, F2> {
+impl<'a> Renderer<'a> {
     /// Render all of the frames for the composition. This will not return until until all frames of
     /// the composition have been rendered.
     pub fn render_frames(
@@ -97,7 +109,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
             let mut canvas = Canvas::new(default_shader.clone(), self.options.world.scale);
             f(
                 Context {
-                    rng: self.rng,
+                    rng: &mut self.rng,
                     world: self.options.world,
                     frame,
                     time: Duration::from_secs_f32(
@@ -144,60 +156,42 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
             .sample_depth
             .unwrap_or(amicola::SampleDepth::Single);
 
-        match self.strategy {
+        match &mut self.strategy {
             RenderStrategy::Screen {
-                get_frame,
                 events_loop,
                 buffer,
-                texture_program,
                 wait,
             } => {
                 self.gpu.render(
                     self.output_width,
                     self.output_height,
                     canvas.elements(),
-                    &mut buffer.as_surface(),
-                    sample_depth,
-                )?;
-
-                #[derive(UniformSet)]
-                struct QuadUniforms {
-                    texture_in: Texture2d,
-                }
-
-                let shader = self.gpu.build_shader(
-                    texture_program.clone(),
-                    QuadUniforms {
-                        texture_in: unsafe {
-                            // Create a weak reference to the intermediate buffer, which we will draw
-                            // to the frame buffer with a quad.
-                            Texture2d::from_id(
-                                self.gpu.ctx.get_context(),
-                                TEXTURE_FORMAT,
-                                buffer.get_id(),
-                                /*owned=*/ false,
-                                MipmapsOption::NoMipmap,
-                                Dimensions::Texture2d {
-                                    width: buffer.dimensions().0,
-                                    height: buffer.dimensions().1,
-                                },
-                            )
-                        },
-                    },
-                );
-                let mut quad_canvas = Canvas::new(shader.clone(), self.options.world.scale);
-                quad_canvas.paint(Filled(self.options.world));
-
-                let mut frame = get_frame();
-                frame.set_finish()?;
-
-                self.gpu.render(
-                    self.output_width,
-                    self.output_height,
-                    quad_canvas.elements(),
-                    &mut frame,
+                    buffer,
                     amicola::SampleDepth::Single,
                 )?;
+
+                let rect = glium::Rect {
+                    left: 0,
+                    bottom: 0,
+                    width: self.output_width,
+                    height: self.output_height,
+                };
+
+                let blit_target = glium::BlitTarget {
+                    left: 0,
+                    bottom: 0,
+                    width: self.output_width as i32,
+                    height: self.output_height as i32,
+                };
+
+                let mut frame = self.gpu.get_frame().expect("getting frame from display");
+                frame.blit_from_simple_framebuffer(
+                    buffer,
+                    &rect,
+                    &blit_target,
+                    MagnifySamplerFilter::Nearest,
+                );
+                frame.finish()?;
 
                 let mut new_seed = None;
                 let mut should_quit = false;
@@ -247,7 +241,8 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 })
             }
             RenderStrategy::File {
-                output_path,
+                base_path,
+                number_width,
                 buffer,
             } => {
                 self.gpu.render(
@@ -272,7 +267,12 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                     )
                     .unwrap();
 
-                    image.save(output_path(frame_number, current_seed))?;
+                    image.save(output_path(
+                        base_path.clone(),
+                        *number_width,
+                        frame_number,
+                        current_seed,
+                    ))?;
                 }
 
                 Ok(FrameUpdates {

@@ -215,6 +215,7 @@ where
         .chars()
         .count();
 
+    let mut render_buffer = None;
     let (gpu, mut strategy) = if let Some(base_path) = options.output.clone() {
         let (gpu, _) = Gpu::new()?;
         let buffer = gpu.build_texture(output_width, output_height)?;
@@ -226,28 +227,25 @@ where
             gpu,
             RenderStrategy::File {
                 buffer,
-                output_path: move |frame_number: usize, seed: u64| {
-                    let mut base_path = base_path.clone();
-                    base_path.push(format!(
-                        "{}_{number:>0width$}.png",
-                        seed,
-                        number = frame_number,
-                        width = number_width
-                    ));
-                    base_path
-                },
+                base_path,
+                number_width,
             },
         )
     } else {
         let (gpu, events_loop, (screen_width, screen_height)) =
             Gpu::with_window(output_width, output_height)?;
-        let buffer = gpu.build_texture(screen_width, screen_height)?;
+        render_buffer = Some(glium::framebuffer::RenderBuffer::new(
+            gpu.ctx.as_ref(),
+            TEXTURE_FORMAT,
+            output_width,
+            output_height,
+        )?);
 
         let wait = Duration::from_secs_f64(1. / options.world.framerate as f64);
-        let gpu_clone = gpu.clone();
-
-        let texture_glsl = include_str!("shaders/texture.frag");
-        let texture_program = gpu.compile_glsl(texture_glsl)?;
+        let buffer = glium::framebuffer::SimpleFrameBuffer::new(
+            gpu.ctx.as_ref(),
+            render_buffer.as_ref().unwrap(),
+        )?;
 
         (
             gpu,
@@ -255,59 +253,47 @@ where
                 events_loop,
                 wait,
                 buffer,
-                texture_program,
-                get_frame: move || {
-                    gpu_clone
-                        .get_frame()
-                        .expect("To get frame from windowed gpu")
-                },
             },
         )
     };
 
-    let mut current_seed = options.world.seed;
-    let mut render_count = 0;
-    loop {
-        let mut rng = StdRng::seed_from_u64(current_seed);
-        let mut paint_fn = f(gpu.clone(), options.world, &mut rng)?;
-
-        let mut renderer = Renderer {
-            strategy: &mut strategy,
-            gpu: &gpu,
-            options: Options {
-                world: World {
-                    seed: current_seed,
-                    frames: match (options.brainstorm, options.output.as_ref()) {
-                        (true, Some(_)) => Some(1),
-                        _ => options.world.frames,
-                    },
-                    ..options.world
+    let mut rng = StdRng::seed_from_u64(options.world.seed);
+    let mut renderer = Renderer {
+        strategy,
+        gpu: &gpu,
+        options: Options {
+            world: World {
+                seed: options.world.seed,
+                frames: match (options.brainstorm, options.output.as_ref()) {
+                    (true, Some(_)) => Some(1),
+                    _ => options.world.frames,
                 },
-                ..options.clone()
+                ..options.world
             },
-            rng: &mut rng,
-            output_width: output_width,
-            output_height: output_height,
-        };
-
+            ..options.clone()
+        },
+        rng,
+        output_width,
+        output_height,
+    };
+    for frame in 0.. {
+        let mut paint_fn = f(gpu.clone(), options.world, &mut renderer.rng)?;
         let report = renderer.render_frames(|ctx, canvas| paint_fn(ctx, canvas))?;
 
         if let Some(rebuild) = report.rebuild {
             match rebuild {
                 Rebuild::NewSeed(new_seed) => {
-                    current_seed = new_seed;
+                    renderer.options.world.seed = new_seed;
                 }
             }
         } else if options.brainstorm
             && options.output.is_some()
-            && render_count < options.world.frames.unwrap_or(usize::max_value())
+            && frame < options.world.frames.unwrap_or(usize::max_value())
         {
-            current_seed += 1;
+            renderer.options.world.seed += 1;
         } else if report.explicit_quit || !options.brainstorm || options.output.is_some() {
             break;
         }
-
-        render_count += 1;
     }
 
     Ok(())
