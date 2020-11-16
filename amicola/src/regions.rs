@@ -12,7 +12,7 @@ use std::{
     ops::Range,
 };
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Region {
     Boundary {
         x: isize,
@@ -79,7 +79,7 @@ impl Hash for Hit {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord)]
 pub enum Axis {
     X(isize),
     Y(isize),
@@ -98,8 +98,11 @@ impl PartialOrd for RawHit {
 }
 
 impl Ord for RawHit {
-    fn cmp(&self, RawHit { t: other, .. }: &RawHit) -> Ordering {
-        FloatOrd(self.t).cmp(&FloatOrd(*other))
+    fn cmp(&self, other: &RawHit) -> Ordering {
+        match FloatOrd(self.t).cmp(&FloatOrd(other.t)) {
+            Ordering::Equal => self.axis.cmp(&other.axis),
+            ordering => ordering,
+        }
     }
 }
 
