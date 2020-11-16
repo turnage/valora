@@ -243,18 +243,27 @@ impl RegionList {
         let mut cached = None;
         let mut hits = self.hits.into_iter();
         let mut wind = 0;
+        let mut row = 0;
         let span_winds = boundary_spans.map(move |span| {
             let BoundarySpan { y, xs } = &span;
-            let mut row_end = false;
+            if *y != row {
+                row = *y;
+                wind = 0;
+            }
             while let Some(hit) = cached.take().or_else(|| hits.next()) {
-                row_end = hit.pixel_y != *y;
+                let row_end = hit.pixel_y != *y;
+                if row_end {
+                    cached = Some(hit);
+                    break;
+                }
                 let span_end = !xs.contains(&hit.pixel_x);
-                let hit_is_ahead = row_end || (span_end && hit.pixel_x > xs.start);
+                let gap = hit.pixel_x > xs.start;
+                let hit_is_ahead = row_end || (span_end && gap);
                 if hit_is_ahead {
                     cached = Some(hit);
                 }
 
-                if row_end || span_end {
+                if span_end {
                     break;
                 }
 
@@ -262,10 +271,6 @@ impl RegionList {
             }
 
             let result = (wind, span);
-            if row_end {
-                wind = 0;
-            }
-
             result
         });
 
