@@ -43,10 +43,7 @@ struct Hit {
     x: f32,
     pixel_x: isize,
     pixel_y: isize,
-}
-
-fn epsilon_equal(a: f32, b: f32) -> bool {
-    (a - b).abs() <= std::f32::EPSILON
+    wind_weight: i32,
 }
 
 impl PartialOrd for Hit {
@@ -138,15 +135,15 @@ pub struct RegionList {
 
 impl<I> From<I> for RegionList
 where
-    I: Iterator<Item = LineSegment<f32>>,
+    I: Iterator<Item = (LineSegment<f32>, i32)>,
 {
     fn from(segment_iter: I) -> Self {
         let mut segments = vec![];
         let mut hits = BTreeSet::new();
         let mut boundaries = BTreeSet::new();
 
-        for (segment_id, segment) in segment_iter
-            .filter(|line| line.to.y != line.from.y)
+        for (segment_id, (segment, wind_weight)) in segment_iter
+            .filter(|(line, _)| line.to.y != line.from.y)
             .enumerate()
         {
             trace!("Considering segment: {:#?}", segment);
@@ -199,6 +196,7 @@ where
                         pixel_y,
                         pixel_x: x.floor() as isize,
                         x,
+                        wind_weight,
                     });
                 });
 
@@ -267,7 +265,7 @@ impl RegionList {
                     break;
                 }
 
-                wind += 1;
+                wind += hit.wind_weight;
             }
 
             let result = (wind, span);
@@ -348,7 +346,7 @@ mod test {
 
     fn test_case(path: Path, mut expected_regions: Vec<Region>) {
         let flattened_path = Flattened::new(0.1, path.into_iter());
-        let regions = RegionList::from(flattened_path.filter_map(segment));
+        let regions = RegionList::from(flattened_path.filter_map(segment).map(|line| (line, 1)));
         let mut actual_regions = regions.regions().collect::<Vec<Region>>();
 
         expected_regions.sort();
