@@ -40,7 +40,7 @@ pub enum ShadeCommand {
 
 #[derive(Debug, Clone, Copy)]
 struct Hit {
-    x: f32,
+    x: f64,
     pixel_x: isize,
     pixel_y: isize,
     wind_weight: i32,
@@ -84,7 +84,7 @@ pub enum Axis {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 struct RawHit {
-    t: f32,
+    t: f64,
     axis: Option<Axis>,
 }
 
@@ -130,12 +130,12 @@ impl Ord for Pixel {
 pub struct RegionList {
     hits: BTreeSet<Hit>,
     boundaries: BTreeSet<Pixel>,
-    segments: Vec<LineSegment<f32>>,
+    segments: Vec<LineSegment<f64>>,
 }
 
 impl<I> From<I> for RegionList
 where
-    I: Iterator<Item = (LineSegment<f32>, i32)>,
+    I: Iterator<Item = (LineSegment<f64>, i32)>,
 {
     fn from(segment_iter: I) -> Self {
         let mut segments = vec![];
@@ -155,7 +155,7 @@ where
             segment_hits.insert(RawHit { t: 1., axis: None });
 
             for horizontal_line in horizontal_grid_lines(bounds) {
-                let y = horizontal_line as f32;
+                let y = horizontal_line as f64;
                 if let Some(t) = segment.horizontal_line_intersection_t(y) {
                     segment_hits.insert(RawHit {
                         t,
@@ -165,7 +165,7 @@ where
             }
 
             for vertical_line in vertical_grid_lines(bounds) {
-                let x = vertical_line as f32;
+                let x = vertical_line as f64;
                 if let Some(t) = segment.vertical_line_intersection_t(x) {
                     segment_hits.insert(RawHit {
                         t,

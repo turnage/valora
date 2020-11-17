@@ -1,8 +1,11 @@
 //! Path rasterization.
 
 use crate::{gpu::GpuVertex, Result, P2};
+use amicola::SampleDepth;
+use geo_clipper::{Clipper, EndType, JoinType};
+use geo_types::{Coordinate, Line, MultiPolygon, Polygon};
 use glium::index::PrimitiveType;
-use lyon_path::Builder;
+use lyon_path::{iterator::Flattened, Builder, Event};
 use lyon_tessellation::{
     BuffersBuilder, FillAttributes, FillOptions, FillTessellator, LineJoin, StrokeAttributes,
     StrokeOptions, StrokeTessellator, VertexBuffers,
@@ -19,7 +22,7 @@ pub enum Method {
     /// In stroke method, the rasterizer will treat the area immediately adjacent the path within
     /// the given width as part of the rastered area. In this method, paths are left open
     /// and no edge between the last and first vertex is assumed.
-    Stroke(f32),
+    Stroke(f64),
 }
 
 pub struct RasterResult {
@@ -89,51 +92,36 @@ pub fn format_shade_commands(
     }
 }
 
+fn path_to_multipolygon(builder: Builder, sample_depth: SampleDepth) -> MultiPolygon<f64> {
+    let samples_per_pixel: u64 = sample_depth.into();
+    let path = builder.build();
+    let path = Flattened::new(1.0 / samples_per_pixel as f32, path.into_iter());
+    let exterior = path
+        .filter_map(|event| match event {
+            Event::Line { from, to } => Some(Coordinate {
+                x: from.x as f64,
+                y: from.y as f64,
+            }),
+            _ => None,
+        })
+        .collect();
+    MultiPolygon::from(Polygon::new(exterior, vec![]))
+}
+
 pub fn raster_path(
     builder: Builder,
     method: Method,
     color: LinSrgba,
     sample_depth: amicola::SampleDepth,
 ) -> Result<RasterResult> {
-    match method {
-        Method::Fill => Ok(format_shade_commands(
-            color,
-            amicola::fill_path(builder, sample_depth),
-        )),
+    let multi_polygon = path_to_multipolygon(builder, sample_depth);
+    let multi_polygon = match method {
+        Method::Fill => multi_polygon,
         Method::Stroke(width) => {
-            let ctor = |v: P2, _: StrokeAttributes| -> P2 { v };
-            let mut buffers: VertexBuffers<P2, u32> = VertexBuffers::new();
-            let mut buffers_builder = BuffersBuilder::new(&mut buffers, ctor);
-
-            let mut tessellator = StrokeTessellator::new();
-            tessellator
-                .tessellate_path(
-                    &builder.build(),
-                    &StrokeOptions::default()
-                        .with_line_join(LineJoin::MiterClip)
-                        .with_line_width(width)
-                        .with_tolerance(0.05),
-                    &mut buffers_builder,
-                )
-                .expect("TODO: wrap error");
-
-            Ok(RasterResult {
-                primitive: PrimitiveType::TrianglesList,
-                vertices: buffers
-                    .vertices
-                    .into_iter()
-                    .map(|v| GpuVertex {
-                        vpos: [v.x, v.y],
-                        vcol: [
-                            color.color.red,
-                            color.color.green,
-                            color.color.blue,
-                            color.alpha,
-                        ],
-                    })
-                    .collect(),
-                indices: buffers.indices,
-            })
+            multi_polygon.offset(width as f64, JoinType::Miter(1.), EndType::OpenButt, 1.)
         }
-    }
+    };
+
+    let shade_commands = amicola::raster(multi_polygon.into_iter(), sample_depth);
+    Ok(format_shade_commands(color, shade_commands))
 }

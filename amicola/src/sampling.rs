@@ -31,7 +31,7 @@ impl Into<u64> for SampleDepth {
 pub fn coverage(
     offset: V2,
     depth: SampleDepth,
-    path: impl Iterator<Item = LineSegment<f32>> + Clone,
+    path: impl Iterator<Item = LineSegment<f64>> + Clone,
 ) -> f32 {
     // TODO: Sample vertically as well?
     let mut hits = 0;
@@ -42,8 +42,11 @@ pub fn coverage(
     }) {
         let mut pass_count = 0;
         for segment in path.clone() {
-            if let Some(y) = segment.vertical_line_intersection(command.x).map(|p| p.y) {
-                if y <= command.y {
+            if let Some(y) = segment
+                .vertical_line_intersection(command.x as f64)
+                .map(|p| p.y)
+            {
+                if y <= command.y as f64 {
                     pass_count += 1;
                 }
             }

@@ -98,7 +98,7 @@ impl Canvas {
 
     /// Paints the current path by stroking the path.
     pub fn stroke(&mut self) {
-        self.push_element(Method::Stroke(self.stroke_width));
+        self.push_element(Method::Stroke(self.stroke_width as f64));
     }
 
     /// Sets the current shader used to shade rastered paths.
