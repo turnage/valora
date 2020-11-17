@@ -338,15 +338,39 @@ impl Iterator for BoundarySpans {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::segment;
-    use lyon_path::{iterator::Flattened, math::Point, Builder, Path};
+    use crate::{polygon_edges, SampleDepth};
+    use geo_types::{Coordinate, MultiPolygon, Polygon};
+    use lyon_path::{iterator::Flattened, math::Point, Builder, Event, Path};
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
     use Region::*;
 
-    fn test_case(path: Path, mut expected_regions: Vec<Region>) {
-        let flattened_path = Flattened::new(0.1, path.into_iter());
-        let regions = RegionList::from(flattened_path.filter_map(segment).map(|line| (line, 1)));
+    fn event_to_coordinate(event: Event<Point, Point>) -> Option<Coordinate<f64>> {
+        let point_to_coord = |p: Point| Coordinate {
+            x: p.x as f64,
+            y: p.y as f64,
+        };
+        match event {
+            Event::Line { from, to } => Some(point_to_coord(from)),
+            Event::End { last, .. } => Some(point_to_coord(last)),
+            _ => None,
+        }
+    }
+
+    fn path_to_multipolygon(builder: Builder, sample_depth: SampleDepth) -> MultiPolygon<f64> {
+        let samples_per_pixel: u64 = sample_depth.into();
+        let path = builder.build();
+        let path = Flattened::new(1.0 / samples_per_pixel as f32, path.into_iter());
+        let path = path.filter_map(event_to_coordinate);
+
+        let exterior = path.collect();
+        MultiPolygon::from(Polygon::new(exterior, vec![]))
+    }
+
+    fn test_case(builder: Builder, mut expected_regions: Vec<Region>) {
+        let multi_polygon = path_to_multipolygon(builder, SampleDepth::Single);
+        println!("multipoly: {:?}", multi_polygon);
+        let regions = RegionList::from(multi_polygon.into_iter().flat_map(polygon_edges));
         let mut actual_regions = regions.regions().collect::<Vec<Region>>();
 
         expected_regions.sort();
@@ -361,9 +385,8 @@ mod test {
         builder.move_to(Point::new(0.0, 0.0));
         builder.line_to(Point::new(0.0, 2.0));
         builder.line_to(Point::new(2.0, 0.0));
-        let path = builder.build();
         test_case(
-            path,
+            builder,
             vec![
                 Boundary { x: 0, y: 0 },
                 Boundary { x: 0, y: 1 },

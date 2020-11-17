@@ -32,7 +32,7 @@ fn line_string_lines<T: CoordinateType>(
         })
 }
 
-fn polygon_edges<T: CoordinateType>(
+pub(crate) fn polygon_edges<T: CoordinateType>(
     polygon: Polygon<T>,
 ) -> impl Iterator<Item = (LineSegment<f64>, i32)> {
     let (exterior, interiors) = polygon.into_inner();
@@ -53,7 +53,5 @@ pub fn raster(
     shape: impl Iterator<Item = Polygon<impl CoordinateType>>,
     sample_depth: SampleDepth,
 ) -> impl Iterator<Item = ShadeCommand> {
-    shape.flat_map(polygon_edges);
-
-    std::iter::empty()
+    RegionList::from(shape.flat_map(polygon_edges)).shade_commands(sample_depth)
 }

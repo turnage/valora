@@ -2,10 +2,12 @@
 
 use crate::{gpu::GpuVertex, Result, P2};
 use amicola::SampleDepth;
-use geo_clipper::{Clipper, EndType, JoinType};
-use geo_types::{Coordinate, Line, MultiPolygon, Polygon};
+use geo_booleanop::boolean::BooleanOp;
+use geo_offset::Offset;
+use geo_types::{Coordinate, Line, LineString, MultiPolygon, Polygon};
 use glium::index::PrimitiveType;
-use lyon_path::{iterator::Flattened, Builder, Event};
+use itertools::Itertools;
+use lyon_path::{iterator::Flattened, math::Point, Builder, Event};
 use lyon_tessellation::{
     BuffersBuilder, FillAttributes, FillOptions, FillTessellator, LineJoin, StrokeAttributes,
     StrokeOptions, StrokeTessellator, VertexBuffers,
@@ -92,20 +94,69 @@ pub fn format_shade_commands(
     }
 }
 
-fn path_to_multipolygon(builder: Builder, sample_depth: SampleDepth) -> MultiPolygon<f64> {
+fn tessellate_stroke(path: Builder, width: f32) -> VertexBuffers<P2, u32> {
+    let ctor = |v: P2, _: StrokeAttributes| -> P2 { v };
+    let mut buffers: VertexBuffers<P2, u32> = VertexBuffers::new();
+    let mut buffers_builder = BuffersBuilder::new(&mut buffers, ctor);
+
+    let mut tessellator = StrokeTessellator::new();
+    tessellator
+        .tessellate_path(
+            &path.build(),
+            &StrokeOptions::default()
+                .with_line_join(LineJoin::MiterClip)
+                .with_line_width(width)
+                .with_tolerance(0.05),
+            &mut buffers_builder,
+        )
+        .expect("TODO: wrap error");
+
+    buffers
+}
+
+fn point_to_coord(p: Point) -> Coordinate<f64> {
+    Coordinate {
+        x: p.x as f64,
+        y: p.y as f64,
+    }
+}
+
+fn stroke_triangles(buffers: VertexBuffers<P2, u32>) -> impl Iterator<Item = Polygon<f64>> {
+    let vertices = buffers.vertices;
+    buffers
+        .indices
+        .into_iter()
+        .tuples::<(_, _, _)>()
+        .map(move |(i, j, k)| {
+            let path: Vec<Coordinate<f64>> = [
+                vertices[i as usize],
+                vertices[j as usize],
+                vertices[k as usize],
+            ]
+            .iter()
+            .copied()
+            .map(point_to_coord)
+            .collect();
+
+            Polygon::new(path.into(), vec![])
+        })
+}
+
+fn event_to_coordinate(event: Event<Point, Point>) -> Option<Coordinate<f64>> {
+    match event {
+        Event::Line { from, to } => Some(point_to_coord(from)),
+        Event::End { last, .. } => Some(point_to_coord(last)),
+        _ => None,
+    }
+}
+
+fn path_to_line_string(builder: Builder, sample_depth: SampleDepth) -> LineString<f64> {
     let samples_per_pixel: u64 = sample_depth.into();
     let path = builder.build();
     let path = Flattened::new(1.0 / samples_per_pixel as f32, path.into_iter());
-    let exterior = path
-        .filter_map(|event| match event {
-            Event::Line { from, to } => Some(Coordinate {
-                x: from.x as f64,
-                y: from.y as f64,
-            }),
-            _ => None,
-        })
-        .collect();
-    MultiPolygon::from(Polygon::new(exterior, vec![]))
+    let path = path.filter_map(event_to_coordinate);
+
+    path.collect()
 }
 
 pub fn raster_path(
@@ -114,14 +165,17 @@ pub fn raster_path(
     color: LinSrgba,
     sample_depth: amicola::SampleDepth,
 ) -> Result<RasterResult> {
-    let multi_polygon = path_to_multipolygon(builder, sample_depth);
-    let multi_polygon = match method {
-        Method::Fill => multi_polygon,
-        Method::Stroke(width) => {
-            multi_polygon.offset(width as f64, JoinType::Miter(1.), EndType::OpenButt, 1.)
+    let lines = path_to_line_string(builder, sample_depth);
+    Ok(match method {
+        Method::Fill => {
+            let shade_commands =
+                amicola::raster(std::iter::once(Polygon::new(lines, vec![])), sample_depth);
+            format_shade_commands(color, shade_commands)
         }
-    };
-
-    let shade_commands = amicola::raster(multi_polygon.into_iter(), sample_depth);
-    Ok(format_shade_commands(color, shade_commands))
+        Method::Stroke(width) => {
+            let shade_commands =
+                amicola::raster(lines.offset(width).unwrap().into_iter(), sample_depth);
+            format_shade_commands(color, shade_commands)
+        }
+    })
 }
