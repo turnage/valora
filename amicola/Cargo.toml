@@ -18,7 +18,7 @@ enum_dispatch = "0.2.0"
 derive_more = "0.15.0"
 vek = "0.9.10"
 roots = "0.0.5"
-arrayvec = "0.5.1"
+arrayvec = "0.5.2"
 newtype_derive = "0.1.6"
 pathfinder_path_utils = "0.2.0"
 lyon_path = "0.15"
@@ -32,6 +32,7 @@ num-traits = "0.2.14"
 [dev-dependencies]
 pretty_assertions = "0.6.1"
 pretty_env_logger = "0.3.1"
+maplit = "1.0.2"
 
 [features]
 release_max_level_off = []

@@ -38,94 +38,6 @@ pub enum ShadeCommand {
     Span { x: Range<isize>, y: isize },
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Hit {
-    x: f64,
-    pixel_x: isize,
-    pixel_y: isize,
-    wind_weight: i32,
-}
-
-impl PartialOrd for Hit {
-    fn partial_cmp(&self, other: &Hit) -> Option<Ordering> {
-        match self.pixel_y.cmp(&other.pixel_y) {
-            Ordering::Equal => Some(FloatOrd(self.x).cmp(&FloatOrd(other.x))),
-            o => Some(o),
-        }
-    }
-}
-
-impl Ord for Hit {
-    fn cmp(&self, other: &Hit) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialEq for Hit {
-    fn eq(&self, other: &Hit) -> bool {
-        self.pixel_x == other.pixel_x && self.pixel_y == other.pixel_y
-    }
-}
-
-impl Eq for Hit {}
-
-impl Hash for Hit {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pixel_x.hash(state);
-        self.pixel_y.hash(state);
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord)]
-pub enum Axis {
-    X(isize),
-    Y(isize),
-}
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-struct RawHit {
-    t: f64,
-    axis: Option<Axis>,
-}
-
-impl PartialOrd for RawHit {
-    fn partial_cmp(&self, other: &RawHit) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for RawHit {
-    fn cmp(&self, other: &RawHit) -> Ordering {
-        match FloatOrd(self.t).cmp(&FloatOrd(other.t)) {
-            Ordering::Equal => self.axis.cmp(&other.axis),
-            ordering => ordering,
-        }
-    }
-}
-
-impl Eq for RawHit {}
-
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
-struct Pixel {
-    x: isize,
-    y: isize,
-}
-
-impl PartialOrd for Pixel {
-    fn partial_cmp(&self, other: &Pixel) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Pixel {
-    fn cmp(&self, other: &Pixel) -> Ordering {
-        match self.y.cmp(&other.y) {
-            Ordering::Equal => self.x.cmp(&other.x),
-            other => other,
-        }
-    }
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct RegionList {
     hits: BTreeSet<Hit>,
@@ -147,59 +59,9 @@ where
             .enumerate()
         {
             trace!("Considering segment: {:#?}", segment);
-
-            let bounds = segment.bounding_rect();
-
-            let mut segment_hits = BTreeSet::new();
-            segment_hits.insert(RawHit { t: 0., axis: None });
-            segment_hits.insert(RawHit { t: 1., axis: None });
-
-            for horizontal_line in horizontal_grid_lines(bounds) {
-                let y = horizontal_line as f64;
-                if let Some(t) = segment.horizontal_line_intersection_t(y) {
-                    segment_hits.insert(RawHit {
-                        t,
-                        axis: Some(Axis::X(horizontal_line)),
-                    });
-                }
-            }
-
-            for vertical_line in vertical_grid_lines(bounds) {
-                let x = vertical_line as f64;
-                if let Some(t) = segment.vertical_line_intersection_t(x) {
-                    segment_hits.insert(RawHit {
-                        t,
-                        axis: Some(Axis::Y(vertical_line)),
-                    });
-                }
-            }
-
-            segment_hits
-                .into_iter()
-                .tuple_windows::<(_, _)>()
-                .filter_map(|(h1, h2)| {
-                    let p1 = segment.sample(h1.t);
-                    let p2 = segment.sample(h2.t);
-                    let midpoint = (p1 + p2.to_vector()) / 2.;
-
-                    let x = midpoint.x.floor() as isize;
-                    let y = midpoint.y.floor() as isize;
-                    boundaries.insert(Pixel { x, y });
-
-                    h1.axis.and_then(|axis| match axis {
-                        Axis::X(pixel_y) => Some((p1.x, pixel_y)),
-                        _ => None,
-                    })
-                })
-                .for_each(|(x, pixel_y)| {
-                    hits.insert(Hit {
-                        pixel_y,
-                        pixel_x: x.floor() as isize,
-                        x,
-                        wind_weight,
-                    });
-                });
-
+            let (segment_boundaries, segment_hits) = scanline_entries(segment);
+            boundaries.extend(segment_boundaries);
+            hits.extend(segment_hits);
             segments.push(segment);
         }
 
@@ -210,7 +72,6 @@ where
         }
     }
 }
-
 impl RegionList {
     pub fn shade_commands(self, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
         let segments = self.segments.clone();
@@ -249,13 +110,13 @@ impl RegionList {
                 wind = 0;
             }
             while let Some(hit) = cached.take().or_else(|| hits.next()) {
-                let row_end = hit.pixel_y != *y;
+                let row_end = hit.pixel.y != *y;
                 if row_end {
                     cached = Some(hit);
                     break;
                 }
-                let span_end = !xs.contains(&hit.pixel_x);
-                let gap = hit.pixel_x > xs.start;
+                let span_end = !xs.contains(&hit.pixel.x);
+                let gap = hit.pixel.x > xs.start;
                 let hit_is_ahead = row_end || (span_end && gap);
                 if hit_is_ahead {
                     cached = Some(hit);
@@ -265,7 +126,7 @@ impl RegionList {
                     break;
                 }
 
-                wind += hit.wind_weight;
+                wind += 1;
             }
 
             let result = (wind, span);
