@@ -7,6 +7,7 @@ use itertools::{Itertools, Position};
 use lyon_geom::LineSegment;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
+use std::convert::TryFrom;
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord)]
@@ -144,7 +145,11 @@ impl Ord for Pixel {
     }
 }
 
-pub fn scanline_entries(segment: LineSegment<f64>) -> (Vec<Pixel>, Vec<Hit>) {
+pub fn scanline_entries(segment: LineSegment<f64>) -> (BTreeSet<Pixel>, Vec<Hit>) {
+    if segment.from.y == segment.to.y {
+        return (BTreeSet::new(), vec![]);
+    }
+
     let mut raw_hits = raw_hits(segment);
 
     let (boundaries, mut hits) = {
@@ -160,7 +165,7 @@ pub fn scanline_entries(segment: LineSegment<f64>) -> (Vec<Pixel>, Vec<Hit>) {
                 });
             }
         };
-        let boundaries: Vec<Pixel> = raw_hits
+        let boundaries: BTreeSet<Pixel> = raw_hits
             .into_iter()
             .tuple_windows::<(_, _)>()
             .with_position()
@@ -170,29 +175,23 @@ pub fn scanline_entries(segment: LineSegment<f64>) -> (Vec<Pixel>, Vec<Hit>) {
                 let p1 = segment.sample(h1.t);
                 let p2 = segment.sample(h2.t);
 
-                let midpoint = (p1 + p2.to_vector()) / 2.;
-                let x = midpoint.x.floor() as isize;
-                let y = midpoint.y.floor() as isize;
-
-                let mut boundaries: ArrayVec<[Pixel; 2]> = ArrayVec::new();
                 match hit_pair {
                     Position::Last(_) => {
                         insert_hit(h1, p1);
                         insert_hit(h2, p2);
-
-                        boundaries.push(Pixel { x, y });
-                        boundaries.push(Pixel {
-                            x: p2.x.floor() as isize,
-                            y: p2.y.floor() as isize,
-                        });
                     }
                     _ => {
                         insert_hit(h1, p1);
-                        boundaries.push(Pixel { x, y });
                     }
                 }
 
-                boundaries
+                let to_pixel = |p: Point2D<f64, UnknownUnit>| {
+                    let x = p.x.floor() as isize;
+                    let y = p.y.floor() as isize;
+                    Pixel { x, y }
+                };
+                let midpoint = (p1 + p2.to_vector()) / 2.;
+                ArrayVec::from([p1, p2, midpoint]).into_iter().map(to_pixel)
             })
             .collect();
 
@@ -269,7 +268,11 @@ mod test {
         let (boundaries_ab, hits_ab) = scanline_entries(ab);
         assert_eq!(
             boundaries_ab,
-            vec![Pixel { x: 0, y: 0 }, Pixel { x: 0, y: 1 },]
+            btreeset![
+                Pixel { x: 0, y: 0 },
+                Pixel { x: 0, y: 1 },
+                Pixel { x: 0, y: 2 }
+            ]
         );
         assert_eq!(
             hits_ab,
@@ -292,10 +295,12 @@ mod test {
         let (boundaries_bc, hits_bc) = scanline_entries(bc);
         assert_eq!(
             boundaries_bc,
-            vec![
+            btreeset![
                 Pixel { x: 0, y: 1 },
+                Pixel { x: 0, y: 2 },
                 Pixel { x: 1, y: 1 },
                 Pixel { x: 1, y: 0 },
+                Pixel { x: 2, y: 0 },
             ]
         );
         assert_eq!(
@@ -313,6 +318,20 @@ mod test {
                     pixel: Pixel { x: 0, y: 2 },
                     x: 0.0,
                 },
+            ]
+        );
+
+        let (boundaries_ca, hits_ca) = scanline_entries(ca);
+        assert_eq!(
+            boundaries_ca,
+            btreeset![
+                // The scanline is horizontal.
+            ]
+        );
+        assert_eq!(
+            hits_ca,
+            vec![
+                // The scanline is horizontal.
             ]
         );
     }
