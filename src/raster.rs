@@ -34,7 +34,7 @@ pub struct RasterResult {
 }
 
 pub fn format_shade_commands(
-    color: LinSrgba,
+    mut color: LinSrgba,
     shade_commands: impl Iterator<Item = amicola::ShadeCommand>,
 ) -> RasterResult {
     let mut vertices = vec![];

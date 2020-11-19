@@ -1,6 +1,6 @@
 //! Raster region search and enumeration.
 
-use crate::{grid_lines::*, sampling::*, Pixel, V2};
+use crate::{boundary_spans::*, grid_lines::*, sampling::*, Pixel, V2};
 
 use itertools::Itertools;
 use log::trace;
@@ -94,10 +94,7 @@ impl RegionList {
     }
 
     fn regions(self) -> impl Iterator<Item = Region> {
-        let boundary_spans = BoundarySpans {
-            boundaries: self.boundaries.clone().into_iter(),
-            cached: None,
-        };
+        let boundary_spans = BoundarySpans::from_boundaries(self.boundaries.clone().into_iter());
 
         let mut cached = None;
         let mut hits = self.hits.into_iter();
@@ -154,45 +151,6 @@ impl RegionList {
                 .into_iter()
                 .map(|Pixel { x, y }| Region::Boundary { x, y }),
         )
-    }
-}
-
-struct BoundarySpans {
-    boundaries: std::collections::btree_set::IntoIter<Pixel>,
-    cached: Option<Pixel>,
-}
-
-#[derive(Debug, Clone)]
-struct BoundarySpan {
-    y: isize,
-    xs: Range<isize>,
-}
-
-impl Iterator for BoundarySpans {
-    type Item = BoundarySpan;
-    fn next(&mut self) -> Option<Self::Item> {
-        let (range_start, range_y) = match self.cached.take() {
-            Some(Pixel { x, y }) => (x, y),
-            None => {
-                let Pixel { x, y } = self.boundaries.next()?;
-                (x, y)
-            }
-        };
-
-        let mut range_end = range_start + 1;
-        while let Some(Pixel { x, y }) = self.boundaries.next() {
-            if y != range_y || x != range_end {
-                self.cached = Some(Pixel { x, y });
-                break;
-            }
-
-            range_end += 1;
-        }
-
-        Some(BoundarySpan {
-            y: range_y,
-            xs: range_start..range_end,
-        })
     }
 }
 
