@@ -14,8 +14,30 @@ use euclid::{Point2D, UnknownUnit};
 use itertools::Itertools;
 use lyon_geom::{math::point, LineSegment};
 use num_traits::NumCast;
+use std::cmp::Ordering;
 
 use regions::RegionList;
+
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
+pub(crate) struct Pixel {
+    pub x: isize,
+    pub y: isize,
+}
+
+impl PartialOrd for Pixel {
+    fn partial_cmp(&self, other: &Pixel) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Pixel {
+    fn cmp(&self, other: &Pixel) -> Ordering {
+        match self.y.cmp(&other.y) {
+            Ordering::Equal => self.x.cmp(&other.x),
+            other => other,
+        }
+    }
+}
 
 fn line_string_lines<T: CoordinateType>(
     line_string: LineString<T>,

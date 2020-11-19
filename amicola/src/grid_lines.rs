@@ -1,5 +1,6 @@
 //! Descriptions of a raster grid.
 
+use crate::Pixel;
 use arrayvec::ArrayVec;
 use euclid::{Point2D, Rect, UnknownUnit};
 use float_ord::FloatOrd;
@@ -95,7 +96,7 @@ pub fn raw_hits(segment: LineSegment<f64>) -> Vec<RawHit> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Hit {
+pub(crate) struct Hit {
     pub x: f64,
     pub pixel: Pixel,
 }
@@ -124,28 +125,7 @@ impl Hash for Hit {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
-pub struct Pixel {
-    pub x: isize,
-    pub y: isize,
-}
-
-impl PartialOrd for Pixel {
-    fn partial_cmp(&self, other: &Pixel) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Pixel {
-    fn cmp(&self, other: &Pixel) -> Ordering {
-        match self.y.cmp(&other.y) {
-            Ordering::Equal => self.x.cmp(&other.x),
-            other => other,
-        }
-    }
-}
-
-pub fn scanline_entries(segment: LineSegment<f64>) -> (BTreeSet<Pixel>, Vec<Hit>) {
+pub(crate) fn scanline_entries(segment: LineSegment<f64>) -> (BTreeSet<Pixel>, Vec<Hit>) {
     if segment.from.y == segment.to.y {
         return (BTreeSet::new(), vec![]);
     }

@@ -1,6 +1,6 @@
 //! Raster region search and enumeration.
 
-use crate::{grid_lines::*, sampling::*, V2};
+use crate::{grid_lines::*, sampling::*, Pixel, V2};
 
 use itertools::Itertools;
 use log::trace;
