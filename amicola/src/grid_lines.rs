@@ -7,7 +7,7 @@ use itertools::{Itertools, Position};
 use lyon_geom::LineSegment;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::convert::TryFrom;
+
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord)]
@@ -53,7 +53,7 @@ fn inclusive_iter(startf: f64, endf: f64) -> impl Iterator<Item = isize> {
     let start = startf.floor() as isize;
     let end = endf.ceil() as isize;
 
-    (start..=end)
+    start..=end
 }
 
 pub fn raw_hits(segment: LineSegment<f64>) -> Vec<RawHit> {
@@ -150,7 +150,7 @@ pub fn scanline_entries(segment: LineSegment<f64>) -> (BTreeSet<Pixel>, Vec<Hit>
         return (BTreeSet::new(), vec![]);
     }
 
-    let mut raw_hits = raw_hits(segment);
+    let raw_hits = raw_hits(segment);
 
     let (boundaries, mut hits) = {
         let mut hits = vec![];

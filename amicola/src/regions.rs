@@ -1,7 +1,7 @@
 //! Raster region search and enumeration.
 
-use crate::{ext, grid_lines::*, sampling::*, V2};
-use float_ord::FloatOrd;
+use crate::{grid_lines::*, sampling::*, V2};
+
 use itertools::Itertools;
 use log::trace;
 use lyon_geom::LineSegment;
@@ -54,7 +54,7 @@ where
         let mut hits = BTreeSet::new();
         let mut boundaries = BTreeSet::new();
 
-        for (segment_id, (segment, wind_weight)) in segment_iter
+        for (_segment_id, (segment, _wind_weight)) in segment_iter
             .filter(|(line, _)| line.to.y != line.from.y)
             .enumerate()
         {
@@ -201,7 +201,7 @@ mod test {
     use super::*;
     use crate::{polygon_edges, SampleDepth};
     use geo_types::{Coordinate, MultiPolygon, Polygon};
-    use lyon_path::{iterator::Flattened, math::Point, Builder, Event, Path};
+    use lyon_path::{iterator::Flattened, math::Point, Builder, Event};
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
     use Region::*;
@@ -212,7 +212,7 @@ mod test {
             y: p.y as f64,
         };
         match event {
-            Event::Line { from, to } => Some(point_to_coord(from)),
+            Event::Line { from, to: _ } => Some(point_to_coord(from)),
             Event::End { last, .. } => Some(point_to_coord(last)),
             _ => None,
         }

@@ -1,6 +1,5 @@
 //! A rasterizer for fine art.
 
-mod ext;
 mod grid_lines;
 mod regions;
 mod sampling;
