@@ -58,7 +58,6 @@ where
             .filter(|(line, _)| line.to.y != line.from.y)
             .enumerate()
         {
-            trace!("Considering segment: {:#?}", segment);
             let (segment_boundaries, segment_hits) = scanline_entries(segment);
             boundaries.extend(segment_boundaries);
             hits.extend(segment_hits);
@@ -127,7 +126,11 @@ mod test {
     use super::*;
     use crate::{polygon_edges, SampleDepth};
     use geo_types::{Coordinate, MultiPolygon, Polygon};
-    use lyon_path::{iterator::Flattened, math::Point, Builder, Event};
+    use lyon_path::{
+        iterator::Flattened,
+        math::{point, Point},
+        Builder, Event,
+    };
     use pretty_assertions::assert_eq;
     use std::{convert::*, iter::*};
     use Region::*;
@@ -171,12 +174,49 @@ mod test {
     }
 
     #[test]
+    fn early_truncation() {
+        let regions = RegionList::from(
+            vec![
+                (
+                    LineSegment {
+                        from: point(1536.0, 0.0),
+                        to: point(1536.0, 1950.0),
+                    },
+                    1,
+                ),
+                (
+                    LineSegment {
+                        from: point(0., 1950.),
+                        to: point(0., 0.),
+                    },
+                    1,
+                ),
+            ]
+            .into_iter(),
+        );
+
+        let mut regions: Vec<Region> = regions.regions().collect();
+        regions.sort();
+
+        println!("regions: {:#?}", regions);
+
+        assert_eq!(
+            regions.last().and_then(|r| match r {
+                Region::Span { y, .. } => Some(*y),
+                _ => None,
+            }),
+            Some(1950)
+        );
+    }
+
+    #[test]
     fn rect_spans() {
         let mut builder = Builder::new();
         builder.move_to(Point::new(0.0, 0.0));
-        builder.line_to(Point::new(0.0, 200.0));
-        builder.line_to(Point::new(200.0, 200.0));
-        builder.line_to(Point::new(200.0, 0.0));
+        builder.line_to(Point::new(0.0, 0.0));
+        builder.line_to(Point::new(0.0, 1950.0));
+        builder.line_to(Point::new(1536.0, 1950.0));
+        builder.line_to(Point::new(1536.0, 0.0));
         builder.line_to(Point::new(0.0, 0.0));
         let regions = raster(builder);
         let spans = regions.into_iter().filter_map(|region| match region {
@@ -184,10 +224,14 @@ mod test {
             _ => None,
         });
 
+        let mut count = 0;
         for (i, (xs, y)) in spans.enumerate() {
+            count += 1;
             assert_eq!(i as isize, y);
-            assert_eq!(xs, 1..200);
+            assert_eq!(xs, 1..1536);
         }
+
+        assert_eq!(count, 1951);
     }
 
     #[test]

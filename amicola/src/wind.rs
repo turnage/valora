@@ -17,7 +17,7 @@ pub(crate) fn wind_spans(
             wind = 0;
         }
         while let Some(hit) = cached.take().or_else(|| hits.next()) {
-            if hit.pixel.y != *y || !xs.contains(&hit.pixel.x) {
+            if hit.pixel.y != *y || (!xs.contains(&hit.pixel.x) && hit.pixel.x > xs.end) {
                 cached = Some(hit);
                 break;
             }
