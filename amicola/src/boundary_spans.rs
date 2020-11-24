@@ -1,12 +1,12 @@
 use crate::Pixel;
 use std::ops::Range;
 
-pub(crate) struct BoundarySpans<I> {
+pub(crate) struct SpanIter<I> {
     boundaries: I,
     cached: Option<Pixel>,
 }
 
-impl<I> BoundarySpans<I>
+impl<I> SpanIter<I>
 where
     I: Iterator<Item = Pixel>,
 {
@@ -24,7 +24,7 @@ pub(crate) struct BoundarySpan {
     pub xs: Range<isize>,
 }
 
-impl<I> Iterator for BoundarySpans<I>
+impl<I> Iterator for SpanIter<I>
 where
     I: Iterator<Item = Pixel>,
 {
@@ -55,7 +55,7 @@ mod test {
 
     #[test]
     fn same_row() {
-        let mut spans = BoundarySpans::from_boundaries(
+        let mut spans = SpanIter::from_boundaries(
             vec![
                 Pixel { x: 0, y: 0 },
                 Pixel { x: 1, y: 0 },
@@ -76,7 +76,7 @@ mod test {
 
     #[test]
     fn new_row() {
-        let mut spans = BoundarySpans::from_boundaries(
+        let mut spans = SpanIter::from_boundaries(
             vec![
                 Pixel { x: 0, y: 0 },
                 Pixel { x: 1, y: 0 },

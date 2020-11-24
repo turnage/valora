@@ -4,6 +4,7 @@ mod boundary_spans;
 mod grid_lines;
 mod regions;
 mod sampling;
+mod wind;
 
 pub use geo_types::{CoordinateType, Line, LineString, MultiPolygon, Polygon};
 pub use lyon_path::{iterator::Flattened, Builder, Event, Path, PathEvent};

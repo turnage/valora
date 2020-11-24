@@ -1,6 +1,6 @@
 //! Raster region search and enumeration.
 
-use crate::{boundary_spans::*, grid_lines::*, sampling::*, Pixel, V2};
+use crate::{boundary_spans::*, grid_lines::*, sampling::*, wind::*, Pixel, V2};
 
 use itertools::Itertools;
 use log::trace;
@@ -94,41 +94,9 @@ impl RegionList {
     }
 
     fn regions(self) -> impl Iterator<Item = Region> {
-        let boundary_spans = BoundarySpans::from_boundaries(self.boundaries.clone().into_iter());
-
-        let mut cached = None;
-        let mut hits = self.hits.into_iter();
-        let mut wind = 0;
-        let mut row = 0;
-        let span_winds = boundary_spans.map(move |span| {
-            let BoundarySpan { y, xs } = &span;
-            if *y != row {
-                row = *y;
-                wind = 0;
-            }
-            while let Some(hit) = cached.take().or_else(|| hits.next()) {
-                let row_end = hit.pixel.y != *y;
-                if row_end {
-                    cached = Some(hit);
-                    break;
-                }
-                let span_end = !xs.contains(&hit.pixel.x);
-                let gap = hit.pixel.x > xs.start;
-                let hit_is_ahead = row_end || (span_end && gap);
-                if hit_is_ahead {
-                    cached = Some(hit);
-                }
-
-                if span_end {
-                    break;
-                }
-
-                wind += 1;
-            }
-
-            let result = (wind, span);
-            result
-        });
+        let boundary_spans = SpanIter::from_boundaries(self.boundaries.clone().into_iter());
+        let hits = self.hits.into_iter();
+        let span_winds = wind_spans(hits, boundary_spans);
 
         let wound_in = |wind| wind % 2 == 1;
         let potential_fill_spans = span_winds.tuple_windows::<(_, _)>();
@@ -186,16 +154,71 @@ mod test {
         MultiPolygon::from(Polygon::new(exterior, vec![]))
     }
 
-    fn test_case(builder: Builder, mut expected_regions: Vec<Region>) {
+    fn raster(builder: Builder) -> Vec<Region> {
         let multi_polygon = path_to_multipolygon(builder, SampleDepth::Single);
-        println!("multipoly: {:?}", multi_polygon);
         let regions = RegionList::from(multi_polygon.into_iter().flat_map(polygon_edges));
-        let mut actual_regions = regions.regions().collect::<Vec<Region>>();
+        let mut regions = regions.regions().collect::<Vec<Region>>();
 
+        regions.sort();
+
+        regions
+    }
+
+    fn test_case(builder: Builder, mut expected_regions: Vec<Region>) {
         expected_regions.sort();
-        actual_regions.sort();
 
-        assert_eq!(expected_regions, actual_regions);
+        assert_eq!(expected_regions, raster(builder));
+    }
+
+    #[test]
+    fn rect_spans() {
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0.0, 0.0));
+        builder.line_to(Point::new(0.0, 200.0));
+        builder.line_to(Point::new(200.0, 200.0));
+        builder.line_to(Point::new(200.0, 0.0));
+        builder.line_to(Point::new(0.0, 0.0));
+        let regions = raster(builder);
+        let spans = regions.into_iter().filter_map(|region| match region {
+            Region::Span { start_x, end_x, y } => Some((start_x..end_x, y)),
+            _ => None,
+        });
+
+        for (i, (xs, y)) in spans.enumerate() {
+            assert_eq!(i as isize, y);
+            assert_eq!(xs, 1..200);
+        }
+    }
+
+    #[test]
+    fn rect_boundaries() {
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0.0, 0.0));
+        builder.line_to(Point::new(0.0, 200.0));
+        builder.line_to(Point::new(200.0, 200.0));
+        builder.line_to(Point::new(200.0, 0.0));
+        builder.line_to(Point::new(0.0, 0.0));
+        let regions = raster(builder);
+        let boundaries: Vec<Pixel> = regions
+            .into_iter()
+            .filter_map(|region| match region {
+                Region::Boundary { x, y } => Some(Pixel { x, y }),
+                _ => None,
+            })
+            .collect();
+
+        for (i, p) in boundaries.into_iter().enumerate() {
+            assert_eq!(i as isize % 201, p.y, "i % 201: {:?}", i % 201);
+            assert_eq!(
+                p.x,
+                match i > 200 {
+                    true => 200,
+                    false => 0,
+                },
+                "i: {:?}",
+                i
+            );
+        }
     }
 
     #[test]
