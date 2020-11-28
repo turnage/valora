@@ -2,12 +2,14 @@
 
 use crate::{boundary_spans::*, grid_lines::*, sampling::*, wind::*, Pixel, V2};
 
+use float_eq::{float_eq, float_ne};
 use itertools::Itertools;
 use log::trace;
 use lyon_geom::LineSegment;
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashSet},
+    f64,
     hash::{Hash, Hasher},
     ops::Range,
 };
@@ -54,15 +56,14 @@ where
         let mut hits = BTreeSet::new();
         let mut boundaries = BTreeSet::new();
 
-        for (_segment_id, (segment, _wind_weight)) in segment_iter
-            .filter(|(line, _)| line.to.y != line.from.y)
-            .enumerate()
-        {
-            let (segment_boundaries, segment_hits) = scanline_entries(segment);
-            boundaries.extend(segment_boundaries);
-            hits.extend(segment_hits);
-            segments.push(segment);
-        }
+        segment_iter
+            .filter(|(line, _)| float_ne!(line.to.y, line.from.y, rmax <= f64::EPSILON))
+            .for_each(|(segment, _)| {
+                let (segment_boundaries, segment_hits) = scanline_entries(segment);
+                boundaries.extend(segment_boundaries);
+                hits.extend(segment_hits);
+                segments.push(segment);
+            });
 
         Self {
             segments,
@@ -74,8 +75,9 @@ where
 impl RegionList {
     pub fn shade_commands(self, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
         let segments = self.segments.clone();
+        let regions = self.regions();
 
-        self.regions().map(move |region| match region {
+        regions.map(move |region| match region {
             Region::Boundary { x, y } => ShadeCommand::Boundary {
                 x: x,
                 y: y,
@@ -83,7 +85,7 @@ impl RegionList {
                     V2::new(x as f32, y as f32),
                     sample_depth,
                     segments.iter().copied(),
-                ),
+                ) as f32,
             },
             Region::Span { start_x, end_x, y } => ShadeCommand::Span {
                 x: start_x..end_x,
@@ -280,6 +282,48 @@ mod test {
                 Boundary { x: 1, y: 0 },
                 Boundary { x: 1, y: 1 },
                 Boundary { x: 2, y: 0 },
+            ],
+        );
+    }
+
+    #[test]
+    fn large_triangle_boundaries() {
+        let mut builder = Builder::new();
+        builder.move_to(Point::new(0.0, 0.0));
+        builder.line_to(Point::new(0.0, 5.0));
+        builder.line_to(Point::new(5.0, 0.0));
+        test_case(
+            builder,
+            vec![
+                Boundary { x: 0, y: 0 },
+                Boundary { x: 0, y: 1 },
+                Boundary { x: 0, y: 2 },
+                Boundary { x: 0, y: 3 },
+                Boundary { x: 0, y: 4 },
+                Boundary { x: 0, y: 5 },
+                Boundary { x: 1, y: 3 },
+                Boundary { x: 1, y: 4 },
+                Boundary { x: 2, y: 2 },
+                Boundary { x: 2, y: 3 },
+                Boundary { x: 3, y: 1 },
+                Boundary { x: 3, y: 2 },
+                Boundary { x: 4, y: 0 },
+                Boundary { x: 5, y: 0 },
+                Span {
+                    start_x: 1,
+                    end_x: 2,
+                    y: 2,
+                },
+                Span {
+                    start_x: 1,
+                    end_x: 3,
+                    y: 1,
+                },
+                Span {
+                    start_x: 1,
+                    end_x: 4,
+                    y: 0,
+                },
             ],
         );
     }
