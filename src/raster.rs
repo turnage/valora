@@ -4,7 +4,6 @@ use crate::{gpu::GpuVertex, Result, P2};
 use amicola::SampleDepth;
 use arrayvec::ArrayVec;
 use geo_booleanop::boolean::BooleanOp;
-use geo_offset::Offset;
 use geo_types::{Coordinate, Line, LineString, MultiPolygon, Polygon};
 use glium::index::PrimitiveType;
 use itertools::Itertools;
