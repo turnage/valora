@@ -337,7 +337,7 @@ impl Gpu {
                 Ok(())
             };
 
-            for (i, element) in batch.into_iter().enumerate() {
+            for (_i, element) in batch.into_iter().enumerate() {
                 let mut result = raster_path(
                     element.path,
                     element.raster_method,

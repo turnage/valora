@@ -2,17 +2,10 @@
 
 use crate::{boundary_spans::*, grid_lines::*, sampling::*, wind::*, Pixel, V2};
 
-use float_eq::{float_eq, float_ne};
+use float_eq::float_ne;
 use itertools::Itertools;
-use log::trace;
 use lyon_geom::LineSegment;
-use std::{
-    cmp::Ordering,
-    collections::{BTreeSet, HashSet},
-    f64,
-    hash::{Hash, Hasher},
-    ops::Range,
-};
+use std::{collections::BTreeSet, f64, ops::Range};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Region {

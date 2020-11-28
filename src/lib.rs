@@ -215,8 +215,9 @@ where
         .chars()
         .count();
 
+    #[allow(warnings)]
     let mut render_buffer = None;
-    let (gpu, mut strategy) = if let Some(base_path) = options.output.clone() {
+    let (gpu, strategy) = if let Some(base_path) = options.output.clone() {
         let (gpu, _) = Gpu::new()?;
         let buffer = gpu.build_texture(output_width, output_height)?;
 
@@ -232,7 +233,7 @@ where
             },
         )
     } else {
-        let (gpu, events_loop, (screen_width, screen_height)) =
+        let (gpu, events_loop, (_screen_width, _screen_height)) =
             Gpu::with_window(output_width, output_height)?;
         render_buffer = Some(glium::framebuffer::RenderBuffer::new(
             gpu.ctx.as_ref(),
@@ -257,7 +258,7 @@ where
         )
     };
 
-    let mut rng = StdRng::seed_from_u64(options.world.seed);
+    let rng = StdRng::seed_from_u64(options.world.seed);
     let mut renderer = Renderer {
         strategy,
         gpu: &gpu,

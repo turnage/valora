@@ -1,12 +1,12 @@
 //! Canvas rendering.
 
-use crate::{canvas::*, gpu::*, paint::*, uniforms::*, Options, Result, World};
+use crate::{canvas::*, gpu::*, Options, Result, World};
 use glium::{
     framebuffer::SimpleFrameBuffer,
     glutin::event_loop::{ControlFlow, EventLoop},
-    texture::{texture2d::Texture2d, Dimensions, MipmapsOption},
+    texture::texture2d::Texture2d,
     uniforms::MagnifySamplerFilter,
-    Frame, GlObject, Program, Surface,
+    Surface,
 };
 use glutin::platform::desktop::EventLoopExtDesktop;
 use image::{ImageBuffer, Rgba};
@@ -16,7 +16,7 @@ use palette::{
 };
 use rand::{random, rngs::StdRng};
 use rayon::prelude::*;
-use std::{path::PathBuf, rc::Rc, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 /// The context of the current render frame.
 #[derive(Debug)]
@@ -184,7 +184,7 @@ impl<'a> Renderer<'a> {
                     height: self.output_height as i32,
                 };
 
-                let mut frame = self.gpu.get_frame().expect("getting frame from display");
+                let frame = self.gpu.get_frame().expect("getting frame from display");
                 frame.blit_from_simple_framebuffer(
                     buffer,
                     &rect,

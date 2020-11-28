@@ -1,11 +1,10 @@
-use crate::{boundary_spans::*, grid_lines::*, Pixel};
-use std::collections::BTreeSet;
+use crate::{boundary_spans::*, grid_lines::*};
 
 /// Processes a sorted iterator of `Hit` and `BoundarySpan` into `BoundarySpan`s
 /// tagged with winding numbers.
 pub(crate) fn wind_spans(
     mut hits: impl Iterator<Item = Hit>,
-    mut boundary_spans: impl Iterator<Item = BoundarySpan>,
+    boundary_spans: impl Iterator<Item = BoundarySpan>,
 ) -> impl Iterator<Item = (i32, BoundarySpan)> {
     let mut cached = None;
     let mut wind = 0;

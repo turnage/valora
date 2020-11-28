@@ -64,10 +64,14 @@ pub fn raw_hits(segment: LineSegment<f64>) -> Vec<RawHit> {
     hits.push(RawHit { t: 1., axis: None });
 
     {
-        let mut insert = |hit: RawHit| match hit.t {
-            0. => hits[0] = hit,
-            1. => hits[1] = hit,
-            _ => hits.push(hit),
+        let mut insert = |hit: RawHit| {
+            if hit.t.abs() < f64::EPSILON {
+                hits[0] = hit;
+            } else if (hit.t - 1.).abs() < f64::EPSILON {
+                hits[1] = hit;
+            } else {
+                hits.push(hit);
+            }
         };
 
         for vertical_line in vertical_grid_lines(bounds) {

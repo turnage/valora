@@ -4,12 +4,12 @@ use crate::{gpu::GpuVertex, Result, P2};
 use amicola::SampleDepth;
 use arrayvec::ArrayVec;
 use geo_booleanop::boolean::BooleanOp;
-use geo_types::{Coordinate, Line, LineString, MultiPolygon, Polygon};
+use geo_types::{Coordinate, LineString, MultiPolygon, Polygon};
 use glium::index::PrimitiveType;
 use itertools::Itertools;
 use lyon_path::{iterator::Flattened, math::Point, Builder, Event};
 use lyon_tessellation::{
-    BuffersBuilder, FillAttributes, FillOptions, FillTessellator, LineJoin, StrokeAttributes,
+    BuffersBuilder, LineJoin, StrokeAttributes,
     StrokeOptions, StrokeTessellator, VertexBuffers,
 };
 use palette::LinSrgba;
@@ -34,7 +34,7 @@ pub struct RasterResult {
 }
 
 pub fn format_shade_commands(
-    mut color: LinSrgba,
+    color: LinSrgba,
     shade_commands: impl Iterator<Item = amicola::ShadeCommand>,
 ) -> RasterResult {
     let mut vertices = vec![];
@@ -64,7 +64,7 @@ pub fn format_shade_commands(
                 });
             }
             amicola::ShadeCommand::Span { x, y } => {
-                let mut color = color;
+                let color = color;
                 vertices.push(GpuVertex {
                     vpos: [x.start as f32, y as f32],
                     vcol: [
@@ -146,7 +146,7 @@ fn stroke_triangles(buffers: VertexBuffers<P2, u32>) -> impl Iterator<Item = Pol
 
 fn event_to_coordinate(event: Event<Point, Point>) -> Option<Coordinate<f64>> {
     match event {
-        Event::Line { from, to } => Some(point_to_coord(from)),
+        Event::Line { from, to: _ } => Some(point_to_coord(from)),
         Event::End { last, .. } => Some(point_to_coord(last)),
         _ => None,
     }
