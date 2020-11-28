@@ -2,6 +2,7 @@
 
 use crate::{gpu::GpuVertex, Result, P2};
 use amicola::SampleDepth;
+use arrayvec::ArrayVec;
 use geo_booleanop::boolean::BooleanOp;
 use geo_offset::Offset;
 use geo_types::{Coordinate, Line, LineString, MultiPolygon, Polygon};
@@ -128,19 +129,20 @@ fn stroke_triangles(buffers: VertexBuffers<P2, u32>) -> impl Iterator<Item = Pol
         .indices
         .into_iter()
         .tuples::<(_, _, _)>()
-        .map(move |(i, j, k)| {
-            let path: Vec<Coordinate<f64>> = [
-                vertices[i as usize],
-                vertices[j as usize],
-                vertices[k as usize],
-            ]
-            .iter()
-            .copied()
-            .map(point_to_coord)
-            .collect();
-
-            Polygon::new(path.into(), vec![])
+        .map(|(a, b, c)| ArrayVec::from([a, b, c]))
+        .map(move |c| {
+            c.into_iter()
+                .map(|i| {
+                    let v = vertices[i as usize];
+                    Coordinate {
+                        y: v.y as f64,
+                        x: v.x as f64,
+                    }
+                })
+                .collect()
         })
+        .map(LineString)
+        .map(|c| Polygon::new(c, vec![]))
 }
 
 fn event_to_coordinate(event: Event<Point, Point>) -> Option<Coordinate<f64>> {
@@ -166,16 +168,18 @@ pub fn raster_path(
     color: LinSrgba,
     sample_depth: amicola::SampleDepth,
 ) -> Result<RasterResult> {
-    let lines = path_to_line_string(builder, sample_depth);
     Ok(match method {
         Method::Fill => {
+            let lines = path_to_line_string(builder, sample_depth);
             let shade_commands =
                 amicola::raster(std::iter::once(Polygon::new(lines, vec![])), sample_depth);
             format_shade_commands(color, shade_commands)
         }
         Method::Stroke(width) => {
+            let stroke = tessellate_stroke(builder, width as f32);
+            let triangles = stroke_triangles(stroke);
             let shade_commands =
-                amicola::raster(lines.offset(width).unwrap().into_iter(), sample_depth);
+                triangles.flat_map(|t| amicola::raster(std::iter::once(t), sample_depth));
             format_shade_commands(color, shade_commands)
         }
     })

@@ -9,6 +9,8 @@ fn main() -> Result<()> {
             canvas.set_color(LinSrgb::new(1., 1., 1.));
             canvas.paint(Filled(ctx.world));
 
+            let mut rng = ctx.rng.clone();
+
             let sq_size = 400.;
             let bottom_left = world.center() - V2::new(sq_size / 2., sq_size / 2.);
 
@@ -35,7 +37,14 @@ fn main() -> Result<()> {
                 })
                 .for_each(|(d, hue)| {
                     canvas.set_color(Hsv::new(hue, 0.7, 0.8));
-                    canvas.paint(Filled(d));
+                    if rng.gen() {
+                        canvas.paint(Filled(d));
+                    } else {
+                        canvas.paint(Stroked {
+                            element: d,
+                            width: 3.,
+                        });
+                    }
                 });
         })
     })
