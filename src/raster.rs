@@ -64,6 +64,7 @@ pub fn format_shade_commands(
                 });
             }
             amicola::ShadeCommand::Span { x, y } => {
+                let mut color = color;
                 vertices.push(GpuVertex {
                     vpos: [x.start as f32, y as f32],
                     vcol: [

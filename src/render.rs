@@ -167,7 +167,7 @@ impl<'a> Renderer<'a> {
                     self.output_height,
                     canvas.elements(),
                     buffer,
-                    amicola::SampleDepth::Single,
+                    sample_depth,
                 )?;
 
                 let rect = glium::Rect {
