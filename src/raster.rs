@@ -178,8 +178,8 @@ pub fn raster_path(
         Method::Stroke(width) => {
             let stroke = tessellate_stroke(builder, width as f32);
             let triangles = stroke_triangles(stroke);
-            let shade_commands =
-                triangles.flat_map(|t| amicola::raster(std::iter::once(t), sample_depth));
+            let shape = triangles.fold(MultiPolygon(vec![]), |acc, t| acc.union(&t));
+            let shade_commands = amicola::raster(shape.into_iter(), sample_depth);
             format_shade_commands(color, shade_commands)
         }
     })
