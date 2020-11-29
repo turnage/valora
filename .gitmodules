@@ -1,0 +1,6 @@
+[submodule "third_party/geo-clipper"]
+	path = third_party/geo-clipper
+	url = https://github.com/lelongg/geo-clipper
+[submodule "third_party/clipper-sys"]
+	path = third_party/clipper-sys
+	url = https://github.com/turnage/clipper-sys

@@ -10,10 +10,15 @@ repository = "https://github.com/turnage/valora.git"
 readme = "readme.md"
 
 [workspace]
-members = ["valora_derive"]
+members = [
+  "valora_derive",
+  "third_party/geo-clipper",
+  "third_party/clipper-sys"
+]
 
 [dependencies]
 amicola = { path = "amicola" }
+geo-clipper = { path = "third_party/geo-clipper" }
 glium = "0.27"
 glutin = "0.24"
 structopt = "0.3.0"

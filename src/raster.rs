@@ -3,14 +3,13 @@
 use crate::{gpu::GpuVertex, Result, P2};
 use amicola::SampleDepth;
 use arrayvec::ArrayVec;
-use geo_booleanop::boolean::BooleanOp;
+use geo_clipper::Clipper;
 use geo_types::{Coordinate, LineString, MultiPolygon, Polygon};
 use glium::index::PrimitiveType;
 use itertools::Itertools;
 use lyon_path::{iterator::Flattened, math::Point, Builder, Event};
 use lyon_tessellation::{
-    BuffersBuilder, LineJoin, StrokeAttributes,
-    StrokeOptions, StrokeTessellator, VertexBuffers,
+    BuffersBuilder, LineJoin, StrokeAttributes, StrokeOptions, StrokeTessellator, VertexBuffers,
 };
 use palette::LinSrgba;
 
@@ -177,8 +176,9 @@ pub fn raster_path(
         Method::Stroke(width) => {
             let stroke = tessellate_stroke(builder, width as f32);
             let triangles = stroke_triangles(stroke);
-            let shape = triangles.fold(MultiPolygon(vec![]), |acc, t| acc.union(&t));
+            let shape = triangles.fold(MultiPolygon(vec![]), |acc, t| acc.union(&t, 100.));
             let shade_commands = amicola::raster(shape.into_iter(), sample_depth);
+            //let shade_commands =  triangles.flat_map(|t| amicola::raster(std::iter::once(t), sample_depth));
             format_shade_commands(color, shade_commands)
         }
     })
