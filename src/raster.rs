@@ -4,6 +4,7 @@ use crate::{gpu::GpuVertex, Result, P2};
 use amicola::SampleDepth;
 use arrayvec::ArrayVec;
 use geo_booleanop::boolean::BooleanOp;
+use geo_offset::Offset;
 use geo_types::{Coordinate, LineString, MultiPolygon, Polygon};
 use glium::index::PrimitiveType;
 use itertools::Itertools;
@@ -162,23 +163,27 @@ fn path_to_line_string(builder: Builder, sample_depth: SampleDepth) -> LineStrin
 
 pub fn raster_path(
     builder: Builder,
+    closed: bool,
     method: Method,
     color: LinSrgba,
     sample_depth: amicola::SampleDepth,
 ) -> Result<RasterResult> {
-    Ok(match method {
+    let lines = path_to_line_string(builder, sample_depth);
+    let raster_input: amicola::RasterInput = match method {
         Method::Fill => {
-            let lines = path_to_line_string(builder, sample_depth);
-            let shade_commands =
-                amicola::raster(std::iter::once(Polygon::new(lines, vec![])), sample_depth);
-            format_shade_commands(color, shade_commands)
+            let polygon = Polygon::new(lines, vec![]);
+            polygon.into()
         }
         Method::Stroke(width) => {
-            let stroke = tessellate_stroke(builder, width as f32);
-            let triangles = stroke_triangles(stroke);
-            let shape = triangles.fold(MultiPolygon(vec![]), |acc, t| acc.union(&t));
-            let shade_commands = amicola::raster(shape.into_iter(), sample_depth);
-            format_shade_commands(color, shade_commands)
+            let stroke = amicola::Stroke {
+                closed,
+                width,
+                path: lines,
+            };
+            stroke.into()
         }
-    })
+    };
+
+    let shade_commands = amicola::raster(raster_input, sample_depth);
+    Ok(format_shade_commands(color, shade_commands))
 }

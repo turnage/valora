@@ -94,6 +94,8 @@ pub struct Shader {
 /// A rasterable element in a composition.
 pub struct Element {
     pub path: Builder,
+    /// Whether the path is closed.
+    pub closed: bool,
     pub color: LinSrgba,
     pub raster_method: Method,
     pub shader: Shader,
@@ -340,6 +342,7 @@ impl Gpu {
             for (_i, element) in batch.into_iter().enumerate() {
                 let mut result = raster_path(
                     element.path,
+                    element.closed,
                     element.raster_method,
                     element.color,
                     sample_depth,

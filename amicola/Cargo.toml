@@ -18,6 +18,7 @@ lyon_geom = "0.15"
 structopt = "0.3.13"
 geo-types = "0.6.1"
 num-traits = "0.2.14"
+nalgebra = "0.23"
 
 [dev-dependencies]
 pretty_assertions = "0.6.1"

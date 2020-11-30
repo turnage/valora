@@ -119,7 +119,7 @@ impl RegionList {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{polygon_edges, SampleDepth};
+    use crate::{RasterInput, SampleDepth};
     use geo_types::{Coordinate, MultiPolygon, Polygon};
     use lyon_path::{
         iterator::Flattened,
@@ -142,19 +142,20 @@ mod test {
         }
     }
 
-    fn path_to_multipolygon(builder: Builder, sample_depth: SampleDepth) -> MultiPolygon<f64> {
+    fn path_to_polygon(builder: Builder, sample_depth: SampleDepth) -> Polygon<f64> {
         let samples_per_pixel: u64 = sample_depth.into();
         let path = builder.build();
         let path = Flattened::new(1.0 / samples_per_pixel as f32, path.into_iter());
         let path = path.filter_map(event_to_coordinate);
 
         let exterior = path.collect();
-        MultiPolygon::from(Polygon::new(exterior, vec![]))
+        Polygon::new(exterior, vec![])
     }
 
     fn raster(builder: Builder) -> Vec<Region> {
-        let multi_polygon = path_to_multipolygon(builder, SampleDepth::Single);
-        let regions = RegionList::from(multi_polygon.into_iter().flat_map(polygon_edges));
+        let polygon = path_to_polygon(builder, SampleDepth::Single);
+        let input: RasterInput = polygon.into();
+        let regions = RegionList::from(input.edges());
         let mut regions = regions.regions().collect::<Vec<Region>>();
 
         regions.sort();

@@ -4,6 +4,7 @@ mod boundary_spans;
 mod grid_lines;
 mod regions;
 mod sampling;
+mod stroke;
 mod wind;
 
 pub use geo_types::{CoordinateType, Line, LineString, MultiPolygon, Polygon};
@@ -15,10 +16,76 @@ pub type V2 = Point2D<f32, UnknownUnit>;
 use euclid::{Point2D, UnknownUnit};
 use itertools::Itertools;
 use lyon_geom::{math::point, LineSegment};
-use num_traits::NumCast;
+use num_traits::{Num, NumCast};
 use std::cmp::Ordering;
 
 use regions::RegionList;
+
+pub enum RasterInput {
+    Fill(Polygon<f64>),
+    Stroke(Stroke),
+}
+
+enum EdgeIter<F, S> {
+    Fill(F),
+    Stroke(S),
+}
+
+impl<F, S> Iterator for EdgeIter<F, S>
+where
+    F: Iterator<Item = (LineSegment<f64>, i32)>,
+    S: Iterator<Item = (LineSegment<f64>, i32)>,
+{
+    type Item = (LineSegment<f64>, i32);
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            EdgeIter::Fill(fill) => fill.next(),
+            EdgeIter::Stroke(stroke) => stroke.next(),
+        }
+    }
+}
+
+impl RasterInput {
+    fn edges(self) -> impl Iterator<Item = (LineSegment<f64>, i32)> {
+        match self {
+            RasterInput::Fill(polygon) => EdgeIter::Fill(polygon_edges(polygon)),
+            RasterInput::Stroke(stroke) => EdgeIter::Stroke(stroke::inflate(stroke)),
+        }
+    }
+}
+
+pub struct Stroke {
+    pub width: f64,
+    pub closed: bool,
+    pub path: LineString<f64>,
+}
+
+impl From<Polygon<f64>> for RasterInput {
+    fn from(polygon: Polygon<f64>) -> RasterInput {
+        RasterInput::Fill(polygon)
+    }
+}
+
+impl From<Stroke> for RasterInput {
+    fn from(stroke: Stroke) -> RasterInput {
+        RasterInput::Stroke(stroke)
+    }
+}
+
+fn polygon_edges(polygon: Polygon<f64>) -> impl Iterator<Item = (LineSegment<f64>, i32)> {
+    let (exterior, interior) = polygon.into_inner();
+
+    let positive_wind = 1;
+    let exterior = line_string_lines(exterior).map(move |line| (line, positive_wind));
+
+    let negative_wind = -1;
+    let interior = interior
+        .into_iter()
+        .flat_map(line_string_lines)
+        .map(move |line| (line, negative_wind));
+
+    exterior.chain(interior)
+}
 
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub(crate) struct Pixel {
@@ -41,40 +108,24 @@ impl Ord for Pixel {
     }
 }
 
-fn line_string_lines<T: CoordinateType>(
-    line_string: LineString<T>,
+pub(crate) fn line_string_lines(
+    line_string: LineString<f64>,
 ) -> impl Iterator<Item = LineSegment<f64>> {
-    let to_f64 = |coordinate: T| -> f64 { NumCast::from(coordinate).expect("NumCast") };
-
     line_string
         .into_iter()
         .tuple_windows::<(_, _)>()
         .map(move |(start, end)| LineSegment {
-            from: point(to_f64(start.x), to_f64(start.y)),
-            to: point(to_f64(end.x), to_f64(end.y)),
+            from: point(start.x, start.y),
+            to: point(end.x, end.y),
         })
 }
 
-pub(crate) fn polygon_edges<T: CoordinateType>(
-    polygon: Polygon<T>,
-) -> impl Iterator<Item = (LineSegment<f64>, i32)> {
-    let (exterior, interiors) = polygon.into_inner();
-
-    let positive_wind = 1;
-    let exterior = line_string_lines(exterior).map(move |line| (line, positive_wind));
-
-    let negative_wind = -1;
-    let interior = interiors
-        .into_iter()
-        .flat_map(line_string_lines)
-        .map(move |line| (line, negative_wind));
-
-    exterior.chain(interior)
-}
-
 pub fn raster(
-    shape: impl Iterator<Item = Polygon<impl CoordinateType>>,
+    input: impl Into<RasterInput>,
     sample_depth: SampleDepth,
 ) -> impl Iterator<Item = ShadeCommand> {
-    RegionList::from(shape.flat_map(polygon_edges)).shade_commands(sample_depth)
+    let input = input.into();
+    let edges = input.edges();
+    let regions = RegionList::from(edges);
+    regions.shade_commands(sample_depth)
 }

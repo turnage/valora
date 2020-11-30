@@ -7,6 +7,7 @@ use palette::{Alpha, IntoColor, LinSrgb, LinSrgba};
 /// A painting surface.
 pub struct Canvas {
     path: Builder,
+    path_closed: bool,
     shader: Shader,
     color: LinSrgba,
     stroke_width: f32,
@@ -18,6 +19,7 @@ impl Canvas {
     pub(crate) fn new(default_shader: Shader, scale: f32) -> Self {
         Self {
             path: Builder::new(),
+            path_closed: false,
             shader: default_shader,
             color: Alpha::<LinSrgb, _>::new(1., 1., 1., 1.),
             scale,
@@ -83,7 +85,8 @@ impl Canvas {
 
     /// Closes the current path.
     pub fn close_path(&mut self) {
-        self.path.close()
+        self.path.close();
+        self.path_closed = true;
     }
 
     /// Sets the width of lines drawn with the `stroke()`.
@@ -116,6 +119,7 @@ impl Canvas {
 
         self.elements.push(Element {
             path,
+            closed: self.path_closed,
             color: self.color,
             shader: self.shader.clone(),
             raster_method,
