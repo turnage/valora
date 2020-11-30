@@ -12,8 +12,7 @@ readme = "readme.md"
 [workspace]
 members = [
   "valora_derive",
-  "third_party/geo-clipper",
-  "third_party/clipper-sys"
+  "amicola"
 ]
 
 [dependencies]
