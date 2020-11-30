@@ -45,8 +45,8 @@ pub use self::{
 };
 
 use self::{gpu::*, prelude::*, raster::Method};
+use anyhow::Error;
 use euclid::{Point3D, Size2D, UnknownUnit, Vector2D, Vector3D};
-use failure::Error;
 use lyon_path::math::Point;
 use render::*;
 use std::{path::PathBuf, time::Duration};

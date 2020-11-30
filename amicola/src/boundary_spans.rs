@@ -55,7 +55,7 @@ mod test {
 
     #[test]
     fn same_row() {
-        let mut spans = SpanIter::from_boundaries(
+        let spans = SpanIter::from_boundaries(
             vec![
                 Pixel { x: 0, y: 0 },
                 Pixel { x: 1, y: 0 },
@@ -76,7 +76,7 @@ mod test {
 
     #[test]
     fn new_row() {
-        let mut spans = SpanIter::from_boundaries(
+        let spans = SpanIter::from_boundaries(
             vec![
                 Pixel { x: 0, y: 0 },
                 Pixel { x: 1, y: 0 },

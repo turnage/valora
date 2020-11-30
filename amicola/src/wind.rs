@@ -1,4 +1,4 @@
-use crate::{boundary_spans::*, grid_lines::*, Pixel};
+use crate::{boundary_spans::*, grid_lines::*};
 
 /// Processes a sorted iterator of `Hit` and `BoundarySpan` into `BoundarySpan`s
 /// tagged with winding numbers.
@@ -31,6 +31,7 @@ pub(crate) fn wind_spans(
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::Pixel;
 
     #[test]
     fn row_gap() {
