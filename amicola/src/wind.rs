@@ -1,4 +1,4 @@
-use crate::{boundary_spans::*, grid_lines::*};
+use crate::{boundary_spans::*, grid_lines::*, Pixel};
 
 /// Processes a sorted iterator of `Hit` and `BoundarySpan` into `BoundarySpan`s
 /// tagged with winding numbers.

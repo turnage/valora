@@ -8,8 +8,6 @@ homepage = "https://github.com/turnage/valora/amicola"
 description = "A rasterizer for fine art"
 
 [dependencies]
-failure = "0.1.5"
-failure_derive = "0.1.5"
 itertools = "0.8.0"
 nalgebra = "0.18.0"
 float-ord = "0.2.0"
