@@ -22,9 +22,11 @@ pub fn inflate(stroke: Stroke) -> impl Iterator<Item = (LineSegment<f64>, i32)> 
             to: point(end.x, end.y),
         })
         .flat_map(move |segment| {
-            ArrayVec::from([project_right(segment, width), project_left(segment, width)])
+            ArrayVec::from([
+                (project_right(segment, width / 2.), -1),
+                (project_left(segment, width / 2.), 1),
+            ])
         })
-        .map(|line| (line, 1))
 }
 
 fn project_right(mut segment: LineSegment<f64>, distance: f64) -> LineSegment<f64> {

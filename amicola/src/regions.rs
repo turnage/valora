@@ -35,7 +35,7 @@ pub enum ShadeCommand {
 
 #[derive(Debug, Default, Clone)]
 pub struct RegionList {
-    hits: BTreeSet<Hit>,
+    hits: BTreeSet<(Hit, i32)>,
     boundaries: BTreeSet<Pixel>,
     segments: Vec<LineSegment<f64>>,
 }
@@ -51,10 +51,10 @@ where
 
         segment_iter
             .filter(|(line, _)| float_ne!(line.to.y, line.from.y, rmax <= f64::EPSILON))
-            .for_each(|(segment, _)| {
+            .for_each(|(segment, wind)| {
                 let (segment_boundaries, segment_hits) = scanline_entries(segment);
                 boundaries.extend(segment_boundaries);
-                hits.extend(segment_hits);
+                hits.extend(segment_hits.into_iter().map(|hit| (hit, wind)));
                 segments.push(segment);
             });
 

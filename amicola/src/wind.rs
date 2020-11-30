@@ -3,7 +3,7 @@ use crate::{boundary_spans::*, grid_lines::*};
 /// Processes a sorted iterator of `Hit` and `BoundarySpan` into `BoundarySpan`s
 /// tagged with winding numbers.
 pub(crate) fn wind_spans(
-    mut hits: impl Iterator<Item = Hit>,
+    mut hits: impl Iterator<Item = (Hit, i32)>,
     boundary_spans: impl Iterator<Item = BoundarySpan>,
 ) -> impl Iterator<Item = (i32, BoundarySpan)> {
     let mut cached = None;
@@ -15,13 +15,14 @@ pub(crate) fn wind_spans(
             row = *y;
             wind = 0;
         }
-        while let Some(hit) = cached.take().or_else(|| hits.next()) {
+
+        while let Some((hit, winding_number)) = cached.take().or_else(|| hits.next()) {
             if hit.pixel.y != *y || (!xs.contains(&hit.pixel.x) && hit.pixel.x > xs.end) {
-                cached = Some(hit);
+                cached = Some((hit, winding_number));
                 break;
             }
 
-            wind += 1;
+            wind += winding_number;
         }
 
         (wind, span)
@@ -36,14 +37,20 @@ mod test {
     #[test]
     fn row_gap() {
         let hits = vec![
-            Hit {
-                x: 1.2,
-                pixel: Pixel { x: 1, y: 1 },
-            },
-            Hit {
-                x: 4.2,
-                pixel: Pixel { x: 4, y: 2 },
-            },
+            (
+                Hit {
+                    x: 1.2,
+                    pixel: Pixel { x: 1, y: 1 },
+                },
+                1,
+            ),
+            (
+                Hit {
+                    x: 4.2,
+                    pixel: Pixel { x: 4, y: 2 },
+                },
+                1,
+            ),
         ]
         .into_iter();
 
@@ -67,14 +74,20 @@ mod test {
     #[test]
     fn gapped_hits() {
         let hits = vec![
-            Hit {
-                x: 1.2,
-                pixel: Pixel { x: 1, y: 1 },
-            },
-            Hit {
-                x: 4.2,
-                pixel: Pixel { x: 4, y: 1 },
-            },
+            (
+                Hit {
+                    x: 1.2,
+                    pixel: Pixel { x: 1, y: 1 },
+                },
+                1,
+            ),
+            (
+                Hit {
+                    x: 4.2,
+                    pixel: Pixel { x: 4, y: 1 },
+                },
+                1,
+            ),
         ]
         .into_iter();
 
@@ -98,18 +111,27 @@ mod test {
     #[test]
     fn adjacent_hits() {
         let hits = vec![
-            Hit {
-                x: 1.2,
-                pixel: Pixel { x: 1, y: 1 },
-            },
-            Hit {
-                x: 1.5,
-                pixel: Pixel { x: 1, y: 1 },
-            },
-            Hit {
-                x: 4.2,
-                pixel: Pixel { x: 4, y: 1 },
-            },
+            (
+                Hit {
+                    x: 1.2,
+                    pixel: Pixel { x: 1, y: 1 },
+                },
+                1,
+            ),
+            (
+                Hit {
+                    x: 1.5,
+                    pixel: Pixel { x: 1, y: 1 },
+                },
+                1,
+            ),
+            (
+                Hit {
+                    x: 4.2,
+                    pixel: Pixel { x: 4, y: 1 },
+                },
+                1,
+            ),
         ]
         .into_iter();
 
