@@ -4,3 +4,6 @@
 [submodule "third_party/clipper-sys"]
 	path = third_party/clipper-sys
 	url = https://github.com/turnage/clipper-sys
+[submodule "third_party/geo-offset"]
+	path = third_party/geo-offset
+	url = git@github.com:lelongg/geo-offset.git

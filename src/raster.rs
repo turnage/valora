@@ -3,7 +3,7 @@
 use crate::{gpu::GpuVertex, Result, P2};
 use amicola::SampleDepth;
 use arrayvec::ArrayVec;
-use geo_clipper::Clipper;
+use geo_booleanop::boolean::BooleanOp;
 use geo_types::{Coordinate, LineString, MultiPolygon, Polygon};
 use glium::index::PrimitiveType;
 use itertools::Itertools;
@@ -176,9 +176,8 @@ pub fn raster_path(
         Method::Stroke(width) => {
             let stroke = tessellate_stroke(builder, width as f32);
             let triangles = stroke_triangles(stroke);
-            let shape = triangles.fold(MultiPolygon(vec![]), |acc, t| acc.union(&t, 100.));
+            let shape = triangles.fold(MultiPolygon(vec![]), |acc, t| acc.union(&t));
             let shade_commands = amicola::raster(shape.into_iter(), sample_depth);
-            //let shade_commands =  triangles.flat_map(|t| amicola::raster(std::iter::once(t), sample_depth));
             format_shade_commands(color, shade_commands)
         }
     })

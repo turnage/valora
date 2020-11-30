@@ -42,6 +42,7 @@ winit = "0.22.0"
 float-ord = "0.2.0"
 geo-types = "0.6.1"
 geo-booleanop = "0.3.2"
+geo-offset = "0.1.0"
 
 [dev-dependencies]
 itertools = "0.8.0"
