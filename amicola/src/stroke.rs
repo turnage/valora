@@ -8,7 +8,7 @@ use lyon_geom::{math::point, LineSegment};
 use nalgebra::geometry::{Point2, Rotation2};
 use num_traits::{Num, NumCast};
 
-pub fn inflate(stroke: Stroke) -> impl Iterator<Item = (LineSegment<f64>, i32)> {
+pub fn inflate(stroke: Stroke) -> impl Iterator<Item = LineSegment<f64>> {
     let Stroke {
         path,
         width,
@@ -23,8 +23,8 @@ pub fn inflate(stroke: Stroke) -> impl Iterator<Item = (LineSegment<f64>, i32)> 
         })
         .flat_map(move |segment| {
             ArrayVec::from([
-                (project_right(segment, width / 2.), -1),
-                (project_left(segment, width / 2.), 1),
+                project_right(segment, width / 2.),
+                project_left(segment, width / 2.),
             ])
         })
 }

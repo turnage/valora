@@ -33,16 +33,18 @@ pub enum ShadeCommand {
     Span { x: Range<isize>, y: isize },
 }
 
+type SegmentId = usize;
+
 #[derive(Debug, Default, Clone)]
 pub struct RegionList {
-    hits: BTreeSet<(Hit, i32)>,
+    hits: BTreeSet<(Hit, SegmentId)>,
     boundaries: BTreeSet<Pixel>,
     segments: Vec<LineSegment<f64>>,
 }
 
 impl<I> From<I> for RegionList
 where
-    I: Iterator<Item = (LineSegment<f64>, i32)>,
+    I: Iterator<Item = LineSegment<f64>>,
 {
     fn from(segment_iter: I) -> Self {
         let mut segments = vec![];
@@ -50,11 +52,12 @@ where
         let mut boundaries = BTreeSet::new();
 
         segment_iter
-            .filter(|(line, _)| float_ne!(line.to.y, line.from.y, rmax <= f64::EPSILON))
-            .for_each(|(segment, wind)| {
+            .filter(|line| float_ne!(line.to.y, line.from.y, rmax <= f64::EPSILON))
+            .enumerate()
+            .for_each(|(i, segment)| {
                 let (segment_boundaries, segment_hits) = scanline_entries(segment);
                 boundaries.extend(segment_boundaries);
-                hits.extend(segment_hits.into_iter().map(|hit| (hit, wind)));
+                hits.extend(segment_hits.into_iter().map(|hit| (hit, i)));
                 segments.push(segment);
             });
 
@@ -65,6 +68,7 @@ where
         }
     }
 }
+
 impl RegionList {
     pub fn shade_commands(self, sample_depth: SampleDepth) -> impl Iterator<Item = ShadeCommand> {
         let segments = self.segments.clone();
@@ -89,10 +93,20 @@ impl RegionList {
 
     fn regions(self) -> impl Iterator<Item = Region> {
         let boundary_spans = SpanIter::from_boundaries(self.boundaries.clone().into_iter());
-        let hits = self.hits.into_iter();
+        let segments = self.segments;
+        let hits = self.hits.into_iter().map(move |(h, segment_id)| {
+            let segment = segments[segment_id];
+            let wind_number = match segment.from.y > h.pixel.y as f64 {
+                true => 1,
+                false => -1,
+            };
+
+            (h, wind_number)
+        });
+
         let span_winds = wind_spans(hits, boundary_spans);
 
-        let wound_in = |wind| wind % 2 == 1;
+        let wound_in = |wind| wind != 0;
         let potential_fill_spans = span_winds.tuple_windows::<(_, _)>();
         let fill_spans = potential_fill_spans.filter_map(move |((wind1, span1), (_, span2))| {
             if span1.y != span2.y {

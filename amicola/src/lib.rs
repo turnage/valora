@@ -33,10 +33,10 @@ enum EdgeIter<F, S> {
 
 impl<F, S> Iterator for EdgeIter<F, S>
 where
-    F: Iterator<Item = (LineSegment<f64>, i32)>,
-    S: Iterator<Item = (LineSegment<f64>, i32)>,
+    F: Iterator<Item = LineSegment<f64>>,
+    S: Iterator<Item = LineSegment<f64>>,
 {
-    type Item = (LineSegment<f64>, i32);
+    type Item = LineSegment<f64>;
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             EdgeIter::Fill(fill) => fill.next(),
@@ -46,7 +46,7 @@ where
 }
 
 impl RasterInput {
-    fn edges(self) -> impl Iterator<Item = (LineSegment<f64>, i32)> {
+    fn edges(self) -> impl Iterator<Item = LineSegment<f64>> {
         match self {
             RasterInput::Fill(polygon) => EdgeIter::Fill(polygon_edges(polygon)),
             RasterInput::Stroke(stroke) => EdgeIter::Stroke(stroke::inflate(stroke)),
@@ -72,17 +72,14 @@ impl From<Stroke> for RasterInput {
     }
 }
 
-fn polygon_edges(polygon: Polygon<f64>) -> impl Iterator<Item = (LineSegment<f64>, i32)> {
+fn polygon_edges(polygon: Polygon<f64>) -> impl Iterator<Item = LineSegment<f64>> {
     let (exterior, interior) = polygon.into_inner();
 
     let positive_wind = 1;
-    let exterior = line_string_lines(exterior).map(move |line| (line, positive_wind));
+    let exterior = line_string_lines(exterior);
 
     let negative_wind = -1;
-    let interior = interior
-        .into_iter()
-        .flat_map(line_string_lines)
-        .map(move |line| (line, negative_wind));
+    let interior = interior.into_iter().flat_map(line_string_lines);
 
     exterior.chain(interior)
 }
