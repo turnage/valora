@@ -114,12 +114,13 @@ fn project_left(mut segment: LineSegment<f64>, distance: f64) -> Projection {
 }
 
 fn project(mut segment: LineSegment<f64>, distance: f64, theta: f64) -> Projection {
-    let left_rot = Rotation2::new(theta);
+    let rot = Rotation2::new(theta);
     let vector = segment.from - segment.to;
     let vector = Point2::new(vector.x, vector.y);
-    let translation_vector = left_rot * vector;
+    let translation_vector = rot * vector;
     let translation_vector = point(translation_vector.x, translation_vector.y);
-    let translation_vector = translation_vector.to_vector();
+    let translation_vector = translation_vector.to_vector().normalize();
+    let translation_vector = translation_vector * distance;
 
     let segment = segment.translate(translation_vector);
     Projection {
