@@ -96,10 +96,11 @@ impl RegionList {
         let segments = self.segments;
         let hits = self.hits.into_iter().map(move |(h, segment_id)| {
             let segment = segments[segment_id];
-            let wind_number = match segment.from.y > h.pixel.y as f64 {
-                true => 1,
-                false => -1,
-            };
+            let wind_number =
+                match segment.from.y > h.pixel.y as f64 || segment.to.y < h.pixel.y as f64 {
+                    true => 1,
+                    false => -1,
+                };
 
             (h, wind_number)
         });
