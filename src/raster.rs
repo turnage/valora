@@ -1,6 +1,6 @@
 //! Path rasterization.
 
-use crate::{gpu::GpuVertex, Result, P2};
+use crate::{Result, P2};
 use amicola::SampleDepth;
 use arrayvec::ArrayVec;
 use geo_booleanop::boolean::BooleanOp;
@@ -13,6 +13,7 @@ use lyon_tessellation::{
     BuffersBuilder, LineJoin, StrokeAttributes, StrokeOptions, StrokeTessellator, VertexBuffers,
 };
 use palette::LinSrgba;
+use pirouette::Vertex;
 
 /// The method by which the rasterizer will rasterize the vector path.
 #[derive(Debug, Clone, Copy)]
@@ -27,25 +28,19 @@ pub enum Method {
     Stroke(f64),
 }
 
-pub struct RasterResult {
-    pub primitive: PrimitiveType,
-    pub vertices: Vec<GpuVertex>,
-    pub indices: Vec<u32>,
-}
-
 pub fn format_shade_commands(
     color: LinSrgba,
     shade_commands: impl Iterator<Item = amicola::ShadeCommand>,
-) -> RasterResult {
-    let mut vertices = vec![];
-    for cmd in shade_commands {
-        match cmd {
+) -> impl Iterator<Item = Vertex> {
+    shade_commands.flat_map(move |command| {
+        let mut vertices: ArrayVec<[Vertex; 2]> = ArrayVec::new();
+        match command {
             amicola::ShadeCommand::Boundary { x, y, coverage } => {
                 let mut color = color;
                 color.alpha *= coverage;
-                vertices.push(GpuVertex {
-                    vpos: [x as f32, y as f32],
-                    vcol: [
+                vertices.push(Vertex {
+                    position: [x as f32, y as f32],
+                    color: [
                         color.color.red,
                         color.color.green,
                         color.color.blue,
@@ -53,9 +48,9 @@ pub fn format_shade_commands(
                     ],
                 });
 
-                vertices.push(GpuVertex {
-                    vpos: [x as f32 + 1., y as f32],
-                    vcol: [
+                vertices.push(Vertex {
+                    position: [x as f32 + 1., y as f32],
+                    color: [
                         color.color.red,
                         color.color.green,
                         color.color.blue,
@@ -65,9 +60,9 @@ pub fn format_shade_commands(
             }
             amicola::ShadeCommand::Span { x, y } => {
                 let color = color;
-                vertices.push(GpuVertex {
-                    vpos: [x.start as f32, y as f32],
-                    vcol: [
+                vertices.push(Vertex {
+                    position: [x.start as f32, y as f32],
+                    color: [
                         color.color.red,
                         color.color.green,
                         color.color.blue,
@@ -75,9 +70,9 @@ pub fn format_shade_commands(
                     ],
                 });
 
-                vertices.push(GpuVertex {
-                    vpos: [x.end as f32, y as f32],
-                    vcol: [
+                vertices.push(Vertex {
+                    position: [x.end as f32, y as f32],
+                    color: [
                         color.color.red,
                         color.color.green,
                         color.color.blue,
@@ -85,14 +80,9 @@ pub fn format_shade_commands(
                     ],
                 });
             }
-        }
-    }
-
-    RasterResult {
-        primitive: PrimitiveType::LinesList,
-        indices: (0..(vertices.len() as u32)).collect(),
-        vertices,
-    }
+        };
+        vertices
+    })
 }
 
 fn tessellate_stroke(path: Builder, width: f32) -> VertexBuffers<P2, u32> {
@@ -167,7 +157,7 @@ pub fn raster_path(
     method: Method,
     color: LinSrgba,
     sample_depth: amicola::SampleDepth,
-) -> Result<RasterResult> {
+) -> impl Iterator<Item = Vertex> {
     let lines = path_to_line_string(builder, sample_depth);
     let raster_input: amicola::RasterInput = match method {
         Method::Fill => {
@@ -185,5 +175,5 @@ pub fn raster_path(
     };
 
     let shade_commands = amicola::raster(raster_input, sample_depth);
-    Ok(format_shade_commands(color, shade_commands))
+    format_shade_commands(color, shade_commands)
 }

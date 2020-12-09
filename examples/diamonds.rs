@@ -2,14 +2,12 @@ use itertools::iproduct;
 use valora::prelude::*;
 
 fn main() -> Result<()> {
-    run_fn(Options::from_args(), |_gpu, world, rng| {
+    run_fn(Options::from_args(), |world, rng| {
         let fbm = Fbm::new().set_seed(rng.gen());
 
-        Ok(move |ctx: Context, canvas: &mut Canvas| {
+        Ok(move |ctx: Context, rng: &mut StdRng, canvas: &mut Canvas| {
             canvas.set_color(LinSrgb::new(1., 1., 1.));
             canvas.paint(Filled(ctx.world));
-
-            let mut rng = ctx.rng.clone();
 
             let sq_size = 400.;
             let bottom_left = world.center() - V2::new(sq_size / 2., sq_size / 2.);

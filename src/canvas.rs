@@ -1,14 +1,15 @@
 //! A painting surface.
 
-use crate::{gpu::Shader, paint::Paint, Angle, Element, Method, P2, V2};
+use crate::{paint::Paint, Angle, Element, Method, P2, V2};
 use lyon_path::Builder;
 use palette::{Alpha, IntoColor, LinSrgb, LinSrgba};
+use std::rc::Rc;
 
 /// A painting surface.
 pub struct Canvas {
     path: Builder,
     path_closed: bool,
-    shader: Shader,
+    shader: Option<Rc<wgpu::ShaderModule>>,
     color: LinSrgba,
     stroke_width: f32,
     scale: f32,
@@ -16,11 +17,11 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub(crate) fn new(default_shader: Shader, scale: f32) -> Self {
+    pub(crate) fn new(scale: f32) -> Self {
         Self {
             path: Builder::new(),
             path_closed: false,
-            shader: default_shader,
+            shader: None,
             color: Alpha::<LinSrgb, _>::new(1., 1., 1., 1.),
             scale,
             stroke_width: 1.,
@@ -109,8 +110,8 @@ impl Canvas {
     /// Changing shaders requires making a new draw call to the GPU and tearing down some state.
     /// Changing shaders 0-10 times per frame is likely to be fast enough. Changing shaders 500
     /// times per frame will be slow.
-    pub fn set_shader(&mut self, shader: Shader) {
-        self.shader = shader;
+    pub fn set_shader(&mut self, shader: Rc<wgpu::ShaderModule>) {
+        self.shader = Some(shader);
     }
 
     fn push_element(&mut self, raster_method: Method) {

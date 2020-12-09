@@ -12,11 +12,13 @@ readme = "readme.md"
 [workspace]
 members = [
   "valora_derive",
-  "amicola"
+  "amicola",
+  "pirouette"
 ]
 
 [dependencies]
 amicola = { path = "amicola" }
+pirouette = { path = "pirouette" }
 glium = "0.27"
 glutin = "0.24"
 structopt = "0.3.0"
@@ -39,6 +41,8 @@ winit = "0.22.0"
 float-ord = "0.2.0"
 geo-types = "0.6.1"
 geo-booleanop = "0.3.2"
+wgpu = "0.6"
+futures = "0.3"
 geo-offset = { git = "https://github.com/turnage/geo-offset.git" }
 
 [dev-dependencies]

@@ -91,16 +91,6 @@ pub struct Shader {
     uniforms: UniformBuffer,
 }
 
-/// A rasterable element in a composition.
-pub struct Element {
-    pub path: Builder,
-    /// Whether the path is closed.
-    pub closed: bool,
-    pub color: LinSrgba,
-    pub raster_method: Method,
-    pub shader: Shader,
-}
-
 pub struct DisplayFacade(Display);
 
 impl Facade for DisplayFacade {

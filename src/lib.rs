@@ -2,25 +2,21 @@
 
 //! A brush for generative fine art.
 
-mod gpu;
 mod noise_traits;
 mod raster;
-mod render;
 
 pub mod attributes;
 pub mod canvas;
 pub mod forms;
 pub mod paint;
 pub mod path;
-pub mod shaders;
 pub mod transforms;
 pub mod uniforms;
 
 /// Exhuastive set of imports for painting.
 pub mod prelude {
     pub use self::{
-        attributes::*, canvas::*, forms::*, paint::*, path::*, shaders::*, transforms::*,
-        uniforms::*,
+        attributes::*, canvas::*, forms::*, paint::*, path::*, transforms::*, uniforms::*,
     };
     pub use super::*;
     pub use euclid;
@@ -38,18 +34,16 @@ pub mod prelude {
     pub use std::f32::consts::PI;
 }
 
-pub use self::{
-    gpu::{Gpu, Shader},
-    render::Context,
-    shaders::ShaderProgram,
-};
-
-use self::{gpu::*, prelude::*, raster::Method};
+use self::{prelude::*, raster::Method};
+use amicola::SampleDepth;
 use anyhow::Error;
 use euclid::{Point3D, Size2D, UnknownUnit, Vector2D, Vector3D};
+use itertools::Itertools;
 use lyon_path::math::Point;
-use render::*;
+use pirouette::*;
+use std::rc::Rc;
 use std::{path::PathBuf, time::Duration};
+use wgpu::*;
 
 /// A two dimensional point.
 pub type P2 = Point;
@@ -74,6 +68,17 @@ pub type Program = glium::program::Program;
 
 /// A value or an error.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// The context of the current render frame.
+#[derive(Debug, Clone, Copy)]
+pub struct Context {
+    /// The world in which painting takes place.
+    pub world: World,
+    /// The current frame in the composition.
+    pub frame: usize,
+    /// The elapsed time in the composition.
+    pub time: Duration,
+}
 
 /// Command line options for a painting run.
 ///
@@ -183,13 +188,23 @@ impl Paint for World {
     }
 }
 
+/// A rasterable element in a composition.
+pub(crate) struct Element {
+    pub path: lyon_path::Builder,
+    /// Whether the path is closed.
+    pub closed: bool,
+    pub color: LinSrgba,
+    pub raster_method: Method,
+    pub shader: Option<Rc<ShaderModule>>,
+}
+
 /// A trait for types which paint canvases.
 pub trait Artist: Sized {
     /// Constructs the artist.
     ///
     /// This would be a place to compile any GLSL or construct any expensive
     /// resources needed across the whole composition.
-    fn setup(gpu: Gpu, world: World, rng: &mut StdRng) -> Result<Self>;
+    fn setup(world: World, rng: &mut StdRng) -> Result<Self>;
 
     /// Paints a single frame.
     fn paint(&mut self, ctx: Context, canvas: &mut Canvas);
@@ -198,102 +213,80 @@ pub trait Artist: Sized {
 /// Run an artist defined by raw functions.
 ///
 /// Takes a function that produces the function that should paint each frame.
-pub fn run_fn<F>(options: Options, f: impl Fn(Gpu, World, &mut StdRng) -> Result<F>) -> Result<()>
+pub fn run_fn<F>(options: Options, f: impl Fn(World, &mut StdRng) -> Result<F>) -> Result<()>
 where
-    F: FnMut(Context, &mut Canvas),
+    F: FnMut(Context, &mut StdRng, &mut Canvas),
 {
     let (output_width, output_height) = (
         (options.world.width as f32 * options.world.scale) as u32,
         (options.world.height as f32 * options.world.scale) as u32,
     );
 
-    let number_width = options
-        .world
-        .frames
-        .unwrap_or(0)
-        .to_string()
-        .chars()
-        .count();
-
-    #[allow(warnings)]
-    let mut render_buffer = None;
-    let (gpu, strategy) = if let Some(base_path) = options.output.clone() {
-        let (gpu, _) = Gpu::new()?;
-        let buffer = gpu.build_texture(output_width, output_height)?;
-
-        std::fs::create_dir_all(&base_path)
-            .expect(&format!("To create save directory {}", base_path.display()));
-
-        (
-            gpu,
-            RenderStrategy::File {
-                buffer,
-                base_path,
-                number_width,
-            },
-        )
-    } else {
-        let (gpu, events_loop, (_screen_width, _screen_height)) =
-            Gpu::with_window(output_width, output_height)?;
-        render_buffer = Some(glium::framebuffer::RenderBuffer::new(
-            gpu.ctx.as_ref(),
-            TEXTURE_FORMAT,
-            output_width,
-            output_height,
-        )?);
-
-        let wait = Duration::from_secs_f64(1. / options.world.framerate as f64);
-        let buffer = glium::framebuffer::SimpleFrameBuffer::new(
-            gpu.ctx.as_ref(),
-            render_buffer.as_ref().unwrap(),
-        )?;
-
-        (
-            gpu,
-            RenderStrategy::Screen {
-                events_loop,
-                wait,
-                buffer,
-            },
-        )
-    };
-
-    let rng = StdRng::seed_from_u64(options.world.seed);
-    let mut renderer = Renderer {
-        strategy,
-        gpu: &gpu,
-        options: Options {
-            world: World {
-                seed: options.world.seed,
-                frames: match (options.brainstorm, options.output.as_ref()) {
-                    (true, Some(_)) => Some(1),
-                    _ => options.world.frames,
-                },
-                ..options.world
-            },
-            ..options.clone()
+    let instance = Instance::new(BackendBit::PRIMARY);
+    let adapter = instance
+        .enumerate_adapters(BackendBit::PRIMARY)
+        .next()
+        .expect("No supported wgpu backend found");
+    let (device, queue) = futures::executor::block_on(adapter.request_device(
+        &DeviceDescriptor {
+            features: Features::empty(),
+            limits: Limits::default(),
+            shader_validation: true,
         },
-        rng,
-        output_width,
-        output_height,
-    };
-    for frame in 0.. {
-        let mut paint_fn = f(gpu.clone(), options.world, &mut renderer.rng)?;
-        let report = renderer.render_frames(|ctx, canvas| paint_fn(ctx, canvas))?;
+        /*trace_path=*/ None,
+    ))?;
 
-        if let Some(rebuild) = report.rebuild {
-            match rebuild {
-                Rebuild::NewSeed(new_seed) => {
-                    renderer.options.world.seed = new_seed;
-                }
+    let scope = Scope {
+        scale: options.world.scale,
+        dimensions: [output_width as f32, output_height as f32],
+        offset: [0., 0.],
+    };
+    let mut rng = StdRng::seed_from_u64(options.world.seed);
+    let mut renderer = Renderer::new(&device);
+    let mut runner = f(options.world, &mut rng)?;
+    let time = |frame| Duration::from_secs_f32(frame as f32 / options.world.framerate as f32);
+    let mut ctx = Context {
+        world: options.world,
+        frame: 0,
+        time: time(0),
+    };
+    let render_target = Renderer::create_target(&device, Format::MixFidelity, scope);
+    loop {
+        for i in 0..(options.world.frames.unwrap_or(1000)) {
+            let mut canvas = Canvas::new(options.world.scale);
+            runner(ctx, &mut rng, &mut canvas);
+            let elements = canvas.elements().into_iter();
+            for (_, batch) in &elements.group_by(|e: &Element| {
+                e.shader
+                    .as_ref()
+                    .map(Rc::as_ptr)
+                    .map(|p| p as u64)
+                    .unwrap_or(0)
+            }) {
+                let mut shader: Option<Rc<ShaderModule>> = None;
+                let lines: Vec<Vertex> = batch
+                    .flat_map(|element| {
+                        if let Some(s) = element.shader {
+                            shader.replace(s);
+                        }
+                        raster::raster_path(
+                            element.path,
+                            element.closed,
+                            element.raster_method,
+                            element.color,
+                            options.sample_depth.unwrap_or(SampleDepth::Single),
+                        )
+                    })
+                    .collect();
+                let draw = renderer.begin_draw(
+                    &device,
+                    &queue,
+                    &render_target,
+                    &lines,
+                    NullUniforms,
+                    shader.clone(),
+                );
             }
-        } else if options.brainstorm
-            && options.output.is_some()
-            && frame < options.world.frames.unwrap_or(usize::max_value())
-        {
-            renderer.options.world.seed += 1;
-        } else if report.explicit_quit || !options.brainstorm || options.output.is_some() {
-            break;
         }
     }
 
@@ -302,8 +295,8 @@ where
 
 /// Run an artist.
 pub fn run<A: Artist>(options: Options) -> Result<()> {
-    run_fn(options, |gpu, world, rng| {
-        let mut artist = A::setup(gpu, world, rng)?;
-        Ok(move |ctx: Context, canvas: &mut Canvas| artist.paint(ctx, canvas))
+    run_fn(options, |world, rng| {
+        let mut artist = A::setup(world, rng)?;
+        Ok(move |ctx: Context, rng: &mut StdRng, canvas: &mut Canvas| artist.paint(ctx, canvas))
     })
 }
