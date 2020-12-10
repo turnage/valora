@@ -17,6 +17,7 @@ bytemuck = { version = "1.4", features = ["derive"] }
 anyhow = "1"
 float-ord = "0.2"
 derivative = "2"
+byteorder = "1"
 
 [build-dependencies]
 anyhow = "1"

@@ -22,7 +22,17 @@ vec2 _project_coordinates() {
   );
 }
 
-void main() {
-  gl_Position = vec4(_project_coordinates(), 0., 1.);
+void main2() {
+  gl_Position = vec4(position, 0., 1.);//_project_coordinates(), 0., 1.);
   vertex_color = color;
+}
+
+const vec2 positions[3] = vec2[3](
+    vec2(0.0, 0.5),
+    vec2(-0.5, -0.5),
+    vec2(0.5, -0.5)
+);
+
+void main() {
+    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
 }

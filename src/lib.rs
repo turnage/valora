@@ -41,8 +41,13 @@ use euclid::{Point3D, Size2D, UnknownUnit, Vector2D, Vector3D};
 use itertools::Itertools;
 use lyon_path::math::Point;
 use pirouette::*;
+use rand::random;
+use std::io::ErrorKind;
 use std::rc::Rc;
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use wgpu::*;
 
 /// A two dimensional point.
@@ -78,6 +83,8 @@ pub struct Context {
     pub frame: usize,
     /// The elapsed time in the composition.
     pub time: Duration,
+    /// The root random seed.
+    pub seed: u64,
 }
 
 /// Command line options for a painting run.
@@ -89,13 +96,10 @@ pub struct Options {
     #[structopt(flatten)]
     pub world: World,
 
-    /// In brainstorm mode:
-    ///
-    ///   * When rendering a limited number of frames to screen, the preview will not close.
-    ///
-    ///   * When rendering to file, every frame will be rendered with a different seed.
-    #[structopt(short = "b", long = "brainstorm")]
-    pub brainstorm: bool,
+    /// Brainstorm mode will repeat the render from frame 0 with a new random
+    /// seed. The value prescribes the number of seeds to try.
+    #[structopt(short = "b", long = "brainstorm", default_value = "1")]
+    pub brainstorm: usize,
 
     /// The number of frames to delay saving to file. For example, if delay=100,
     /// 100 frames will be rendered silently and then the 101st and those after it
@@ -227,32 +231,43 @@ where
         .enumerate_adapters(BackendBit::PRIMARY)
         .next()
         .expect("No supported wgpu backend found");
+    println!("Adapter: {:?}", adapter.get_info());
     let (device, queue) = futures::executor::block_on(adapter.request_device(
         &DeviceDescriptor {
             features: Features::empty(),
             limits: Limits::default(),
             shader_validation: true,
         },
-        /*trace_path=*/ None,
+        /*trace_path=*/ Some(&Path::new("wgpu_trace.txt")),
     ))?;
+
+    if let Some(path) = options.output.as_ref() {
+        prepare_output_dir(path)?
+    }
 
     let scope = Scope {
         scale: options.world.scale,
         dimensions: [output_width as f32, output_height as f32],
         offset: [0., 0.],
     };
-    let mut rng = StdRng::seed_from_u64(options.world.seed);
     let mut renderer = Renderer::new(&device);
-    let mut runner = f(options.world, &mut rng)?;
-    let time = |frame| Duration::from_secs_f32(frame as f32 / options.world.framerate as f32);
-    let mut ctx = Context {
-        world: options.world,
-        frame: 0,
-        time: time(0),
-    };
-    let render_target = Renderer::create_target(&device, Format::MixFidelity, scope);
-    loop {
-        for i in 0..(options.world.frames.unwrap_or(1000)) {
+    let framerate = options.world.framerate;
+    let time = move |frame| Duration::from_secs_f32(frame as f32 / framerate as f32);
+
+    let render_target = Renderer::create_target(&device, Format::Final, scope);
+    let mut seeds = std::iter::successors(Some(options.world.seed), |_| Some(random()));
+    for _ in 0..(options.brainstorm) {
+        let mut ctx = Context {
+            world: options.world,
+            frame: 0,
+            time: time(0),
+            seed: seeds.next().unwrap(),
+        };
+        let mut rng = StdRng::seed_from_u64(ctx.seed);
+        let mut runner = f(options.world, &mut rng)?;
+        for i in 0..(options.world.frames.unwrap_or(100)) {
+            ctx.frame = i;
+            println!("Rendering frame... {:?}", i);
             let mut canvas = Canvas::new(options.world.scale);
             runner(ctx, &mut rng, &mut canvas);
             let elements = canvas.elements().into_iter();
@@ -286,11 +301,30 @@ where
                     NullUniforms,
                     shader.clone(),
                 );
+
+                match options.output.as_ref() {
+                    Some(directory_name) => {
+                        let mut output_path = PathBuf::new();
+                        output_path.push(directory_name);
+                        output_path.push(format!("seed_{}-frame_{}.png", ctx.seed, ctx.frame));
+                        draw.write_out(output_path)?;
+                    }
+                    None => {
+                        // render to screen
+                    }
+                }
             }
         }
     }
 
     Ok(())
+}
+
+fn prepare_output_dir(path: impl AsRef<Path>) -> Result<()> {
+    match std::fs::create_dir_all(path) {
+        Err(e) if e.kind() != ErrorKind::AlreadyExists => Err(e)?,
+        _ => Ok(()),
+    }
 }
 
 /// Run an artist.

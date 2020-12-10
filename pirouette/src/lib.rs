@@ -1,8 +1,9 @@
 use anyhow::Result;
 use bytemuck::{Pod, Zeroable};
+use byteorder::{BigEndian, ByteOrder};
 use derivative::Derivative;
 use float_ord::FloatOrd;
-use image::{Bgra, ImageBuffer};
+use image::{ImageBuffer, Rgba};
 use shaderc::*;
 use std::rc::Rc;
 use std::{
@@ -35,7 +36,7 @@ impl Scope {
     fn bind_group_layout_entry() -> BindGroupLayoutEntry {
         BindGroupLayoutEntry {
             binding: 0,
-            visibility: ShaderStage::VERTEX | ShaderStage::FRAGMENT,
+            visibility: ShaderStage::VERTEX,
             ty: BindingType::UniformBuffer {
                 dynamic: false,
                 min_binding_size: None,
@@ -78,8 +79,21 @@ pub enum Format {
 impl Format {
     fn texel_size(self) -> u32 {
         match self {
-            Format::MixFidelity => 32 * 4,
-            Format::Final => 8 * 4,
+            Format::MixFidelity => 16, // 4 bytes per channel
+            Format::Final => 4,        // 1 byte per channel
+        }
+    }
+}
+
+impl Format {
+    fn process_rows<'a>(self, rows: impl Iterator<Item = &'a [u8]>) -> Vec<u8> {
+        match self {
+            Format::MixFidelity => rows
+                .flat_map(|row| row.chunks_exact(4))
+                .map(BigEndian::read_f32)
+                .map(|f| (f * 255.).floor() as u8)
+                .collect(),
+            Format::Final => rows.flatten().copied().collect(),
         }
     }
 }
@@ -138,25 +152,24 @@ impl<'a> Draw<'a> {
         let scope = self.target.scope;
         let format = self.target.format;
 
-        let buffer = self.device.create_buffer(&BufferDescriptor {
-            label: None,
-            size: (scope.texel_count() * format.texel_size()) as u64,
-            usage: BufferUsage::COPY_DST | BufferUsage::MAP_READ,
-            mapped_at_creation: false,
-        });
-
         let unpadded_row_length = scope.width() * format.texel_size();
         let padded_row_length = align_up_256(unpadded_row_length);
+        let buffer = self.device.create_buffer_init(&util::BufferInitDescriptor {
+            label: None,
+            contents: vec![5; (scope.height() * padded_row_length) as usize].as_slice(),
+            usage: BufferUsage::COPY_DST | BufferUsage::MAP_READ,
+        });
+
         self.command_encoder.copy_texture_to_buffer(
             TextureCopyViewBase {
                 texture: &self.target.texture,
-                mip_level: 1,
+                mip_level: 0,
                 origin: Origin3d::ZERO,
             },
             BufferCopyViewBase {
                 buffer: &buffer,
                 layout: TextureDataLayout {
-                    offset: 0, // might need to be 1?
+                    offset: 0,
                     bytes_per_row: padded_row_length,
                     rows_per_image: scope.height(),
                 },
@@ -173,9 +186,12 @@ impl<'a> Draw<'a> {
         self.device.poll(Maintain::Wait);
 
         let slice = buffer.slice(..);
-        futures::executor::block_on(slice.map_async(MapMode::Read))?;
+        let map_request = slice.map_async(MapMode::Read);
+        self.device.poll(Maintain::Wait);
+        futures::executor::block_on(map_request)?;
 
         let image = read_gpu_buffer(
+            format,
             padded_row_length,
             unpadded_row_length,
             scope.width(),
@@ -195,18 +211,27 @@ pub struct RenderTarget {
 }
 
 fn read_gpu_buffer(
+    format: Format,
     padded_row_length: u32,
     unpadded_row_length: u32,
     width: u32,
     height: u32,
     buffer: &[u8],
-) -> ImageBuffer<Bgra<u8>, Vec<u8>> {
-    let data = buffer
-        .chunks_exact(padded_row_length as _)
-        .map(|chunk| &chunk[..(unpadded_row_length as _)])
-        .flatten()
-        .map(|x| *x)
-        .collect::<Vec<u8>>();
+) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+    use image::buffer::ConvertBuffer;
+
+    let data = format.process_rows(
+        buffer
+            .chunks_exact(padded_row_length as _)
+            .enumerate()
+            .map(|(i, c)| {
+                if i < 10 {
+                    println!("c: {:?}", c);
+                }
+                c
+            })
+            .map(|chunk| (&chunk[..(unpadded_row_length as _)])),
+    );
 
     ImageBuffer::from_raw(width, height, data).unwrap()
 }
@@ -214,7 +239,7 @@ fn read_gpu_buffer(
 impl Renderer {
     pub fn new(device: &Device) -> Self {
         let vertex_source = include_spirv!("../shaders/default.vert.spv");
-        let fragment_source = include_spirv!("../shaders/default.vert.spv");
+        let fragment_source = include_spirv!("../shaders/default.frag.spv");
         Self {
             pipelines: HashMap::default(),
             vertex_shader: device.create_shader_module(vertex_source),
@@ -241,7 +266,7 @@ impl Renderer {
         let scope_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
             label: Some("Scope uniform buffer"),
             contents: bytemuck::cast_slice(&[target.scope]),
-            usage: BufferUsage::UNIFORM | BufferUsage::COPY_DST,
+            usage: BufferUsage::UNIFORM,
         });
 
         let vertex_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
@@ -261,16 +286,9 @@ impl Renderer {
             }],
         });
 
-        let target_view = target.texture.create_view(&TextureViewDescriptor {
-            label: Some("Render target view"),
-            format: Some(target.format.into()),
-            dimension: Some(TextureViewDimension::D2),
-            aspect: TextureAspect::All,
-            base_mip_level: 1,
-            level_count: None,
-            base_array_layer: 1,
-            array_layer_count: None,
-        });
+        let target_view = target
+            .texture
+            .create_view(&TextureViewDescriptor::default());
 
         {
             let mut render_pass = command_encoder.begin_render_pass(&RenderPassDescriptor {
@@ -280,10 +298,10 @@ impl Renderer {
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color {
-                            r: 0.,
+                            r: 1.,
                             g: 0.,
                             b: 0.,
-                            a: 0.,
+                            a: 1.,
                         }),
                         store: true,
                     },
@@ -297,8 +315,7 @@ impl Renderer {
                 let uniforms_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
                     label: Some("Scope uniform buffer"),
                     contents: bytemuck::cast_slice(&[uniforms]),
-                    // TODO: remove copy dest?
-                    usage: BufferUsage::UNIFORM | BufferUsage::COPY_DST,
+                    usage: BufferUsage::UNIFORM,
                 });
 
                 let uniforms_bind_group = device.create_bind_group(&BindGroupDescriptor {
@@ -360,9 +377,7 @@ impl Renderer {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format: format.into(),
-            usage: TextureUsage::COPY_DST
-                | TextureUsage::COPY_SRC
-                | TextureUsage::OUTPUT_ATTACHMENT,
+            usage: TextureUsage::COPY_SRC | TextureUsage::OUTPUT_ATTACHMENT,
         });
 
         RenderTarget {
@@ -414,7 +429,7 @@ impl Renderer {
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some(uniform_id),
             layout: Some(&pipeline_layout),
-            primitive_topology: PrimitiveTopology::LineList,
+            primitive_topology: PrimitiveTopology::TriangleList,
             rasterization_state: None,
             depth_stencil_state: None,
             color_states: &[ColorStateDescriptor {
