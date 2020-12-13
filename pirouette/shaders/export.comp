@@ -1,0 +1,26 @@
+#version 450
+
+layout(set = 0, binding = 0) buffer Dimensions {
+  float scale;
+  uvec2 offset;
+  uvec2 dimensions;
+};
+
+layout(set = 1, binding = 0) buffer Fidelity {
+  vec4 fidelity[];
+};
+
+layout(set = 2, binding = 0) buffer Export {
+  vec4 export[];
+};
+
+void main() {
+  const uint column = gl_GlobalInvocationID.x;
+  const uint row = gl_GlobalInvocationID.y;
+  const uint index = row * dimensions.x + column;
+
+  vec4 source = fidelity[index];
+  uvec4 final = uvec4(floor(source * vec4(255.)));
+  
+  export[index] = vec4(1.);
+}

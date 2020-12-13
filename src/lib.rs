@@ -247,14 +247,22 @@ where
 
     let scope = Scope {
         scale: options.world.scale,
-        dimensions: [output_width as f32, output_height as f32],
         offset: [0., 0.],
+        dimensions: [output_width, output_height],
     };
-    let mut renderer = Renderer::new(&device);
     let framerate = options.world.framerate;
     let time = move |frame| Duration::from_secs_f32(frame as f32 / framerate as f32);
 
-    let render_target = Renderer::create_target(&device, Format::Final, scope);
+    let render_target = device.create_buffer(&BufferDescriptor {
+        label: None,
+        size: (options.world.width * options.world.height) as u64 * 16,
+        usage: BufferUsage::STORAGE | BufferUsage::COPY_SRC,
+        mapped_at_creation: false,
+    });
+
+    let mut renderer = Renderer::new(&device);
+    let job = renderer.job(scope, &device);
+
     let mut seeds = std::iter::successors(Some(options.world.seed), |_| Some(random()));
     for _ in 0..(options.brainstorm) {
         let mut ctx = Context {
@@ -293,25 +301,21 @@ where
                         )
                     })
                     .collect();
-                let draw = renderer.begin_draw(
-                    &device,
-                    &queue,
-                    &render_target,
-                    &lines,
-                    NullUniforms,
-                    shader.clone(),
-                );
+                let commands = renderer.render(&job, lines.as_slice(), &device);
+
+                queue.submit(std::iter::once(commands));
+                device.poll(Maintain::Wait);
 
                 match options.output.as_ref() {
                     Some(directory_name) => {
-                        let mut output_path = PathBuf::new();
-                        output_path.push(directory_name);
-                        output_path.push(format!("seed_{}-frame_{}.png", ctx.seed, ctx.frame));
-                        draw.write_out(output_path)?;
+                        renderer.export(&job, &device, &queue, |image_buffer| {
+                            let mut output_path = PathBuf::new();
+                            output_path.push(directory_name);
+                            output_path.push(format!("seed_{}-frame_{}.png", ctx.seed, ctx.frame));
+                            Ok(image_buffer.save(output_path)?)
+                        })?;
                     }
-                    None => {
-                        // render to screen
-                    }
+                    None => {}
                 }
             }
         }

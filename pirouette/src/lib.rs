@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bytemuck::{Pod, Zeroable};
 use byteorder::{BigEndian, ByteOrder};
 use derivative::Derivative;
@@ -17,26 +17,15 @@ use wgpu::{util::DeviceExt, *};
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Scope {
     pub scale: f32,
-    pub dimensions: [f32; 2],
     pub offset: [f32; 2],
+    pub dimensions: [u32; 2],
 }
 
 impl Scope {
-    fn width(self) -> u32 {
-        self.dimensions[0] as u32
-    }
-    fn height(self) -> u32 {
-        self.dimensions[1] as u32
-    }
-
-    fn texel_count(self) -> u32 {
-        (self.width() * self.height()) as u32
-    }
-
     fn bind_group_layout_entry() -> BindGroupLayoutEntry {
         BindGroupLayoutEntry {
             binding: 0,
-            visibility: ShaderStage::VERTEX,
+            visibility: ShaderStage::COMPUTE,
             ty: BindingType::UniformBuffer {
                 dynamic: false,
                 min_binding_size: None,
@@ -108,364 +97,243 @@ impl From<Format> for TextureFormat {
 }
 
 #[derive(Debug)]
-struct ReadyPipeline {
-    render_pipeline: RenderPipeline,
-    scope_layout: BindGroupLayout,
-    uniforms_layout: Option<BindGroupLayout>,
-}
-
-#[derive(Debug)]
 pub struct Renderer {
-    pipelines: HashMap<RenderProfile, ReadyPipeline>,
-    vertex_shader: ShaderModule,
-    fragment_shader: ShaderModule,
-}
-
-#[derive(Copy, Clone, Hash, PartialEq, Eq, Derivative)]
-#[derivative(Debug)]
-struct RenderProfile {
-    #[derivative(Debug = "ignore")]
-    scale: FloatOrd<f32>,
-    #[derivative(Debug = "ignore")]
-    width: FloatOrd<f32>,
-    #[derivative(Debug = "ignore")]
-    height: FloatOrd<f32>,
-    uniforms_type: TypeId,
-    format: TextureFormat,
-}
-
-/// A draw instruction.
-#[derive(Debug)]
-pub struct Draw<'a> {
-    device: &'a Device,
-    queue: &'a Queue,
-    target: &'a RenderTarget,
-    command_encoder: CommandEncoder,
-}
-
-fn align_up_256(x: u32) -> u32 {
-    ((x / 256) + 1) * 256
-}
-
-impl<'a> Draw<'a> {
-    pub fn write_out(mut self, path: impl AsRef<Path>) -> Result<()> {
-        let scope = self.target.scope;
-        let format = self.target.format;
-
-        let unpadded_row_length = scope.width() * format.texel_size();
-        let padded_row_length = align_up_256(unpadded_row_length);
-        let buffer = self.device.create_buffer_init(&util::BufferInitDescriptor {
-            label: None,
-            contents: vec![5; (scope.height() * padded_row_length) as usize].as_slice(),
-            usage: BufferUsage::COPY_DST | BufferUsage::MAP_READ,
-        });
-
-        self.command_encoder.copy_texture_to_buffer(
-            TextureCopyViewBase {
-                texture: &self.target.texture,
-                mip_level: 0,
-                origin: Origin3d::ZERO,
-            },
-            BufferCopyViewBase {
-                buffer: &buffer,
-                layout: TextureDataLayout {
-                    offset: 0,
-                    bytes_per_row: padded_row_length,
-                    rows_per_image: scope.height(),
-                },
-            },
-            Extent3d {
-                width: scope.width(),
-                height: scope.height(),
-                depth: 1,
-            },
-        );
-
-        let command = self.command_encoder.finish();
-        self.queue.submit(std::iter::once(command));
-        self.device.poll(Maintain::Wait);
-
-        let slice = buffer.slice(..);
-        let map_request = slice.map_async(MapMode::Read);
-        self.device.poll(Maintain::Wait);
-        futures::executor::block_on(map_request)?;
-
-        let image = read_gpu_buffer(
-            format,
-            padded_row_length,
-            unpadded_row_length,
-            scope.width(),
-            scope.height(),
-            &slice.get_mapped_range(),
-        );
-
-        Ok(image.save(path)?)
-    }
+    lines_layout: BindGroupLayout,
+    scope_layout: BindGroupLayout,
+    surfaces_layout: BindGroupLayout,
+    render_pipeline: ComputePipeline,
+    export_pipeline: ComputePipeline,
 }
 
 #[derive(Debug)]
-pub struct RenderTarget {
+pub struct Job {
     scope: Scope,
-    texture: Texture,
-    format: Format,
-}
-
-fn read_gpu_buffer(
-    format: Format,
-    padded_row_length: u32,
-    unpadded_row_length: u32,
-    width: u32,
-    height: u32,
-    buffer: &[u8],
-) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
-    use image::buffer::ConvertBuffer;
-
-    let data = format.process_rows(
-        buffer
-            .chunks_exact(padded_row_length as _)
-            .enumerate()
-            .map(|(i, c)| {
-                if i < 10 {
-                    println!("c: {:?}", c);
-                }
-                c
-            })
-            .map(|chunk| (&chunk[..(unpadded_row_length as _)])),
-    );
-
-    ImageBuffer::from_raw(width, height, data).unwrap()
+    background: Buffer,
+    foreground: Buffer,
+    export: Buffer,
+    cpu_stage: Buffer,
 }
 
 impl Renderer {
     pub fn new(device: &Device) -> Self {
-        let vertex_source = include_spirv!("../shaders/default.vert.spv");
-        let fragment_source = include_spirv!("../shaders/default.frag.spv");
+        let render_shader =
+            device.create_shader_module(include_spirv!("../shaders/render.comp.spv"));
+        let export_shader =
+            device.create_shader_module(include_spirv!("../shaders/export.comp.spv"));
+
+        let compute_binding_entry = |i, readonly| BindGroupLayoutEntry {
+            binding: i,
+            visibility: ShaderStage::COMPUTE,
+            ty: BindingType::StorageBuffer {
+                dynamic: false,
+                min_binding_size: None,
+                readonly,
+            },
+            count: None,
+        };
+        let scope_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Scope"),
+            entries: &[compute_binding_entry(0, /*readonly=*/ true)],
+        });
+
+        let lines_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Lines"),
+            entries: &[compute_binding_entry(0, /*readonly=*/ true)],
+        });
+
+        let surfaces_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Surfaces"),
+            entries: &[
+                compute_binding_entry(0, /*readonly=*/ true),
+                compute_binding_entry(1, /*readonly=*/ true),
+            ],
+        });
+
+        let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Render Layout"),
+            bind_group_layouts: &[&scope_layout, &lines_layout, &surfaces_layout],
+            push_constant_ranges: &[],
+        });
+        let render_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Render"),
+            layout: Some(&render_pipeline_layout),
+            compute_stage: ProgrammableStageDescriptor {
+                module: &render_shader,
+                entry_point: "main",
+            },
+        });
+
+        let export_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Finalize Layout"),
+            bind_group_layouts: &[&surfaces_layout],
+            push_constant_ranges: &[],
+        });
+        let export_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("Render"),
+            layout: Some(&export_pipeline_layout),
+            compute_stage: ProgrammableStageDescriptor {
+                module: &export_shader,
+                entry_point: "main",
+            },
+        });
+
         Self {
-            pipelines: HashMap::default(),
-            vertex_shader: device.create_shader_module(vertex_source),
-            fragment_shader: device.create_shader_module(fragment_source),
+            lines_layout,
+            scope_layout,
+            surfaces_layout,
+            render_pipeline,
+            export_pipeline,
         }
     }
 
-    pub fn begin_draw<'a, U>(
-        &mut self,
-        device: &'a Device,
-        queue: &'a Queue,
-        target: &'a RenderTarget,
-        lines: &[Vertex],
-        uniforms: U,
-        fragment_shader: Option<Rc<ShaderModule>>,
-    ) -> Draw<'a>
-    where
-        U: Any + Lay + Pod,
-    {
-        let mut command_encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Render pass encoder"),
+    pub fn job(&self, scope: Scope, device: &Device) -> Job {
+        let [width, height] = scope.dimensions;
+        let buffer = |label, contents, usage| {
+            device.create_buffer_init(&util::BufferInitDescriptor {
+                label: Some(label),
+                contents,
+                usage,
+            })
+        };
+
+        let mix_buffer_size = (16 * width * height) as usize;
+        let export_buffer_size = (4 * width * height) as usize;
+        let contents = vec![0u8; mix_buffer_size];
+
+        Job {
+            scope,
+            background: buffer("background", &contents, BufferUsage::STORAGE),
+            foreground: buffer("foreground", &contents, BufferUsage::STORAGE),
+            export: buffer(
+                "export",
+                &contents[0..export_buffer_size],
+                BufferUsage::STORAGE | BufferUsage::COPY_SRC,
+            ),
+            cpu_stage: buffer(
+                "export",
+                &contents[0..export_buffer_size],
+                BufferUsage::COPY_DST | BufferUsage::MAP_READ,
+            ),
+        }
+    }
+
+    pub fn render(&self, job: &Job, lines: &[Vertex], device: &Device) -> CommandBuffer {
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("render"),
         });
 
         let scope_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
-            label: Some("Scope uniform buffer"),
-            contents: bytemuck::cast_slice(&[target.scope]),
-            usage: BufferUsage::UNIFORM,
+            label: Some("scope"),
+            contents: bytemuck::cast_slice(&[job.scope]),
+            usage: BufferUsage::STORAGE,
         });
-
-        let vertex_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
-            label: Some("Lines buffer"),
-            contents: bytemuck::cast_slice(lines),
-            usage: BufferUsage::VERTEX,
-        });
-
-        let pipeline = self.load_pipeline(device, target.format.into(), target.scope, &uniforms);
-
-        let scope_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Scope bind group"),
-            layout: &pipeline.scope_layout,
+        let scope_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("scope"),
+            layout: &self.scope_layout,
             entries: &[BindGroupEntry {
                 binding: 0,
                 resource: BindingResource::Buffer(scope_buffer.slice(..)),
             }],
         });
 
-        let target_view = target
-            .texture
-            .create_view(&TextureViewDescriptor::default());
+        let lines_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
+            label: Some("lines"),
+            contents: bytemuck::cast_slice(lines),
+            usage: BufferUsage::STORAGE,
+        });
+        let lines_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("lines"),
+            layout: &self.lines_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::Buffer(lines_buffer.slice(..)),
+            }],
+        });
+
+        let surfaces_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("surfaces"),
+            layout: &self.surfaces_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::Buffer(job.background.slice(..)),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Buffer(job.foreground.slice(..)),
+                },
+            ],
+        });
 
         {
-            let mut render_pass = command_encoder.begin_render_pass(&RenderPassDescriptor {
-                depth_stencil_attachment: None,
-                color_attachments: &[RenderPassColorAttachmentDescriptor {
-                    attachment: &target_view,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Clear(Color {
-                            r: 1.,
-                            g: 0.,
-                            b: 0.,
-                            a: 1.,
-                        }),
-                        store: true,
-                    },
-                }],
-            });
-
-            render_pass.set_pipeline(&pipeline.render_pipeline);
-            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.set_bind_group(0, &scope_bind_group, &[]);
-            if let Some(uniforms_layout) = pipeline.uniforms_layout.as_ref() {
-                let uniforms_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
-                    label: Some("Scope uniform buffer"),
-                    contents: bytemuck::cast_slice(&[uniforms]),
-                    usage: BufferUsage::UNIFORM,
-                });
-
-                let uniforms_bind_group = device.create_bind_group(&BindGroupDescriptor {
-                    label: Some("uniforms bind group"),
-                    layout: &uniforms_layout,
-                    entries: &[BindGroupEntry {
-                        binding: 0,
-                        resource: BindingResource::Buffer(uniforms_buffer.slice(..)),
-                    }],
-                });
-            }
-            render_pass.draw(0..(lines.len() as u32), 0..1);
+            let mut compute_pass = encoder.begin_compute_pass();
+            compute_pass.set_pipeline(&self.render_pipeline);
+            compute_pass.set_bind_group(0, &scope_group, &[]);
+            compute_pass.set_bind_group(1, &lines_group, &[]);
+            compute_pass.set_bind_group(2, &surfaces_group, &[]);
+            compute_pass.dispatch(job.scope.dimensions[0] as u32, (lines.len() / 2) as u32, 1);
         }
 
-        Draw {
-            device,
-            queue,
-            command_encoder,
-            target,
-        }
+        encoder.finish()
     }
 
-    fn load_pipeline<U>(
-        &mut self,
-        device: &Device,
-        format: TextureFormat,
-        scope: Scope,
-        uniforms: &U,
-    ) -> &ReadyPipeline
-    where
-        U: Any + Lay,
-    {
-        let key = RenderProfile {
-            scale: FloatOrd(scope.scale),
-            width: FloatOrd(scope.dimensions[0]),
-            height: FloatOrd(scope.dimensions[1]),
-            uniforms_type: uniforms.type_id(),
-            format,
-        };
-
-        if self.pipelines.get(&key).is_none() {
-            self.pipelines
-                .insert(key, self.create_pipeline(device, format, scope, uniforms));
-        }
-
-        self.pipelines.get(&key).unwrap()
-    }
-
-    pub fn create_target(device: &Device, format: Format, scope: Scope) -> RenderTarget {
-        let label = format!("{:?} - {:?}", format, scope);
-        let texture = device.create_texture(&TextureDescriptor {
-            label: Some(label.as_str()),
-            size: Extent3d {
-                width: scope.width(),
-                height: scope.height(),
-                depth: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: format.into(),
-            usage: TextureUsage::COPY_SRC | TextureUsage::OUTPUT_ATTACHMENT,
-        });
-
-        RenderTarget {
-            texture,
-            format,
-            scope,
-        }
-    }
-
-    fn create_pipeline<U>(
+    pub fn export(
         &self,
+        job: &Job,
         device: &Device,
-        format: TextureFormat,
-        scope: Scope,
-        uniforms: &U,
-    ) -> ReadyPipeline
-    where
-        U: Any + Lay,
-    {
-        let uniform_id = format!("Uniform Type {:?}", uniforms.type_id());
-        let uniform_id = uniform_id.as_str();
-
-        let scope_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Scope bind group"),
-            entries: &[Scope::bind_group_layout_entry()],
-        });
-        let uniforms_layout = U::layout(device);
-
-        let pipeline_layout = {
-            let mut groups = vec![];
-            groups.push(&scope_layout);
-            uniforms_layout
-                .iter()
-                .for_each(|layout| groups.push(layout));
-
-            device.create_pipeline_layout(&PipelineLayoutDescriptor {
-                label: Some(uniform_id),
-                bind_group_layouts: groups.as_slice(),
-                push_constant_ranges: &[],
-            })
-        };
-
-        let alpha_over = BlendDescriptor {
-            src_factor: BlendFactor::One,
-            dst_factor: BlendFactor::OneMinusSrcAlpha,
-            operation: BlendOperation::Add,
-        };
-
-        let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some(uniform_id),
-            layout: Some(&pipeline_layout),
-            primitive_topology: PrimitiveTopology::TriangleList,
-            rasterization_state: None,
-            depth_stencil_state: None,
-            color_states: &[ColorStateDescriptor {
-                format,
-                alpha_blend: alpha_over.clone(),
-                color_blend: alpha_over,
-                write_mask: ColorWrite::ALL,
-            }],
-            vertex_state: VertexStateDescriptor {
-                index_format: IndexFormat::Uint16,
-                vertex_buffers: &[VertexBufferDescriptor {
-                    stride: std::mem::size_of::<Vertex>() as BufferAddress,
-                    step_mode: InputStepMode::Vertex,
-                    attributes: &vertex_attr_array![
-                        0 => Float2,
-                        1 => Float4
-                    ],
-                }],
-            },
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
-            vertex_stage: ProgrammableStageDescriptor {
-                module: &self.vertex_shader,
-                entry_point: "main",
-            },
-            fragment_stage: Some(ProgrammableStageDescriptor {
-                module: &self.fragment_shader,
-                entry_point: "main",
-            }),
+        queue: &Queue,
+        f: impl Fn(ImageBuffer<Rgba<u8>, &[u8]>) -> Result<()>,
+    ) -> Result<()> {
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("export"),
         });
 
-        ReadyPipeline {
-            render_pipeline,
-            scope_layout,
-            uniforms_layout,
+        let surfaces_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("surfaces"),
+            layout: &self.surfaces_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::Buffer(job.foreground.slice(..)),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Buffer(job.export.slice(..)),
+                },
+            ],
+        });
+
+        let [width, height] = job.scope.dimensions;
+        {
+            let mut compute_pass = encoder.begin_compute_pass();
+            compute_pass.set_pipeline(&self.export_pipeline);
+            compute_pass.set_bind_group(0, &surfaces_group, &[]);
+            compute_pass.dispatch(width as u32, height as u32, 1);
         }
+        encoder.copy_buffer_to_buffer(
+            &job.export,
+            0,
+            &job.cpu_stage,
+            0,
+            (width * height * 4) as u64,
+        );
+
+        let result = {
+            queue.submit(std::iter::once(encoder.finish()));
+            let cpu_stage = job.cpu_stage.slice(..);
+            let request = cpu_stage.map_async(MapMode::Read);
+            device.poll(Maintain::Wait);
+            futures::executor::block_on(request)?;
+
+            let raw: &[u8] = &cpu_stage.get_mapped_range();
+            let pixels: usize = (width * height) as usize;
+            let image =
+                ImageBuffer::from_raw(width as u32, height as u32, &raw[..pixels * 4]).unwrap();
+            f(image)
+        };
+
+        job.cpu_stage.unmap();
+
+        result.context("Exporting to u8 image")
     }
 }

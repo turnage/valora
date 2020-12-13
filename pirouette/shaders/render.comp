@@ -1,0 +1,54 @@
+#version 450
+
+struct Vertex {
+  ivec2 position;
+  vec4 color;
+};
+
+layout(set = 0, binding = 0)
+buffer Scope {
+  float scale;
+  uvec2 offset;
+  uvec2 dimensions;
+};
+
+layout(set = 1, binding = 0) buffer Lines {
+  Vertex lines[];
+};
+
+layout(set = 2, binding = 0) buffer Background {
+  vec4 background[];
+};
+
+layout(set = 3, binding = 1) buffer Foreground {
+  vec4 foreground[];
+};
+
+void main() {
+  const uint column = gl_GlobalInvocationID.x;
+  const uint line = gl_GlobalInvocationID.y;
+  const uint line_index = line * 2;
+
+  vec4 top = lines[line_index].color;
+  float left = lines[line_index].position.x;
+  float right = lines[line_index + 1].position.x;
+  float passed_left = 1. - max(sign(column - left), 0.);
+  float before_right = max(sign(column - right), 0.);
+
+  float alpha = passed_left * before_right * top.w;
+  top.w = alpha; // 0 when not within line
+  
+  const uint width = uint(floor(dimensions.x));
+  const uint row = uint(floor(lines[line_index].position.y));
+  const uint index = row * width + column;
+
+  vec4 lower = foreground[index];
+  vec4 color = vec4(
+    (top.xyz * top.w + lower.xyz * lower.w * (1. - top.w))/(top.w + lower.w * (1. - top.w)),
+    top.w + lower.w * (1. - top.w)
+  );
+
+
+  background[index] = color;
+  foreground[index] = color;
+}
