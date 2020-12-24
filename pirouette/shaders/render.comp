@@ -20,7 +20,7 @@ layout(set = 2, binding = 0) buffer Background {
   vec4 background[];
 };
 
-layout(set = 3, binding = 1) buffer Foreground {
+layout(set = 2, binding = 1) buffer Foreground {
   vec4 foreground[];
 };
 
@@ -49,6 +49,6 @@ void main() {
   );
 
 
-  background[index] = color;
-  foreground[index] = color;
+  background[index] = vec4(1.);//color;
+  foreground[index] = vec4(1.);//color;
 }

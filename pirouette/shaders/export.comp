@@ -1,26 +1,23 @@
 #version 450
 
-layout(set = 0, binding = 0) buffer Dimensions {
+layout(set = 0, binding = 0)
+buffer Scope {
   float scale;
   uvec2 offset;
   uvec2 dimensions;
 };
 
 layout(set = 1, binding = 0) buffer Fidelity {
-  vec4 fidelity[];
+  vec4 fidelity[256];
 };
 
-layout(set = 2, binding = 0) buffer Export {
-  vec4 export[];
+layout(set = 1, binding = 1) buffer Export {
+  uint export[256];
 };
 
 void main() {
-  const uint column = gl_GlobalInvocationID.x;
-  const uint row = gl_GlobalInvocationID.y;
-  const uint index = row * dimensions.x + column;
-
-  vec4 source = fidelity[index];
-  uvec4 final = uvec4(floor(source * vec4(255.)));
-  
-  export[index] = vec4(1.);
+  uint tile_offset = gl_GlobalInvocationID.z * 256 * 256;
+  uint pixel = gl_GlobalInvocationID.y * 256 + gl_GlobalInvocationID.x;
+  pixel = min(dimensions.x * dimensions.y, pixel);
+  export[pixel] = 255;
 }

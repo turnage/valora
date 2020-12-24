@@ -26,9 +26,10 @@ impl Scope {
         BindGroupLayoutEntry {
             binding: 0,
             visibility: ShaderStage::COMPUTE,
-            ty: BindingType::UniformBuffer {
+            ty: BindingType::StorageBuffer {
                 dynamic: false,
                 min_binding_size: None,
+                readonly: true,
             },
             count: None,
         }
@@ -96,6 +97,10 @@ impl From<Format> for TextureFormat {
     }
 }
 
+fn align_up(x: u32) -> u32 {
+    (x / 256) * 256 + 256 - x % 256
+}
+
 #[derive(Debug)]
 pub struct Renderer {
     lines_layout: BindGroupLayout,
@@ -144,8 +149,8 @@ impl Renderer {
         let surfaces_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("Surfaces"),
             entries: &[
-                compute_binding_entry(0, /*readonly=*/ true),
-                compute_binding_entry(1, /*readonly=*/ true),
+                compute_binding_entry(0, /*readonly=*/ false),
+                compute_binding_entry(1, /*readonly=*/ false),
             ],
         });
 
@@ -164,12 +169,12 @@ impl Renderer {
         });
 
         let export_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Finalize Layout"),
-            bind_group_layouts: &[&surfaces_layout],
+            label: Some("Export Layout"),
+            bind_group_layouts: &[&scope_layout, &surfaces_layout],
             push_constant_ranges: &[],
         });
         let export_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-            label: Some("Render"),
+            label: Some("Export"),
             layout: Some(&export_pipeline_layout),
             compute_stage: ProgrammableStageDescriptor {
                 module: &export_shader,
@@ -206,7 +211,7 @@ impl Renderer {
             foreground: buffer("foreground", &contents, BufferUsage::STORAGE),
             export: buffer(
                 "export",
-                &contents[0..export_buffer_size],
+                vec![50; export_buffer_size].as_slice(), //&contents[0..export_buffer_size],
                 BufferUsage::STORAGE | BufferUsage::COPY_SRC,
             ),
             cpu_stage: buffer(
@@ -271,7 +276,8 @@ impl Renderer {
             compute_pass.set_bind_group(0, &scope_group, &[]);
             compute_pass.set_bind_group(1, &lines_group, &[]);
             compute_pass.set_bind_group(2, &surfaces_group, &[]);
-            compute_pass.dispatch(job.scope.dimensions[0] as u32, (lines.len() / 2) as u32, 1);
+            //compute_pass.dispatch(job.scope.dimensions[0] as u32, (lines.len() / 2) as u32, 1);
+            compute_pass.dispatch(64, 64, 1);
         }
 
         encoder.finish()
@@ -286,6 +292,20 @@ impl Renderer {
     ) -> Result<()> {
         let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("export"),
+        });
+
+        let scope_buffer = device.create_buffer_init(&util::BufferInitDescriptor {
+            label: Some("scope"),
+            contents: bytemuck::cast_slice(&[job.scope]),
+            usage: BufferUsage::STORAGE,
+        });
+        let scope_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("scope"),
+            layout: &self.scope_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::Buffer(scope_buffer.slice(..)),
+            }],
         });
 
         let surfaces_group = device.create_bind_group(&BindGroupDescriptor {
@@ -307,8 +327,9 @@ impl Renderer {
         {
             let mut compute_pass = encoder.begin_compute_pass();
             compute_pass.set_pipeline(&self.export_pipeline);
-            compute_pass.set_bind_group(0, &surfaces_group, &[]);
-            compute_pass.dispatch(width as u32, height as u32, 1);
+            compute_pass.set_bind_group(0, &scope_group, &[]);
+            compute_pass.set_bind_group(1, &surfaces_group, &[]);
+            compute_pass.dispatch(64, 64, 1);
         }
         encoder.copy_buffer_to_buffer(
             &job.export,
