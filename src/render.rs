@@ -85,7 +85,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
         let end_frame = self.options.world.frames.map(|f| f + self.options.delay);
         for frame in std::iter::successors(Some(0), move |last| {
             if let Some(end_frame) = end_frame {
-                if last + 1 <= end_frame {
+                if last < &end_frame {
                     Some(last + 1)
                 } else {
                     None
@@ -180,7 +180,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                         },
                     },
                 );
-                let mut quad_canvas = Canvas::new(shader.clone(), self.options.world.scale);
+                let mut quad_canvas = Canvas::new(shader, self.options.world.scale);
                 quad_canvas.paint(Filled(self.options.world));
 
                 let mut frame = get_frame();
@@ -252,14 +252,14 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 )?;
 
                 if frame_number > self.options.delay {
-                    let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
+                    let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(buffer)?;
                     let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
                         self.output_width,
                         self.output_height,
                         raw.data
                             .into_par_iter()
                             .map(|v| v.convert::<f32>())
-                            .map(|v: f32| <Srgb as TransferFn>::from_linear(v))
+                            .map(<Srgb as TransferFn>::from_linear)
                             .map(|v| v.convert::<u8>())
                             .collect(),
                     )
