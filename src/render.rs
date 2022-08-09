@@ -180,7 +180,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                         },
                     },
                 );
-                let mut quad_canvas = Canvas::new(shader.clone(), self.options.world.scale);
+                let mut quad_canvas = Canvas::new(shader, self.options.world.scale);
                 quad_canvas.paint(Filled(self.options.world));
 
                 let mut frame = get_frame();
