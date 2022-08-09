@@ -20,7 +20,7 @@ pub trait IntoUniformValue {
 macro_rules! primitive_uniform_value {
     ($primitive:ty, $wrapper:expr) => {
         impl IntoUniformValue for $primitive {
-            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
+            fn as_uniform_value<'a>(&'a self) -> UniformValue<'a> {
                 $wrapper(*self)
             }
         }
@@ -30,7 +30,7 @@ macro_rules! primitive_uniform_value {
 macro_rules! referenced_uniform_value {
     ($base:ty, $wrapper:expr) => {
         impl IntoUniformValue for $base {
-            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
+            fn as_uniform_value<'a>(&'a self) -> UniformValue<'a> {
                 $wrapper(self)
             }
         }
@@ -165,7 +165,7 @@ mod test {
 
         let mut i = 0;
         OwnedUniforms::visit_owned_values(&uniforms, &mut |name: &str, value| {
-            let value = value.into_uniform_value();
+            let value = value.as_uniform_value();
             match i {
                 0 => match (name, value) {
                     ("camera", UniformValue::Vec3(pos)) if pos == [0., 0., 0.] => {}

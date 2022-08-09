@@ -63,7 +63,7 @@ impl Uniforms for UniformBuffer {
     fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut f: F) {
         if let Some(user_uniforms) = self.user_uniforms.as_ref().map(Rc::as_ref) {
             user_uniforms.visit_owned_values(&mut |name, v| {
-                let uniform_value = v.into_uniform_value();
+                let uniform_value = v.as_uniform_value();
                 let uniform_value: UniformValue<'a> = unsafe { std::mem::transmute(uniform_value) };
                 f(name, uniform_value)
             });
