@@ -85,7 +85,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
         let end_frame = self.options.world.frames.map(|f| f + self.options.delay);
         for frame in std::iter::successors(Some(0), move |last| {
             if let Some(end_frame) = end_frame {
-                if last + 1 <= end_frame {
+                if last < &end_frame {
                     Some(last + 1)
                 } else {
                     None
