@@ -37,7 +37,7 @@ macro_rules! referenced_uniform_value {
     };
 }
 
-primitive_uniform_value!(f32, |v| UniformValue::Float(v));
+primitive_uniform_value!(f32, UniformValue::Float);
 primitive_uniform_value!((f32, f32), |v: (f32, f32)| UniformValue::Vec2([v.0, v.1]));
 primitive_uniform_value!((f32, f32, f32), |v: (f32, f32, f32)| UniformValue::Vec3([
     v.0, v.1, v.2
@@ -45,14 +45,14 @@ primitive_uniform_value!((f32, f32, f32), |v: (f32, f32, f32)| UniformValue::Vec
 primitive_uniform_value!((f32, f32, f32, f32), |v: (f32, f32, f32, f32)| {
     UniformValue::Vec4([v.0, v.1, v.2, v.3])
 });
-primitive_uniform_value!([f32; 2], |v| UniformValue::Vec2(v));
-primitive_uniform_value!([f32; 3], |v| UniformValue::Vec3(v));
-primitive_uniform_value!([f32; 4], |v| UniformValue::Vec4(v));
-primitive_uniform_value!([[f32; 2]; 2], |v| UniformValue::Mat2(v));
-primitive_uniform_value!([[f32; 3]; 3], |v| UniformValue::Mat3(v));
-primitive_uniform_value!([[f32; 4]; 4], |v| UniformValue::Mat4(v));
+primitive_uniform_value!([f32; 2], UniformValue::Vec2);
+primitive_uniform_value!([f32; 3], UniformValue::Vec3);
+primitive_uniform_value!([f32; 4], UniformValue::Vec4);
+primitive_uniform_value!([[f32; 2]; 2], UniformValue::Mat2);
+primitive_uniform_value!([[f32; 3]; 3], UniformValue::Mat3);
+primitive_uniform_value!([[f32; 4]; 4], UniformValue::Mat4);
 
-primitive_uniform_value!(f64, |v| UniformValue::Double(v));
+primitive_uniform_value!(f64, UniformValue::Double);
 primitive_uniform_value!((f64, f64), |v: (f64, f64)| UniformValue::DoubleVec2([
     v.0, v.1
 ]));
@@ -62,14 +62,14 @@ primitive_uniform_value!((f64, f64, f64), |v: (f64, f64, f64)| {
 primitive_uniform_value!((f64, f64, f64, f64), |v: (f64, f64, f64, f64)| {
     UniformValue::DoubleVec4([v.0, v.1, v.2, v.3])
 });
-primitive_uniform_value!([f64; 2], |v| UniformValue::DoubleVec2(v));
-primitive_uniform_value!([f64; 3], |v| UniformValue::DoubleVec3(v));
-primitive_uniform_value!([f64; 4], |v| UniformValue::DoubleVec4(v));
-primitive_uniform_value!([[f64; 2]; 2], |v| UniformValue::DoubleMat2(v));
-primitive_uniform_value!([[f64; 3]; 3], |v| UniformValue::DoubleMat3(v));
-primitive_uniform_value!([[f64; 4]; 4], |v| UniformValue::DoubleMat4(v));
+primitive_uniform_value!([f64; 2], UniformValue::DoubleVec2);
+primitive_uniform_value!([f64; 3], UniformValue::DoubleVec3);
+primitive_uniform_value!([f64; 4], UniformValue::DoubleVec4);
+primitive_uniform_value!([[f64; 2]; 2], UniformValue::DoubleMat2);
+primitive_uniform_value!([[f64; 3]; 3], UniformValue::DoubleMat3);
+primitive_uniform_value!([[f64; 4]; 4], UniformValue::DoubleMat4);
 
-primitive_uniform_value!(i32, |v| UniformValue::SignedInt(v));
+primitive_uniform_value!(i32, UniformValue::SignedInt);
 primitive_uniform_value!((i32, i32), |v: (i32, i32)| UniformValue::IntVec2([
     v.0, v.1
 ]));
@@ -79,11 +79,11 @@ primitive_uniform_value!((i32, i32, i32), |v: (i32, i32, i32)| UniformValue::Int
 primitive_uniform_value!((i32, i32, i32, i32), |v: (i32, i32, i32, i32)| {
     UniformValue::IntVec4([v.0, v.1, v.2, v.3])
 });
-primitive_uniform_value!([i32; 2], |v| UniformValue::IntVec2(v));
-primitive_uniform_value!([i32; 3], |v| UniformValue::IntVec3(v));
-primitive_uniform_value!([i32; 4], |v| UniformValue::IntVec4(v));
+primitive_uniform_value!([i32; 2], UniformValue::IntVec2);
+primitive_uniform_value!([i32; 3], UniformValue::IntVec3);
+primitive_uniform_value!([i32; 4], UniformValue::IntVec4);
 
-primitive_uniform_value!(i64, |v| UniformValue::Int64(v));
+primitive_uniform_value!(i64, UniformValue::Int64);
 primitive_uniform_value!((i64, i64), |v: (i64, i64)| UniformValue::Int64Vec2([
     v.0, v.1
 ]));
@@ -93,11 +93,11 @@ primitive_uniform_value!((i64, i64, i64), |v: (i64, i64, i64)| {
 primitive_uniform_value!((i64, i64, i64, i64), |v: (i64, i64, i64, i64)| {
     UniformValue::Int64Vec4([v.0, v.1, v.2, v.3])
 });
-primitive_uniform_value!([i64; 2], |v| UniformValue::Int64Vec2(v));
-primitive_uniform_value!([i64; 3], |v| UniformValue::Int64Vec3(v));
-primitive_uniform_value!([i64; 4], |v| UniformValue::Int64Vec4(v));
+primitive_uniform_value!([i64; 2], UniformValue::Int64Vec2);
+primitive_uniform_value!([i64; 3], UniformValue::Int64Vec3);
+primitive_uniform_value!([i64; 4], UniformValue::Int64Vec4);
 
-primitive_uniform_value!(u64, |v| UniformValue::UnsignedInt64(v));
+primitive_uniform_value!(u64, UniformValue::UnsignedInt64);
 primitive_uniform_value!((u64, u64), |v: (u64, u64)| UniformValue::UnsignedInt64Vec2(
     [v.0, v.1]
 ));
@@ -107,11 +107,11 @@ primitive_uniform_value!((u64, u64, u64), |v: (u64, u64, u64)| {
 primitive_uniform_value!((u64, u64, u64, u64), |v: (u64, u64, u64, u64)| {
     UniformValue::UnsignedInt64Vec4([v.0, v.1, v.2, v.3])
 });
-primitive_uniform_value!([u64; 2], |v| UniformValue::UnsignedInt64Vec2(v));
-primitive_uniform_value!([u64; 3], |v| UniformValue::UnsignedInt64Vec3(v));
-primitive_uniform_value!([u64; 4], |v| UniformValue::UnsignedInt64Vec4(v));
+primitive_uniform_value!([u64; 2], UniformValue::UnsignedInt64Vec2);
+primitive_uniform_value!([u64; 3], UniformValue::UnsignedInt64Vec3);
+primitive_uniform_value!([u64; 4], UniformValue::UnsignedInt64Vec4);
 
-primitive_uniform_value!(u32, |v| UniformValue::UnsignedInt(v));
+primitive_uniform_value!(u32, UniformValue::UnsignedInt);
 primitive_uniform_value!((u32, u32), |v: (u32, u32)| UniformValue::UnsignedIntVec2([
     v.0, v.1
 ]));
@@ -121,11 +121,11 @@ primitive_uniform_value!((u32, u32, u32), |v: (u32, u32, u32)| {
 primitive_uniform_value!((u32, u32, u32, u32), |v: (u32, u32, u32, u32)| {
     UniformValue::UnsignedIntVec4([v.0, v.1, v.2, v.3])
 });
-primitive_uniform_value!([u32; 2], |v| UniformValue::UnsignedIntVec2(v));
-primitive_uniform_value!([u32; 3], |v| UniformValue::UnsignedIntVec3(v));
-primitive_uniform_value!([u32; 4], |v| UniformValue::UnsignedIntVec4(v));
+primitive_uniform_value!([u32; 2], UniformValue::UnsignedIntVec2);
+primitive_uniform_value!([u32; 3], UniformValue::UnsignedIntVec3);
+primitive_uniform_value!([u32; 4], UniformValue::UnsignedIntVec4);
 
-primitive_uniform_value!(bool, |v| UniformValue::Bool(v));
+primitive_uniform_value!(bool, UniformValue::Bool);
 primitive_uniform_value!((bool, bool), |v: (bool, bool)| UniformValue::BoolVec2([
     v.0, v.1
 ]));
@@ -135,9 +135,9 @@ primitive_uniform_value!((bool, bool, bool), |v: (bool, bool, bool)| {
 primitive_uniform_value!((bool, bool, bool, bool), |v: (bool, bool, bool, bool)| {
     UniformValue::BoolVec4([v.0, v.1, v.2, v.3])
 });
-primitive_uniform_value!([bool; 2], |v| UniformValue::BoolVec2(v));
-primitive_uniform_value!([bool; 3], |v| UniformValue::BoolVec3(v));
-primitive_uniform_value!([bool; 4], |v| UniformValue::BoolVec4(v));
+primitive_uniform_value!([bool; 2], UniformValue::BoolVec2);
+primitive_uniform_value!([bool; 3], UniformValue::BoolVec3);
+primitive_uniform_value!([bool; 4], UniformValue::BoolVec4);
 
 referenced_uniform_value!(Texture2d, |t| UniformValue::Texture2d(t, None));
 referenced_uniform_value!(
