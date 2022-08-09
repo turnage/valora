@@ -213,7 +213,7 @@ where
         let buffer = gpu.build_texture(output_width, output_height)?;
 
         std::fs::create_dir_all(&base_path)
-            .expect(&format!("To create save directory {}", base_path.display()));
+            .unwrap_or_else(|_| panic!("To create save directory {}", base_path.display()));
 
         (
             gpu,
