@@ -279,8 +279,8 @@ where
                 ..options.clone()
             },
             rng: &mut rng,
-            output_width: output_width,
-            output_height: output_height,
+            output_width,
+            output_height,
         };
 
         let report = renderer.render_frames(|ctx, canvas| paint_fn(ctx, canvas))?;
