@@ -15,17 +15,17 @@ pub struct Polygon {
 
 impl Polygon {
     /// Returns an iterator over the polygon's vertices.
-    pub fn vertices<'a>(&'a self) -> impl DoubleEndedIterator<Item = P2> + Clone + 'a {
+    pub fn vertices(&self) -> impl DoubleEndedIterator<Item = P2> + Clone + '_ {
         self.vertices.iter().copied()
     }
 
     /// Returns an iterator over unique references to the polgyon's vertices.
-    pub fn vertices_mut<'a>(&'a mut self) -> impl DoubleEndedIterator<Item = &'a mut P2> + 'a {
+    pub fn vertices_mut(&mut self) -> impl DoubleEndedIterator<Item = &mut P2> + '_ {
         self.vertices.iter_mut()
     }
 
     /// Returns an iterator over each vertex in the form (left neighbor, vertex, right neighbor).
-    pub fn vertices_with_neighbors<'a>(&'a self) -> impl Iterator<Item = (P2, P2, P2)> + 'a {
+    pub fn vertices_with_neighbors(&self) -> impl Iterator<Item = (P2, P2, P2)> + '_ {
         let last_iter = self.vertices().rev().take(1);
         last_iter
             .clone()

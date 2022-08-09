@@ -14,7 +14,7 @@ pub trait OwnedUniforms {
 
 /// A trait for types which can represent themselves as `glium::UniformValue`.
 pub trait IntoUniformValue {
-    fn as_uniform_value<'a>(&'a self) -> UniformValue<'a>;
+    fn as_uniform_value(& self) -> UniformValue;
 }
 
 macro_rules! primitive_uniform_value {
