@@ -259,7 +259,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                         raw.data
                             .into_par_iter()
                             .map(|v| v.convert::<f32>())
-                            .map(|v: f32| <Srgb as TransferFn>::from_linear(v))
+                            .map(<Srgb as TransferFn>::from_linear)
                             .map(|v| v.convert::<u8>())
                             .collect(),
                     )
