@@ -252,7 +252,7 @@ impl<'a, F1: Fn() -> Frame + 'a, F2: Fn(usize, u64) -> PathBuf> Renderer<'a, F1,
                 )?;
 
                 if frame_number > self.options.delay {
-                    let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
+                    let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(buffer)?;
                     let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
                         self.output_width,
                         self.output_height,
