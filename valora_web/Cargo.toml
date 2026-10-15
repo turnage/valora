@@ -1,0 +1,19 @@
+[package]
+name = "valora_web"
+version = "0.1.0"
+authors = ["Payton Turnage <pt@paytonturnage.com>"]
+edition = "2021"
+license = "MIT"
+description = "The browser interface for valora."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow"] }
+ewebsock = "0.8"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Window", "Location", "Document", "Element", "HtmlCanvasElement"] }
+wasm-bindgen = "0.2"
+log = "0.4"

@@ -10,9 +10,14 @@ Features
 
 * Repeatable works at arbitrary resolutions without changing the work
 * Managed rngs for repeatable works and controlled rng trees
-* Support for using a different, custom GLSL shader for each vector path
-* GLSL live coding with "#include" support
-* An ergonomic derive-based GLSL uniforms interface
+* Support for using a different, custom WGSL shader for each vector path
+* WGSL live coding
+* An ergonomic derive-based shader uniforms interface
 * Animation support for brainstorming and cumulative pieces
+* A live preview in the browser, at http://127.0.0.1:6161 by default
+
+The browser preview is an egui app in `valora_web`. After changing it, rebuild
+the page the server embeds with `valora_web/build.sh` (requires
+[trunk](https://github.com/trunk-rs/trunk)).
 
 ![](https://i.imgur.com/e2rsMVb.png)

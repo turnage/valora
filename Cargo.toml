@@ -12,38 +12,33 @@ readme = "readme.md"
 [workspace]
 members = [
   "valora_derive",
-  "amicola"
+  "amicola",
+  "valora_web"
 ]
 
 [dependencies]
 amicola = { path = "amicola" }
-glium = "0.27"
-glutin = "0.24"
+valora_web = { path = "valora_web" }
+valora_derive = { path = "valora_derive" }
+wgpu = "30"
+pollster = "1"
+bytemuck = { version = "1", features = ["derive"] }
+
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros"] }
+serde_json = "1"
 structopt = "0.3.0"
 rand = "0.7.0"
 itertools = "0.8.0"
 anyhow = "1"
-image = "0.22.3"
-nalgebra = "0.18.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
 lyon_path = "0.15.*"
-lyon_tessellation = "0.15.*"
 euclid = "0.20.4"
 palette = "0.5.0"
 rayon = "1.5"
 arrayvec = "0.5.1"
-lyon_geom = "0.14.1"
-valora_derive = "0.1.0"
 noise = "0.6.0"
-glslwatch = "0.1.4"
-winit = "0.22.0"
 float-ord = "0.2.0"
-geo-types = "0.6.1"
-geo-booleanop = "0.3.2"
-geo-offset = { git = "https://github.com/turnage/geo-offset.git" }
-
-[dev-dependencies]
-itertools = "0.8.0"
-nalgebra = "0.18.0"
 
 [features]
 ci = []

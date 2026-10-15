@@ -2,25 +2,16 @@
 name = "amicola"
 version = "0.1.0"
 authors = ["Payton Turnage <pt@paytonturnage.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 homepage = "https://github.com/turnage/valora/amicola"
 description = "A rasterizer for fine art"
 
 [dependencies]
-itertools = "0.8.0"
-float-ord = "0.2.0"
-arrayvec = "0.5.2"
-float_eq = "0.5.0"
-lyon_path = "0.15"
-euclid = "0.20.4"
-lyon_geom = "0.15"
+geo-types = "0.7"
+kurbo = "0.13"
 structopt = "0.3.13"
-geo-types = "0.6.1"
-num-traits = "0.2.14"
-nalgebra = "0.23"
 
 [dev-dependencies]
-pretty_assertions = "0.6.1"
-pretty_env_logger = "0.3.1"
-maplit = "1.0.2"
+float_eq = "1"
+png = "0.18"

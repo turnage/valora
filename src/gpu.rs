@@ -2,395 +2,591 @@
 
 use crate::{
     raster::{raster_path, Method},
-    uniforms::*,
+    uniforms::{uniform_bytes, UniformSet},
     Result,
 };
-use glium::{
-    backend::{
-        glutin::{headless::Headless, Display},
-        Context, Facade,
-    },
-    glutin::event_loop::EventLoop,
-    implement_vertex,
-    index::PrimitiveType,
-    texture::{texture2d::Texture2d, MipmapsOption, RawImage2d, UncompressedFloatFormat},
-    uniforms::{MagnifySamplerFilter, UniformValue, Uniforms},
-    Blend, BlendingFunction, DrawParameters, Frame, IndexBuffer, LinearBlendingFactor, Program,
-    Surface, VertexBuffer,
-};
-use glutin::dpi::PhysicalSize;
+use anyhow::{anyhow, ensure, Context as _};
+use bytemuck::{Pod, Zeroable};
 use itertools::Itertools;
 use lyon_path::Builder;
 use palette::LinSrgba;
 use rand::random;
-use std::rc::Rc;
+use rayon::prelude::*;
+use std::{mem::size_of, sync::Arc, time::Duration};
+use wgpu::util::DeviceExt;
 
-#[derive(Debug, Copy, Clone)]
-pub struct GpuVertex {
-    pub vpos: [f32; 2],
-    pub vcol: [f32; 4],
-}
+const PRELUDE: &str = include_str!("shaders/prelude.wgsl");
+const DEFAULT_SHADER: &str = include_str!("shaders/default.wgsl");
+const PRESENT_SHADER: &str = include_str!("shaders/present.wgsl");
 
-implement_vertex!(GpuVertex, vpos, vcol);
+/// The format of rendered output: 8 bit sRGB encoded RGBA.
+const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
-pub(crate) const TEXTURE_FORMAT: UncompressedFloatFormat = UncompressedFloatFormat::F32F32F32F32;
-
-pub const VERTEX_SHADER: &str = include_str!("shaders/default.vert");
-const FRAGMENT_SHADER: &str = include_str!("shaders/default.frag");
-
-struct NoUniforms;
-
-impl Uniforms for NoUniforms {
-    fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, _f: F) {}
-}
-
-#[derive(Default, Clone)]
-pub struct UniformBuffer {
-    user_uniforms: Option<Rc<dyn OwnedUniforms>>,
-    uniforms: Vec<(String, UniformValue<'static>)>,
-}
-
-impl UniformBuffer {
-    pub fn push(&mut self, name: String, value: UniformValue<'static>) {
-        self.uniforms.push((name, value));
-    }
-}
-
-impl Uniforms for UniformBuffer {
-    fn visit_values<'a, F: FnMut(&str, UniformValue<'a>)>(&'a self, mut f: F) {
-        if let Some(user_uniforms) = self.user_uniforms.as_ref().map(Rc::as_ref) {
-            user_uniforms.visit_owned_values(&mut |name, v| {
-                let uniform_value = v.into_uniform_value();
-                let uniform_value: UniformValue<'a> = unsafe { std::mem::transmute(uniform_value) };
-                f(name, uniform_value)
-            });
-        }
-        for (name, value) in &self.uniforms {
-            f(name.as_str(), *value);
-        }
-    }
-}
-
-impl<U> From<U> for UniformBuffer
-where
-    U: OwnedUniforms + 'static,
-{
-    fn from(src: U) -> Self {
-        UniformBuffer {
-            user_uniforms: Some(Rc::new(src)),
-            uniforms: vec![],
-        }
-    }
+/// A rectangle of pixels to shade, in output pixels from the top left.
+#[repr(C)]
+#[derive(Debug, Copy, Clone, Pod, Zeroable)]
+pub(crate) struct Instance {
+    pub rect: [f32; 4],
+    pub color: [f32; 4],
+    pub coverage: f32,
 }
 
 /// A shader which can be used to shade paths. See `ShaderProgram` for construction.
 #[derive(Clone)]
 pub struct Shader {
     id: u64,
-    program: Rc<Program>,
-    uniforms: UniformBuffer,
+    pipeline: Arc<wgpu::RenderPipeline>,
+    uniforms: Arc<[u8]>,
 }
 
 /// A rasterable element in a composition.
 pub struct Element {
     pub path: Builder,
-    /// Whether the path is closed.
-    pub closed: bool,
     pub color: LinSrgba,
     pub raster_method: Method,
     pub shader: Shader,
 }
 
-pub struct DisplayFacade(Display);
-
-impl Facade for DisplayFacade {
-    fn get_context(&self) -> &Rc<Context> {
-        self.0.get_context()
-    }
+/// Values every shader can read from the `valora` uniform.
+pub(crate) struct FrameUniforms {
+    pub scale: f32,
+    pub time: Duration,
+    pub sample_depth: amicola::SampleDepth,
 }
 
-pub trait FacadeExt: Facade {
-    fn get_frame(&self) -> Option<Frame> {
-        None
-    }
-}
-
-impl FacadeExt for Headless {}
-
-impl FacadeExt for DisplayFacade {
-    fn get_frame(&self) -> Option<Frame> {
-        Some(self.0.draw())
-    }
+/// Textures to render a composition into, and read it back from.
+pub(crate) struct Target {
+    pub width: u32,
+    pub height: u32,
+    /// Linear color, accumulated across frames.
+    canvas: wgpu::TextureView,
+    present_bind_group: wgpu::BindGroup,
+    output: wgpu::Texture,
+    output_view: wgpu::TextureView,
+    readback: wgpu::Buffer,
+    padded_bytes_per_row: u32,
 }
 
 /// A handle to the GPU for managing buffers and shaders.
 #[derive(Clone)]
-pub struct Gpu {
-    pub(crate) ctx: Rc<dyn FacadeExt>,
-    program: Rc<Program>,
-    height_sign: f32,
-}
+pub struct Gpu(Arc<GpuInner>);
 
-struct GpuCommand<'a, S> {
-    pub vertices: VertexBuffer<GpuVertex>,
-    pub indices: IndexBuffer<u32>,
-    pub target: &'a mut S,
-    pub program: &'a Program,
-    pub uniforms: &'a UniformBuffer,
+struct GpuInner {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    canvas_format: wgpu::TextureFormat,
+    frame_layout: wgpu::BindGroupLayout,
+    uniforms_layout: wgpu::BindGroupLayout,
+    pipeline_layout: wgpu::PipelineLayout,
+    present_layout: wgpu::BindGroupLayout,
+    present_pipeline: wgpu::RenderPipeline,
+    default_pipeline: Arc<wgpu::RenderPipeline>,
 }
 
 impl Gpu {
-    pub(crate) fn new() -> Result<(Self, EventLoop<()>)> {
-        let events_loop = EventLoop::new();
-        let ctx = glium::glutin::ContextBuilder::new()
-            .with_multisampling(0)
-            .build_headless(
-                &events_loop,
-                PhysicalSize {
-                    width: 0,
-                    height: 0,
-                },
-            )?;
-        let ctx = Rc::new(Headless::new(ctx)?);
-
-        let program = Rc::new(Program::from_source(
-            ctx.as_ref(),
-            VERTEX_SHADER,
-            FRAGMENT_SHADER,
-            None,
-        )?);
-
-        Ok((
-            Gpu {
-                program,
-                ctx,
-                height_sign: 1.,
-            },
-            events_loop,
-        ))
+    pub(crate) fn new() -> Result<Self> {
+        pollster::block_on(Self::new_async())
     }
 
-    pub(crate) fn with_window(
-        width: u32,
-        height: u32,
-    ) -> Result<(Self, EventLoop<()>, (u32, u32))> {
-        let events_loop = EventLoop::new();
-        let wb = winit::window::WindowBuilder::new()
-            .with_inner_size(glutin::dpi::PhysicalSize {
-                width: width as f64,
-                height: height as f64,
+    async fn new_async() -> Result<Self> {
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                ..Default::default()
             })
-            .with_resizable(false)
-            .with_title("valora");
-        let cb = glium::glutin::ContextBuilder::new()
-            .with_srgb(false)
-            .with_multisampling(8);
-        let display = glium::Display::new(wb, cb, &events_loop).unwrap();
-        let dimensions = display.get_framebuffer_dimensions();
-        let ctx = Rc::new(DisplayFacade(display));
+            .await
+            .context("finding a GPU adapter")?;
 
-        let program = Rc::new(Program::from_source(
-            ctx.as_ref(),
-            VERTEX_SHADER,
-            FRAGMENT_SHADER,
-            None,
-        )?);
+        // Blending into 32 bit float textures is an optional feature; 16 bit
+        // float textures are blendable everywhere.
+        let float32_blendable = adapter
+            .features()
+            .contains(wgpu::Features::FLOAT32_BLENDABLE);
+        let (required_features, canvas_format) = match float32_blendable {
+            true => (
+                wgpu::Features::FLOAT32_BLENDABLE,
+                wgpu::TextureFormat::Rgba32Float,
+            ),
+            false => (wgpu::Features::empty(), wgpu::TextureFormat::Rgba16Float),
+        };
+        let (device, queue) = adapter
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("valora"),
+                required_features,
+                // Large compositions need large textures, and buffers to read
+                // them back.
+                required_limits: wgpu::Limits {
+                    max_buffer_size: adapter.limits().max_buffer_size,
+                    ..wgpu::Limits::default().using_resolution(adapter.limits())
+                },
+                ..Default::default()
+            })
+            .await
+            .context("opening the GPU device")?;
 
-        Ok((
-            Gpu {
-                program,
-                ctx,
-                height_sign: -1.,
+        let uniform_entry = wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
             },
-            events_loop,
-            dimensions,
-        ))
-    }
+            count: None,
+        };
+        let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("valora frame uniforms"),
+            entries: &[uniform_entry],
+        });
+        let uniforms_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("valora shader uniforms"),
+            entries: &[uniform_entry],
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("valora"),
+            bind_group_layouts: &[Some(&frame_layout), Some(&uniforms_layout)],
+            immediate_size: 0,
+        });
 
-    pub(crate) fn get_frame(&self) -> Option<Frame> {
-        self.ctx.get_frame()
+        let present_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("valora present"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            }],
+        });
+        let present_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("valora present"),
+            source: wgpu::ShaderSource::Wgsl(PRESENT_SHADER.into()),
+        });
+        let present_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("valora present"),
+            layout: Some(
+                &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("valora present"),
+                    bind_group_layouts: &[Some(&present_layout)],
+                    immediate_size: 0,
+                }),
+            ),
+            vertex: wgpu::VertexState {
+                module: &present_module,
+                entry_point: Some("vertex"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &present_module,
+                entry_point: Some("fragment"),
+                compilation_options: Default::default(),
+                targets: &[Some(OUTPUT_FORMAT.into())],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+
+        let default_pipeline =
+            compile_pipeline(&device, &pipeline_layout, canvas_format, DEFAULT_SHADER)?;
+
+        Ok(Gpu(Arc::new(GpuInner {
+            device,
+            queue,
+            canvas_format,
+            frame_layout,
+            uniforms_layout,
+            pipeline_layout,
+            present_layout,
+            present_pipeline,
+            default_pipeline,
+        })))
     }
 
     pub(crate) fn default_shader(&self) -> Shader {
         Shader {
             id: random(),
-            program: self.program.clone(),
-            uniforms: UniformBuffer::default(),
+            pipeline: self.0.default_pipeline.clone(),
+            uniforms: uniform_bytes(&()).into(),
         }
     }
 
-    pub(crate) fn compile_glsl(&self, source: &str) -> Result<Rc<Program>> {
-        Ok(Rc::new(Program::from_source(
-            self.ctx.as_ref(),
-            VERTEX_SHADER,
+    /// Compiles a WGSL shader which defines `fn shade(fragment: Fragment) -> vec4<f32>`.
+    pub(crate) fn compile(&self, source: &str) -> Result<Arc<wgpu::RenderPipeline>> {
+        compile_pipeline(
+            &self.0.device,
+            &self.0.pipeline_layout,
+            self.0.canvas_format,
             source,
-            None,
-        )?))
+        )
     }
 
     pub(crate) fn build_shader(
         &self,
-        program: Rc<Program>,
-        uniforms: impl Into<UniformBuffer>,
+        pipeline: Arc<wgpu::RenderPipeline>,
+        uniforms: &impl UniformSet,
     ) -> Shader {
         Shader {
             id: random(),
-            program,
-            uniforms: uniforms.into(),
+            pipeline,
+            uniforms: uniform_bytes(uniforms).into(),
         }
     }
 
-    pub fn build_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
-        Ok(Texture2d::empty_with_format(
-            self.ctx.as_ref(),
-            TEXTURE_FORMAT,
-            MipmapsOption::NoMipmap,
-            width,
-            height,
-        )?)
+    /// The largest width or height of a target.
+    pub(crate) fn max_dimension(&self) -> u32 {
+        self.0.device.limits().max_texture_dimension_2d
     }
 
-    fn build_ram_texture(&self, width: u32, height: u32) -> Result<Texture2d> {
-        Ok(Texture2d::empty_with_format(
-            self.ctx.as_ref(),
-            TEXTURE_FORMAT,
-            MipmapsOption::NoMipmap,
+    /// Returns an error if a target of the given size cannot be created.
+    pub(crate) fn check_target_size(&self, width: u32, height: u32) -> Result<()> {
+        ensure!(
+            width > 0 && height > 0,
+            "the output must be at least one pixel wide and tall, but would be {}x{}",
             width,
-            height,
-        )?)
-    }
-
-    pub fn read_to_ram(&self, texture: &Texture2d) -> Result<RawImage2d<u8>> {
-        let (width, height) = texture.dimensions();
-        let target = self.build_ram_texture(width, height)?;
-        texture.as_surface().blit_color(
-            &glium::Rect {
-                bottom: 0,
-                left: 0,
-                width,
-                height,
-            },
-            &target.as_surface(),
-            &glium::BlitTarget {
-                bottom: 0,
-                left: 0,
-                width: width as i32,
-                height: height as i32,
-            },
-            MagnifySamplerFilter::Nearest,
+            height
         );
-        Ok(target.read())
-    }
-
-    pub fn render(
-        &self,
-        width: u32,
-        height: u32,
-        elements: Vec<Element>,
-        target: &mut impl Surface,
-        sample_depth: amicola::SampleDepth,
-    ) -> Result<()> {
-        let elements = elements.into_iter();
-        for (_id, batch) in &elements.group_by(|e| e.shader.id) {
-            let mut batch = batch.peekable();
-            let mut first = if let Some(first) = batch.peek() {
-                first.shader.clone()
-            } else {
-                println!("This is possible??");
-                continue;
-            };
-
-            // TODO: reconcile conflicts between user uniforms and the defaults
-            first.uniforms.push(
-                String::from("_valora_width"),
-                UniformValue::Float(width as f32),
-            );
-            first.uniforms.push(
-                String::from("_valora_height"),
-                UniformValue::Float(height as f32),
-            );
-            first.uniforms.push(
-                String::from("_valora_height_sign"),
-                UniformValue::Float(self.height_sign),
-            );
-
-            let mut vertices = vec![];
-            let mut indices = vec![];
-            let mut primitive = None;
-            let mut draw_call = |primitive: PrimitiveType,
-                                 vertices: &mut Vec<GpuVertex>,
-                                 indices: &mut Vec<u32>|
-             -> Result<()> {
-                let gpu_vertices = VertexBuffer::new(self.ctx.as_ref(), vertices.as_slice())?;
-                let gpu_indices =
-                    IndexBuffer::new(self.ctx.as_ref(), primitive, indices.as_slice())?;
-
-                self.draw_to_texture(GpuCommand {
-                    indices: gpu_indices,
-                    vertices: gpu_vertices,
-                    target,
-                    program: first.program.as_ref(),
-                    uniforms: &first.uniforms,
-                })?;
-
-                *vertices = vec![];
-                *indices = vec![];
-
-                Ok(())
-            };
-
-            for (_i, element) in batch.into_iter().enumerate() {
-                let mut result = raster_path(
-                    element.path,
-                    element.closed,
-                    element.raster_method,
-                    element.color,
-                    sample_depth,
-                )?;
-
-                if primitive != Some(result.primitive) && primitive.is_some() {
-                    draw_call(primitive.take().unwrap(), &mut vertices, &mut indices)?;
-                }
-
-                primitive = Some(result.primitive);
-
-                let idx = vertices.len() as u32;
-                vertices.append(&mut result.vertices);
-                indices.extend(result.indices.into_iter().map(|i| i + idx));
-            }
-
-            if let Some(primitive) = primitive {
-                draw_call(primitive, &mut vertices, &mut indices)?;
-            }
-        }
-
+        let max = self.max_dimension();
+        ensure!(
+            width <= max && height <= max,
+            "the output may be at most {} pixels on each side, but would be {}x{}",
+            max,
+            width,
+            height
+        );
+        let readback_size = padded_bytes_per_row(width) as u64 * height as u64;
+        let max_buffer_size = self.0.device.limits().max_buffer_size;
+        ensure!(
+            readback_size <= max_buffer_size,
+            "the output may be at most {} bytes, but {}x{} would be {} bytes",
+            max_buffer_size,
+            width,
+            height,
+            readback_size
+        );
         Ok(())
     }
 
-    fn draw_to_texture<S: Surface>(&self, cmd: GpuCommand<S>) -> Result<()> {
-        Ok(cmd.target.draw(
-            &cmd.vertices,
-            &cmd.indices,
-            cmd.program,
-            cmd.uniforms,
-            &DrawParameters {
-                blend: Blend {
-                    color: BlendingFunction::Addition {
-                        source: LinearBlendingFactor::SourceAlpha,
-                        destination: LinearBlendingFactor::OneMinusSourceAlpha,
-                    },
-                    alpha: BlendingFunction::Addition {
-                        source: LinearBlendingFactor::One,
-                        destination: LinearBlendingFactor::OneMinusSourceAlpha,
-                    },
-                    constant_value: (0.0, 0.0, 0.0, 0.0),
-                },
-                line_width: Some(1.0),
-                multisampling: false,
-                dithering: false,
-                smooth: None,
-                ..Default::default()
-            },
-        )?)
+    /// Creates a cleared target to render into.
+    pub(crate) fn create_target(&self, width: u32, height: u32) -> Target {
+        let device = &self.0.device;
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let texture = |label, format, usage| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage,
+                view_formats: &[],
+            })
+        };
+
+        let canvas = texture(
+            "valora canvas",
+            self.0.canvas_format,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        )
+        .create_view(&Default::default());
+        let output = texture(
+            "valora output",
+            OUTPUT_FORMAT,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        );
+        let output_view = output.create_view(&Default::default());
+        let present_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("valora present"),
+            layout: &self.0.present_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&canvas),
+            }],
+        });
+
+        let padded_bytes_per_row = padded_bytes_per_row(width);
+        let readback = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("valora readback"),
+            size: padded_bytes_per_row as u64 * height as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        Target {
+            width,
+            height,
+            canvas,
+            present_bind_group,
+            output,
+            output_view,
+            readback,
+            padded_bytes_per_row,
+        }
     }
+
+    /// Paints elements over the target's canvas.
+    pub(crate) fn render(
+        &self,
+        target: &Target,
+        elements: Vec<Element>,
+        frame: FrameUniforms,
+    ) -> Result<()> {
+        let GpuInner { device, queue, .. } = self.0.as_ref();
+        let (width, height) = (target.width, target.height);
+
+        let rastered: Vec<(Shader, Vec<Instance>)> = elements
+            .into_par_iter()
+            .map(|element| {
+                let instances = raster_path(
+                    element.path,
+                    element.raster_method,
+                    element.color,
+                    width,
+                    height,
+                    frame.sample_depth,
+                );
+                (element.shader, instances)
+            })
+            .collect();
+
+        // Draw consecutive elements with the same shader in one call.
+        let mut instances = vec![];
+        let mut batches = vec![];
+        for (_, batch) in &rastered.into_iter().group_by(|(shader, _)| shader.id) {
+            let start = instances.len() as u32;
+            let mut shader = None;
+            for (element_shader, element_instances) in batch {
+                instances.extend(element_instances);
+                shader = Some(element_shader);
+            }
+            let shader = shader.expect("groups are never empty");
+            batches.push((shader, start..instances.len() as u32));
+        }
+
+        let errors = device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+        let frame_uniforms = [
+            width as f32,
+            height as f32,
+            frame.scale,
+            frame.time.as_secs_f32(),
+        ];
+        let frame_bind_group = self
+            .0
+            .uniform_bind_group(&self.0.frame_layout, bytemuck::cast_slice(&frame_uniforms));
+        let batches: Vec<_> = batches
+            .into_iter()
+            .filter(|(_, range)| !range.is_empty())
+            .map(|(shader, range)| {
+                let bind_group = self
+                    .0
+                    .uniform_bind_group(&self.0.uniforms_layout, &shader.uniforms);
+                (shader.pipeline, bind_group, range)
+            })
+            .collect();
+        let instance_buffer = (!instances.is_empty()).then(|| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("valora instances"),
+                contents: bytemuck::cast_slice(&instances),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        });
+
+        let mut encoder = device.create_command_encoder(&Default::default());
+        if let Some(instance_buffer) = &instance_buffer {
+            let mut pass = begin_pass(&mut encoder, &target.canvas, wgpu::LoadOp::Load);
+            pass.set_bind_group(0, &frame_bind_group, &[]);
+            pass.set_vertex_buffer(0, instance_buffer.slice(..));
+            for (pipeline, bind_group, range) in &batches {
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(1, bind_group, &[]);
+                pass.draw(0..4, range.clone());
+            }
+        }
+        {
+            let mut pass = begin_pass(
+                &mut encoder,
+                &target.output_view,
+                wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+            );
+            pass.set_pipeline(&self.0.present_pipeline);
+            pass.set_bind_group(0, &target.present_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        queue.submit([encoder.finish()]);
+
+        match pollster::block_on(errors.pop()) {
+            Some(error) => Err(anyhow!("rendering a frame: {}", error)),
+            None => Ok(()),
+        }
+    }
+
+    /// Reads the target's output as sRGB encoded RGBA8, in rows from the top.
+    pub(crate) fn read(&self, target: &Target) -> Result<Vec<u8>> {
+        let GpuInner { device, queue, .. } = self.0.as_ref();
+
+        let mut encoder = device.create_command_encoder(&Default::default());
+        encoder.copy_texture_to_buffer(
+            target.output.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &target.readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(target.padded_bytes_per_row),
+                    rows_per_image: None,
+                },
+            },
+            target.output.size(),
+        );
+        queue.submit([encoder.finish()]);
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        target
+            .readback
+            .map_async(wgpu::MapMode::Read, .., move |result| {
+                let _ = sender.send(result);
+            });
+        device.poll(wgpu::PollType::wait_indefinitely())?;
+        receiver.recv()??;
+
+        let row_len = target.width as usize * 4;
+        let pixels = {
+            let mapped = target.readback.get_mapped_range(..)?;
+            mapped
+                .chunks(target.padded_bytes_per_row as usize)
+                .flat_map(|row| &row[..row_len])
+                .copied()
+                .collect()
+        };
+        target.readback.unmap();
+
+        Ok(pixels)
+    }
+}
+
+impl GpuInner {
+    fn uniform_bind_group(&self, layout: &wgpu::BindGroupLayout, bytes: &[u8]) -> wgpu::BindGroup {
+        let buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("valora uniforms"),
+                contents: bytes,
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("valora uniforms"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+        })
+    }
+}
+
+/// Compiles a WGSL shader which defines `fn shade(fragment: Fragment) -> vec4<f32>`.
+fn compile_pipeline(
+    device: &wgpu::Device,
+    layout: &wgpu::PipelineLayout,
+    canvas_format: wgpu::TextureFormat,
+    source: &str,
+) -> Result<Arc<wgpu::RenderPipeline>> {
+    // The shader comes first so that error line numbers match its file.
+    let source = format!("{}\n{}", source, PRELUDE);
+
+    let errors = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("valora shader"),
+        source: wgpu::ShaderSource::Wgsl(source.into()),
+    });
+    let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("valora shader"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: &module,
+            entry_point: Some("valora_vertex"),
+            compilation_options: Default::default(),
+            buffers: &[Some(wgpu::VertexBufferLayout {
+                array_stride: size_of::<Instance>() as u64,
+                step_mode: wgpu::VertexStepMode::Instance,
+                attributes: &wgpu::vertex_attr_array![
+                    0 => Float32x4,
+                    1 => Float32x4,
+                    2 => Float32,
+                ],
+            })],
+        },
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleStrip,
+            ..Default::default()
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: Some("valora_fragment"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: canvas_format,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    });
+
+    match pollster::block_on(errors.pop()) {
+        Some(error) => Err(anyhow!("{}", error)),
+        None => Ok(Arc::new(pipeline)),
+    }
+}
+
+/// The length of a row of RGBA8 pixels, padded for copying out of a texture.
+fn padded_bytes_per_row(width: u32) -> u32 {
+    (width * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+}
+
+fn begin_pass<'e>(
+    encoder: &'e mut wgpu::CommandEncoder,
+    view: &wgpu::TextureView,
+    load: wgpu::LoadOp<wgpu::Color>,
+) -> wgpu::RenderPass<'e> {
+    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("valora"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load,
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        ..Default::default()
+    })
 }

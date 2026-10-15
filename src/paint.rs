@@ -1,7 +1,6 @@
 //! Paint trait and implementations.
 
-use crate::{canvas::Canvas, P2};
-use itertools::{Itertools, Position};
+use crate::canvas::Canvas;
 use lyon_path::PathEvent;
 
 /// A trait for types which can be represented on a `Canvas`.

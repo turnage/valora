@@ -14,7 +14,7 @@ struct Uniforms {
 
 fn main() -> Result<()> {
     run_fn(Options::from_args(), |gpu, world, _rng| {
-        let mut program = ShaderProgram::new(&gpu, "examples/pattern.frag")?;
+        let mut program = ShaderProgram::new(&gpu, "examples/pattern.wgsl")?;
         let mut uniforms = Uniforms {
             color: Hsv::new(0., 0.7, 0.7).into_rgb::<Srgb>().into_components(),
             scale: world.scale,

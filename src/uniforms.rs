@@ -2,182 +2,241 @@
 
 pub use valora_derive::UniformSet;
 
-use glium::{
-    texture::{texture2d::Texture2d, texture2d_multisample::Texture2dMultisample},
-    uniforms::{SamplerBehavior, UniformValue},
-};
+use palette::{LinSrgb, LinSrgba};
 
-/// A trait proxying `glium::Uniforms` for types which own their uniforms.
-pub trait OwnedUniforms {
-    fn visit_owned_values(&self, f: &mut dyn FnMut(&str, &dyn IntoUniformValue));
+/// A set of values for a shader's uniforms.
+///
+/// Shaders receive the values as a struct bound at `@group(1) @binding(0)` in
+/// the uniform address space. Derive this trait on a struct whose fields match
+/// the WGSL struct's fields in order:
+///
+/// ```ignore
+/// #[derive(UniformSet)]
+/// struct Uniforms {
+///     color: (f32, f32, f32),
+///     scale: f32,
+/// }
+/// ```
+///
+/// ```wgsl
+/// struct Uniforms {
+///     color: vec3<f32>,
+///     scale: f32,
+/// }
+/// @group(1) @binding(0) var<uniform> uniforms: Uniforms;
+/// ```
+pub trait UniformSet {
+    fn write_uniforms(&self, writer: &mut UniformWriter);
 }
 
-/// A trait for types which can represent themselves as `glium::UniformValue`.
-pub trait IntoUniformValue {
-    fn into_uniform_value<'a>(&'a self) -> UniformValue<'a>;
+impl UniformSet for () {
+    fn write_uniforms(&self, _writer: &mut UniformWriter) {}
 }
 
-macro_rules! primitive_uniform_value {
-    ($primitive:ty, $wrapper:expr) => {
-        impl IntoUniformValue for $primitive {
-            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
-                $wrapper(*self)
+/// Lays out values according to WGSL's alignment rules for the uniform address
+/// space.
+#[derive(Debug, Default)]
+pub struct UniformWriter {
+    bytes: Vec<u8>,
+}
+
+impl UniformWriter {
+    /// Writes the next field of the uniform struct.
+    pub fn write<V: UniformValue + ?Sized>(&mut self, value: &V) {
+        self.pad_to(V::ALIGN);
+        value.write_bytes(&mut self.bytes);
+    }
+
+    /// The struct's bytes, padded to a multiple of 16 bytes.
+    pub(crate) fn finish(mut self) -> Vec<u8> {
+        self.pad_to(16);
+        if self.bytes.is_empty() {
+            self.bytes.resize(16, 0);
+        }
+        self.bytes
+    }
+
+    fn pad_to(&mut self, align: usize) {
+        let len = self.bytes.len().next_multiple_of(align);
+        self.bytes.resize(len, 0);
+    }
+}
+
+pub(crate) fn uniform_bytes(uniforms: &impl UniformSet) -> Vec<u8> {
+    let mut writer = UniformWriter::default();
+    uniforms.write_uniforms(&mut writer);
+    writer.finish()
+}
+
+/// A type which can be a field of a WGSL uniform struct.
+pub trait UniformValue {
+    /// The alignment of the WGSL type in bytes.
+    const ALIGN: usize;
+
+    /// Appends the value's bytes, including any padding within it.
+    fn write_bytes(&self, bytes: &mut Vec<u8>);
+}
+
+macro_rules! scalar_uniform_value {
+    ($scalar:ty) => {
+        impl UniformValue for $scalar {
+            const ALIGN: usize = 4;
+
+            fn write_bytes(&self, bytes: &mut Vec<u8>) {
+                bytes.extend(self.to_le_bytes());
+            }
+        }
+
+        impl UniformValue for [$scalar; 2] {
+            const ALIGN: usize = 8;
+
+            fn write_bytes(&self, bytes: &mut Vec<u8>) {
+                self.iter().for_each(|v| bytes.extend(v.to_le_bytes()));
+            }
+        }
+
+        impl UniformValue for [$scalar; 3] {
+            const ALIGN: usize = 16;
+
+            fn write_bytes(&self, bytes: &mut Vec<u8>) {
+                self.iter().for_each(|v| bytes.extend(v.to_le_bytes()));
+            }
+        }
+
+        impl UniformValue for [$scalar; 4] {
+            const ALIGN: usize = 16;
+
+            fn write_bytes(&self, bytes: &mut Vec<u8>) {
+                self.iter().for_each(|v| bytes.extend(v.to_le_bytes()));
+            }
+        }
+
+        impl UniformValue for ($scalar, $scalar) {
+            const ALIGN: usize = 8;
+
+            fn write_bytes(&self, bytes: &mut Vec<u8>) {
+                [self.0, self.1].write_bytes(bytes)
+            }
+        }
+
+        impl UniformValue for ($scalar, $scalar, $scalar) {
+            const ALIGN: usize = 16;
+
+            fn write_bytes(&self, bytes: &mut Vec<u8>) {
+                [self.0, self.1, self.2].write_bytes(bytes)
+            }
+        }
+
+        impl UniformValue for ($scalar, $scalar, $scalar, $scalar) {
+            const ALIGN: usize = 16;
+
+            fn write_bytes(&self, bytes: &mut Vec<u8>) {
+                [self.0, self.1, self.2, self.3].write_bytes(bytes)
             }
         }
     };
 }
 
-macro_rules! referenced_uniform_value {
-    ($base:ty, $wrapper:expr) => {
-        impl IntoUniformValue for $base {
-            fn into_uniform_value<'a>(&'a self) -> UniformValue<'a> {
-                $wrapper(self)
-            }
-        }
-    };
+scalar_uniform_value!(f32);
+scalar_uniform_value!(i32);
+scalar_uniform_value!(u32);
+
+/// `mat2x2<f32>`, as columns.
+impl UniformValue for [[f32; 2]; 2] {
+    const ALIGN: usize = 8;
+
+    fn write_bytes(&self, bytes: &mut Vec<u8>) {
+        self.iter().for_each(|column| column.write_bytes(bytes));
+    }
 }
 
-primitive_uniform_value!(f32, |v| UniformValue::Float(v));
-primitive_uniform_value!((f32, f32), |v: (f32, f32)| UniformValue::Vec2([v.0, v.1]));
-primitive_uniform_value!((f32, f32, f32), |v: (f32, f32, f32)| UniformValue::Vec3([
-    v.0, v.1, v.2
-]));
-primitive_uniform_value!((f32, f32, f32, f32), |v: (f32, f32, f32, f32)| {
-    UniformValue::Vec4([v.0, v.1, v.2, v.3])
-});
-primitive_uniform_value!([f32; 2], |v| UniformValue::Vec2(v));
-primitive_uniform_value!([f32; 3], |v| UniformValue::Vec3(v));
-primitive_uniform_value!([f32; 4], |v| UniformValue::Vec4(v));
-primitive_uniform_value!([[f32; 2]; 2], |v| UniformValue::Mat2(v));
-primitive_uniform_value!([[f32; 3]; 3], |v| UniformValue::Mat3(v));
-primitive_uniform_value!([[f32; 4]; 4], |v| UniformValue::Mat4(v));
+/// `mat3x3<f32>`, as columns.
+impl UniformValue for [[f32; 3]; 3] {
+    const ALIGN: usize = 16;
 
-primitive_uniform_value!(f64, |v| UniformValue::Double(v));
-primitive_uniform_value!((f64, f64), |v: (f64, f64)| UniformValue::DoubleVec2([
-    v.0, v.1
-]));
-primitive_uniform_value!((f64, f64, f64), |v: (f64, f64, f64)| {
-    UniformValue::DoubleVec3([v.0, v.1, v.2])
-});
-primitive_uniform_value!((f64, f64, f64, f64), |v: (f64, f64, f64, f64)| {
-    UniformValue::DoubleVec4([v.0, v.1, v.2, v.3])
-});
-primitive_uniform_value!([f64; 2], |v| UniformValue::DoubleVec2(v));
-primitive_uniform_value!([f64; 3], |v| UniformValue::DoubleVec3(v));
-primitive_uniform_value!([f64; 4], |v| UniformValue::DoubleVec4(v));
-primitive_uniform_value!([[f64; 2]; 2], |v| UniformValue::DoubleMat2(v));
-primitive_uniform_value!([[f64; 3]; 3], |v| UniformValue::DoubleMat3(v));
-primitive_uniform_value!([[f64; 4]; 4], |v| UniformValue::DoubleMat4(v));
+    fn write_bytes(&self, bytes: &mut Vec<u8>) {
+        for column in self {
+            column.write_bytes(bytes);
+            bytes.extend([0; 4]);
+        }
+    }
+}
 
-primitive_uniform_value!(i32, |v| UniformValue::SignedInt(v));
-primitive_uniform_value!((i32, i32), |v: (i32, i32)| UniformValue::IntVec2([
-    v.0, v.1
-]));
-primitive_uniform_value!((i32, i32, i32), |v: (i32, i32, i32)| UniformValue::IntVec3(
-    [v.0, v.1, v.2]
-));
-primitive_uniform_value!((i32, i32, i32, i32), |v: (i32, i32, i32, i32)| {
-    UniformValue::IntVec4([v.0, v.1, v.2, v.3])
-});
-primitive_uniform_value!([i32; 2], |v| UniformValue::IntVec2(v));
-primitive_uniform_value!([i32; 3], |v| UniformValue::IntVec3(v));
-primitive_uniform_value!([i32; 4], |v| UniformValue::IntVec4(v));
+/// `mat4x4<f32>`, as columns.
+impl UniformValue for [[f32; 4]; 4] {
+    const ALIGN: usize = 16;
 
-primitive_uniform_value!(i64, |v| UniformValue::Int64(v));
-primitive_uniform_value!((i64, i64), |v: (i64, i64)| UniformValue::Int64Vec2([
-    v.0, v.1
-]));
-primitive_uniform_value!((i64, i64, i64), |v: (i64, i64, i64)| {
-    UniformValue::Int64Vec3([v.0, v.1, v.2])
-});
-primitive_uniform_value!((i64, i64, i64, i64), |v: (i64, i64, i64, i64)| {
-    UniformValue::Int64Vec4([v.0, v.1, v.2, v.3])
-});
-primitive_uniform_value!([i64; 2], |v| UniformValue::Int64Vec2(v));
-primitive_uniform_value!([i64; 3], |v| UniformValue::Int64Vec3(v));
-primitive_uniform_value!([i64; 4], |v| UniformValue::Int64Vec4(v));
+    fn write_bytes(&self, bytes: &mut Vec<u8>) {
+        self.iter().for_each(|column| column.write_bytes(bytes));
+    }
+}
 
-primitive_uniform_value!(u64, |v| UniformValue::UnsignedInt64(v));
-primitive_uniform_value!((u64, u64), |v: (u64, u64)| UniformValue::UnsignedInt64Vec2(
-    [v.0, v.1]
-));
-primitive_uniform_value!((u64, u64, u64), |v: (u64, u64, u64)| {
-    UniformValue::UnsignedInt64Vec3([v.0, v.1, v.2])
-});
-primitive_uniform_value!((u64, u64, u64, u64), |v: (u64, u64, u64, u64)| {
-    UniformValue::UnsignedInt64Vec4([v.0, v.1, v.2, v.3])
-});
-primitive_uniform_value!([u64; 2], |v| UniformValue::UnsignedInt64Vec2(v));
-primitive_uniform_value!([u64; 3], |v| UniformValue::UnsignedInt64Vec3(v));
-primitive_uniform_value!([u64; 4], |v| UniformValue::UnsignedInt64Vec4(v));
+/// `vec3<f32>`.
+impl UniformValue for LinSrgb {
+    const ALIGN: usize = 16;
 
-primitive_uniform_value!(u32, |v| UniformValue::UnsignedInt(v));
-primitive_uniform_value!((u32, u32), |v: (u32, u32)| UniformValue::UnsignedIntVec2([
-    v.0, v.1
-]));
-primitive_uniform_value!((u32, u32, u32), |v: (u32, u32, u32)| {
-    UniformValue::UnsignedIntVec3([v.0, v.1, v.2])
-});
-primitive_uniform_value!((u32, u32, u32, u32), |v: (u32, u32, u32, u32)| {
-    UniformValue::UnsignedIntVec4([v.0, v.1, v.2, v.3])
-});
-primitive_uniform_value!([u32; 2], |v| UniformValue::UnsignedIntVec2(v));
-primitive_uniform_value!([u32; 3], |v| UniformValue::UnsignedIntVec3(v));
-primitive_uniform_value!([u32; 4], |v| UniformValue::UnsignedIntVec4(v));
+    fn write_bytes(&self, bytes: &mut Vec<u8>) {
+        self.into_components().write_bytes(bytes)
+    }
+}
 
-primitive_uniform_value!(bool, |v| UniformValue::Bool(v));
-primitive_uniform_value!((bool, bool), |v: (bool, bool)| UniformValue::BoolVec2([
-    v.0, v.1
-]));
-primitive_uniform_value!((bool, bool, bool), |v: (bool, bool, bool)| {
-    UniformValue::BoolVec3([v.0, v.1, v.2])
-});
-primitive_uniform_value!((bool, bool, bool, bool), |v: (bool, bool, bool, bool)| {
-    UniformValue::BoolVec4([v.0, v.1, v.2, v.3])
-});
-primitive_uniform_value!([bool; 2], |v| UniformValue::BoolVec2(v));
-primitive_uniform_value!([bool; 3], |v| UniformValue::BoolVec3(v));
-primitive_uniform_value!([bool; 4], |v| UniformValue::BoolVec4(v));
+/// `vec4<f32>`.
+impl UniformValue for LinSrgba {
+    const ALIGN: usize = 16;
 
-referenced_uniform_value!(Texture2d, |t| UniformValue::Texture2d(t, None));
-referenced_uniform_value!(
-    Texture2dMultisample,
-    |t| UniformValue::Texture2dMultisample(t, Some(SamplerBehavior::default()))
-);
+    fn write_bytes(&self, bytes: &mut Vec<u8>) {
+        self.into_components().write_bytes(bytes)
+    }
+}
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use valora_derive::UniformSet;
 
-    #[derive(UniformSet)]
-    pub struct MyUniforms {
-        camera: [f32; 3],
-        flipped: bool,
+    fn floats(bytes: &[u8]) -> Vec<f32> {
+        bytes
+            .chunks(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect()
     }
 
     #[test]
-    fn test() {
-        let uniforms = MyUniforms {
-            camera: [0., 0., 0.],
-            flipped: true,
-        };
+    fn scalars_pack_after_vec3() {
+        let mut writer = UniformWriter::default();
+        writer.write(&(1f32, 2f32, 3f32));
+        writer.write(&4f32);
+        writer.write(&5f32);
+        assert_eq!(
+            floats(&writer.finish()),
+            vec![1., 2., 3., 4., 5., 0., 0., 0.]
+        );
+    }
 
-        let mut i = 0;
-        OwnedUniforms::visit_owned_values(&uniforms, &mut |name: &str, value| {
-            let value = value.into_uniform_value();
-            match i {
-                0 => match (name, value) {
-                    ("camera", UniformValue::Vec3(pos)) if pos == [0., 0., 0.] => {}
-                    _ => panic!("Wrong camera values"),
-                },
-                1 => match (name, value) {
-                    ("flipped", UniformValue::Bool(true)) => {}
-                    _ => panic!("Wrong flipped values"),
-                },
-                _ => panic!("unexpected uniform: {:?}", name),
-            }
-            i += 1;
-        });
+    #[test]
+    fn vectors_are_aligned() {
+        let mut writer = UniformWriter::default();
+        writer.write(&1f32);
+        writer.write(&[2f32, 3.]);
+        writer.write(&4f32);
+        writer.write(&[5f32, 6., 7., 8.]);
+        assert_eq!(
+            floats(&writer.finish()),
+            vec![1., 0., 2., 3., 4., 0., 0., 0., 5., 6., 7., 8.]
+        );
+    }
+
+    #[test]
+    fn mat3_columns_are_padded() {
+        let mut writer = UniformWriter::default();
+        writer.write(&[[1f32, 2., 3.], [4., 5., 6.], [7., 8., 9.]]);
+        assert_eq!(
+            floats(&writer.finish()),
+            vec![1., 2., 3., 0., 4., 5., 6., 0., 7., 8., 9., 0.]
+        );
+    }
+
+    #[test]
+    fn empty_set_is_nonempty_buffer() {
+        assert_eq!(uniform_bytes(&()), vec![0; 16]);
     }
 }

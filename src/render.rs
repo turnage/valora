@@ -1,22 +1,14 @@
 //! Canvas rendering.
 
-use crate::{canvas::*, gpu::*, Options, Result, World};
-use glium::{
-    framebuffer::SimpleFrameBuffer,
-    glutin::event_loop::{ControlFlow, EventLoop},
-    texture::texture2d::Texture2d,
-    uniforms::MagnifySamplerFilter,
-    Surface,
-};
-use glutin::platform::desktop::EventLoopExtDesktop;
-use image::{ImageBuffer, Rgba};
-use palette::{
-    encoding::{srgb::Srgb, TransferFn},
-    Component,
-};
+use crate::{canvas::*, gpu::*, server::Server, Options, Result, World};
+use anyhow::ensure;
 use rand::{random, rngs::StdRng};
-use rayon::prelude::*;
-use std::{path::PathBuf, time::Duration};
+use std::convert::{TryFrom, TryInto};
+use std::{
+    path::PathBuf,
+    time::{Duration, Instant},
+};
+use valora_web::protocol::{self, Command, FrameHeader};
 
 /// The context of the current render frame.
 #[derive(Debug)]
@@ -33,35 +25,23 @@ pub struct Context<'a> {
     pub time: Duration,
 }
 
-pub enum Rebuild {
-    NewSeed(u64),
+/// What to do once a composition stops rendering.
+pub(crate) enum Next {
+    /// Paint the composition again from the start in the given world.
+    Rebuild(World),
+    /// The composition is finished.
+    Done,
 }
 
-pub struct RenderReport {
-    /// Whether the user explicitly quit.
-    pub explicit_quit: bool,
-    /// An instruction to rebuild the render.
-    pub rebuild: Option<Rebuild>,
-}
-
-#[derive(Debug)]
-struct FrameUpdates {
-    new_seed: Option<u64>,
-    wait: Option<Duration>,
-    should_quit: bool,
-}
-
-pub enum RenderStrategy<'a> {
-    Screen {
-        events_loop: EventLoop<()>,
-        wait: Duration,
-        buffer: SimpleFrameBuffer<'a>,
-    },
+/// Where rendered frames go.
+pub(crate) enum Output {
+    /// Frames are saved as PNG files.
     File {
         base_path: PathBuf,
         number_width: usize,
-        buffer: Texture2d,
     },
+    /// Frames are sent to pages served on the web.
+    Serve { server: Server, paused: bool },
 }
 
 fn output_path(base_path: PathBuf, number_width: usize, frame_number: usize, seed: u64) -> PathBuf {
@@ -76,211 +56,204 @@ fn output_path(base_path: PathBuf, number_width: usize, frame_number: usize, see
 }
 
 /// A render gate renders frames.
-pub struct Renderer<'a> {
-    pub strategy: RenderStrategy<'a>,
-    pub gpu: &'a Gpu,
+pub(crate) struct Renderer {
+    pub output: Output,
+    pub gpu: Gpu,
     pub options: Options,
-    pub rng: StdRng,
-    pub output_width: u32,
-    pub output_height: u32,
 }
 
-impl<'a> Renderer<'a> {
-    /// Render all of the frames for the composition. This will not return until until all frames of
-    /// the composition have been rendered.
+impl Renderer {
+    /// Render all of the frames for the composition. When serving, this does
+    /// not return until a page asks for the composition to be rebuilt.
     pub fn render_frames(
         &mut self,
+        world: World,
+        rng: &mut StdRng,
         mut f: impl FnMut(Context, &mut Canvas),
-    ) -> Result<RenderReport> {
-        let default_shader = self.gpu.default_shader();
+    ) -> Result<Next> {
+        let seed = world.seed;
+        let (output_width, output_height) = world.output_size();
+        let frame_duration = Duration::from_secs_f64(1. / world.framerate as f64);
+        // Brainstorming to files renders one frame of each seed.
+        let frames = match (&self.output, self.options.brainstorm) {
+            (Output::File { .. }, true) => Some(1),
+            _ => world.frames,
+        };
+        let end_frame = frames.map(|f| f + self.options.delay);
+        let target = self.gpu.create_target(output_width, output_height);
+        let mut last_frame = None;
 
-        let end_frame = self.options.world.frames.map(|f| f + self.options.delay);
-        for frame in std::iter::successors(Some(0), move |last| {
-            if let Some(end_frame) = end_frame {
-                if last + 1 <= end_frame {
-                    Some(last + 1)
-                } else {
-                    None
-                }
-            } else {
-                Some(last + 1)
-            }
-        }) {
-            let mut canvas = Canvas::new(default_shader.clone(), self.options.world.scale);
+        for frame in (0..).take_while(|frame| end_frame.is_none_or(|end| *frame <= end)) {
+            let start = Instant::now();
+            let time = Duration::from_secs_f32(frame as f32 / world.framerate as f32);
+            let mut canvas = Canvas::new(self.gpu.default_shader(), world.scale);
             f(
                 Context {
-                    rng: &mut self.rng,
-                    world: self.options.world,
+                    rng,
+                    world: World { frames, ..world },
                     frame,
-                    time: Duration::from_secs_f32(
-                        frame as f32 / self.options.world.framerate as f32,
-                    ),
+                    time,
                 },
                 &mut canvas,
             );
 
-            let updates = self.render_frame(self.options.world.seed, frame, canvas)?;
-            if updates.should_quit {
-                return Ok(RenderReport {
-                    explicit_quit: true,
-                    rebuild: None,
-                });
-            }
+            self.gpu.render(
+                &target,
+                canvas.elements(),
+                FrameUniforms {
+                    scale: world.scale,
+                    time,
+                    sample_depth: self
+                        .options
+                        .sample_depth
+                        .unwrap_or(amicola::SampleDepth::Single),
+                },
+            )?;
 
-            if let Some(wait) = updates.wait {
-                std::thread::sleep(wait);
-            }
+            match &mut self.output {
+                Output::File {
+                    base_path,
+                    number_width,
+                } => {
+                    if frame > self.options.delay {
+                        image::save_buffer(
+                            output_path(base_path.clone(), *number_width, frame, seed),
+                            &self.gpu.read(&target)?,
+                            output_width,
+                            output_height,
+                            image::ExtendedColorType::Rgba8,
+                        )?;
+                    }
+                }
+                Output::Serve { server, paused } => {
+                    let mut header = FrameHeader {
+                        width: output_width,
+                        height: output_height,
+                        frame: frame as u64,
+                        render_micros: start.elapsed().as_micros() as u64,
+                        paused: *paused,
+                        max_dimension: self.gpu.max_dimension(),
+                        world: world.into(),
+                    };
+                    let pixels = self.gpu.read(&target)?;
+                    server.publish(&header, &pixels);
 
-            if let Some(new_seed) = updates.new_seed {
-                return Ok(RenderReport {
-                    explicit_quit: false,
-                    rebuild: Some(Rebuild::NewSeed(new_seed)),
-                });
+                    let wait = Wait::WhilePaused;
+                    if let Some(next) =
+                        serve_commands(server, paused, wait, world, &self.gpu, &mut header, &pixels)
+                    {
+                        return Ok(next);
+                    }
+                    last_frame = Some((header, pixels));
+
+                    std::thread::sleep(frame_duration.saturating_sub(start.elapsed()));
+                }
             }
         }
 
-        Ok(RenderReport {
-            explicit_quit: false,
-            rebuild: None,
-        })
-    }
-
-    fn render_frame(
-        &mut self,
-        current_seed: u64,
-        frame_number: usize,
-        canvas: Canvas,
-    ) -> Result<FrameUpdates> {
-        let sample_depth = self
-            .options
-            .sample_depth
-            .unwrap_or(amicola::SampleDepth::Single);
-
-        match &mut self.strategy {
-            RenderStrategy::Screen {
-                events_loop,
-                buffer,
-                wait,
-            } => {
-                self.gpu.render(
-                    self.output_width,
-                    self.output_height,
-                    canvas.elements(),
-                    buffer,
-                    sample_depth,
-                )?;
-
-                let rect = glium::Rect {
-                    left: 0,
-                    bottom: 0,
-                    width: self.output_width,
-                    height: self.output_height,
-                };
-
-                let blit_target = glium::BlitTarget {
-                    left: 0,
-                    bottom: 0,
-                    width: self.output_width as i32,
-                    height: self.output_height as i32,
-                };
-
-                let frame = self.gpu.get_frame().expect("getting frame from display");
-                frame.blit_from_simple_framebuffer(
-                    buffer,
-                    &rect,
-                    &blit_target,
-                    MagnifySamplerFilter::Nearest,
-                );
-                frame.finish()?;
-
-                let mut new_seed = None;
-                let mut should_quit = false;
-                events_loop.run_return(|event, _, control_flow| {
-                    use glutin::event::{
-                        DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode,
-                        WindowEvent,
-                    };
-                    match event {
-                        Event::DeviceEvent {
-                            event:
-                                DeviceEvent::Key(KeyboardInput {
-                                    virtual_keycode: Some(VirtualKeyCode::Escape),
-                                    ..
-                                }),
-                            ..
-                        } => {
-                            should_quit = true;
-                        }
-                        Event::DeviceEvent {
-                            event:
-                                DeviceEvent::Key(KeyboardInput {
-                                    state: ElementState::Released,
-                                    virtual_keycode: Some(VirtualKeyCode::R),
-                                    ..
-                                }),
-                            ..
-                        } => {
-                            new_seed = Some(random());
-                        }
-                        Event::WindowEvent {
-                            event: WindowEvent::CloseRequested,
-                            ..
-                        } => {
-                            should_quit = true;
-                        }
-                        _ => {}
+        match &mut self.output {
+            Output::File { .. } => Ok(Next::Done),
+            Output::Serve { .. } if self.options.brainstorm => Ok(Next::Rebuild(world)),
+            // Keep showing the last frame until a page asks for more.
+            Output::Serve { server, paused } => {
+                let (mut header, pixels) = last_frame.expect("serving renders a frame");
+                loop {
+                    let wait = Wait::Forever;
+                    if let Some(next) =
+                        serve_commands(server, paused, wait, world, &self.gpu, &mut header, &pixels)
+                    {
+                        return Ok(next);
                     }
-
-                    *control_flow = ControlFlow::Exit;
-                });
-
-                Ok(FrameUpdates {
-                    new_seed,
-                    wait: Some(*wait),
-                    should_quit,
-                })
-            }
-            RenderStrategy::File {
-                base_path,
-                number_width,
-                buffer,
-            } => {
-                self.gpu.render(
-                    self.output_width,
-                    self.output_height,
-                    canvas.elements(),
-                    &mut buffer.as_surface(),
-                    sample_depth,
-                )?;
-
-                if frame_number > self.options.delay {
-                    let raw: glium::texture::RawImage2d<u8> = self.gpu.read_to_ram(&buffer)?;
-                    let image: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_raw(
-                        self.output_width,
-                        self.output_height,
-                        raw.data
-                            .into_par_iter()
-                            .map(|v| v.convert::<f32>())
-                            .map(|v: f32| <Srgb as TransferFn>::from_linear(v))
-                            .map(|v| v.convert::<u8>())
-                            .collect(),
-                    )
-                    .unwrap();
-
-                    image.save(output_path(
-                        base_path.clone(),
-                        *number_width,
-                        frame_number,
-                        current_seed,
-                    ))?;
                 }
-
-                Ok(FrameUpdates {
-                    new_seed: None,
-                    wait: None,
-                    should_quit: false,
-                })
             }
+        }
+    }
+}
+
+/// When `serve_commands` waits for commands.
+enum Wait {
+    WhilePaused,
+    Forever,
+}
+
+/// Applies commands from pages until there are none left and `wait` allows
+/// returning. Returns what to do next if a command stops the composition.
+///
+/// When pausing or resuming, the current frame is sent again so pages see the
+/// change.
+fn serve_commands(
+    server: &Server,
+    paused: &mut bool,
+    wait: Wait,
+    world: World,
+    gpu: &Gpu,
+    header: &mut FrameHeader,
+    pixels: &[u8],
+) -> Option<Next> {
+    loop {
+        let command = match server.try_command() {
+            Some(command) => command,
+            None if *paused || matches!(wait, Wait::Forever) => server.wait_command(),
+            None => return None,
+        };
+
+        match command {
+            Command::NewSeed => {
+                return Some(Next::Rebuild(World {
+                    seed: random(),
+                    ..world
+                }))
+            }
+            Command::Restart => return Some(Next::Rebuild(world)),
+            Command::SetPaused(new_paused) => {
+                *paused = new_paused;
+                header.paused = new_paused;
+                server.publish(header, pixels);
+            }
+            Command::Rebuild(requested) => match checked_world(requested, gpu) {
+                Ok(world) => return Some(Next::Rebuild(world)),
+                Err(e) => eprintln!("Ignoring a request to rebuild: {}", e),
+            },
+        }
+    }
+}
+
+/// Converts a world requested by a page, if it can be rendered.
+fn checked_world(requested: protocol::World, gpu: &Gpu) -> Result<World> {
+    ensure!(
+        requested.scale.is_finite() && requested.scale > 0.,
+        "the scale must be greater than 0, but is {}",
+        requested.scale
+    );
+    ensure!(
+        requested.framerate >= 1,
+        "the frame rate must be at least 1, but is {}",
+        requested.framerate
+    );
+    let world = World {
+        seed: requested.seed,
+        width: requested.width,
+        height: requested.height,
+        scale: requested.scale,
+        frames: requested
+            .frames
+            .map(|frames| usize::try_from(frames).unwrap_or(usize::MAX)),
+        framerate: requested.framerate as usize,
+    };
+    let (output_width, output_height) = world.output_size();
+    gpu.check_target_size(output_width, output_height)?;
+    Ok(world)
+}
+
+impl From<World> for protocol::World {
+    fn from(world: World) -> Self {
+        Self {
+            seed: world.seed,
+            width: world.width,
+            height: world.height,
+            scale: world.scale,
+            frames: world.frames.map(|frames| frames as u64),
+            framerate: world.framerate.try_into().unwrap_or(u32::MAX),
         }
     }
 }

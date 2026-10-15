@@ -2,72 +2,90 @@
 
 use crate::{
     gpu::{Gpu, Shader},
-    uniforms::OwnedUniforms,
+    uniforms::UniformSet,
     Result,
 };
-use glium::Program;
-use glslwatch::GLSLTree;
-use std::{path::Path, rc::Rc};
+use anyhow::Context;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::SystemTime,
+};
 
-/// A dynamically reloaded GLSL program.
+/// A WGSL shader which is reloaded when its file changes.
+///
+/// The file defines a function which returns the linear RGBA color of each
+/// fragment of the paths it shades:
+///
+/// ```wgsl
+/// fn shade(fragment: Fragment) -> vec4<f32> {
+///     return fragment.color;
+/// }
+/// ```
+///
+/// Valora declares `Fragment`, the `valora` uniform with the output size,
+/// scale, and time, and `world_position(fragment)`; see
+/// `src/shaders/prelude.wgsl`. Uniforms bound with [`ShaderProgram::bind`] are
+/// available at `@group(1) @binding(0)`.
 pub struct ShaderProgram {
-    tree: GLSLTree,
     gpu: Gpu,
-    last_program: Option<Rc<Program>>,
-    last_shader: Shader,
+    path: PathBuf,
+    modified: Option<SystemTime>,
+    pipeline: Arc<wgpu::RenderPipeline>,
 }
 
 impl ShaderProgram {
-    /// Creates a dynamically reloaded glsl program from the given path.
-    pub fn new(gpu: &Gpu, glsl: impl AsRef<Path>) -> Result<Self> {
-        let include_paths: [String; 0] = [];
-        Self::new_with_include_paths(gpu, glsl, &include_paths)
-    }
-
-    /// Creates a new dynamically reloaded glsl program from the given path, searching the given
-    /// directories for `#include` paths.
-    pub fn new_with_include_paths<S: AsRef<Path>>(
-        gpu: &Gpu,
-        glsl: impl AsRef<Path>,
-        include_directories: &[S],
-    ) -> Result<Self> {
+    /// Compiles the WGSL shader at the given path.
+    pub fn new(gpu: &Gpu, path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref().to_path_buf();
+        let modified = modified(&path);
+        let pipeline = compile(gpu, &path)?;
         Ok(Self {
             gpu: gpu.clone(),
-            tree: GLSLTree::new(glsl, include_directories)?,
-            last_shader: gpu.default_shader(),
-            last_program: None,
+            path,
+            modified,
+            pipeline,
         })
     }
 
     /// Create a usable shader by binding uniform values.
-    pub fn bind(&mut self, uniforms: impl OwnedUniforms + 'static) -> Shader {
-        match self.try_bind(uniforms) {
-            Ok(shader) => shader,
-            Err(e) => {
-                eprintln!("Failed to load custom shader; error: {:?}", e);
-                self.last_shader.clone()
-            }
+    ///
+    /// If the shader's file has changed and no longer compiles, the error is
+    /// printed and the last version which compiled is used.
+    pub fn bind(&mut self, uniforms: impl UniformSet) -> Shader {
+        if let Err(e) = self.reload() {
+            eprintln!("Failed to reload shader; error: {:?}", e);
         }
+        self.gpu.build_shader(self.pipeline.clone(), &uniforms)
     }
 
-    pub fn try_bind(&mut self, uniforms: impl OwnedUniforms + 'static) -> Result<Shader> {
-        let program = if self.tree.expired()? {
-            let mut new_tree = self.tree.clone().refresh()?;
-            std::mem::swap(&mut self.tree, &mut new_tree);
-            let src = self.tree.render();
-            let program = self.gpu.compile_glsl(src)?;
-            self.last_program = Some(program.clone());
-            program
-        } else if let Some(program) = self.last_program.as_ref() {
-            program.clone()
-        } else {
-            let src = self.tree.render();
-            let program = self.gpu.compile_glsl(src)?;
-            self.last_program = Some(program.clone());
-            program
-        };
-
-        self.last_shader = self.gpu.build_shader(program, uniforms);
-        Ok(self.last_shader.clone())
+    /// Like `bind`, but returns the error if the shader's file has changed and
+    /// no longer compiles.
+    pub fn try_bind(&mut self, uniforms: impl UniformSet) -> Result<Shader> {
+        self.reload()?;
+        Ok(self.gpu.build_shader(self.pipeline.clone(), &uniforms))
     }
+
+    fn reload(&mut self) -> Result<()> {
+        let modified = modified(&self.path);
+        if modified == self.modified {
+            return Ok(());
+        }
+
+        // Only retry a broken file once it changes again.
+        self.modified = modified;
+        self.pipeline = compile(&self.gpu, &self.path)?;
+        Ok(())
+    }
+}
+
+fn modified(path: &Path) -> Option<SystemTime> {
+    std::fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+fn compile(gpu: &Gpu, path: &Path) -> Result<Arc<wgpu::RenderPipeline>> {
+    let source = std::fs::read_to_string(path)
+        .with_context(|| format!("reading shader {}", path.display()))?;
+    gpu.compile(&source)
+        .with_context(|| format!("compiling shader {}", path.display()))
 }
